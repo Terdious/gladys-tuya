@@ -1,9 +1,13 @@
 # -----------------------------------------------------------------------------
 # Build & publish the multi-architecture image.
 #
-# Trigger: a Git version tag (e.g. `v1.2.0`).
+# Trigger: a Git version tag (e.g. `v1.2.0`), or a manual run
+# (workflow_dispatch) on any branch to test the build.
 # Result: an image pushed to the GitHub Container Registry (ghcr.io), for
 # linux/amd64 AND linux/arm64 (Raspberry Pi, etc.).
+#
+# Manual runs tag the image with the branch name (or the `image-tag` input)
+# and never touch `latest`.
 #
 # That is ALL it takes to "publish": tag, push, and the decentralized indexer
 # does the rest (no review, no account to create).
@@ -14,6 +18,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag to publish (defaults to the branch name)'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -38,12 +48,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Derive image tag from Git tag
+      - name: Derive image tags
         id: meta
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image-tag }}
         run: |
-          # v1.2.0 -> 1.2.0
-          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # Manual test build: use the input tag, or the branch name
+            # (slashes replaced by dashes). Never move `latest`.
+            version="${INPUT_IMAGE_TAG:-${GITHUB_REF_NAME//\//-}}"
+            if [ "$version" = "latest" ]; then
+              echo "::error::Cannot use 'latest' as a manual image tag."
+              exit 1
+            fi
+            tags="${image}:${version}"
+          else
+            # v1.2.0 -> 1.2.0
+            version="${GITHUB_REF_NAME#v}"
+            tags="${image}:${version},${image}:latest"
+          fi
+          echo "image_ref=${image}:${version}" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Build and push (amd64 + arm64)
         uses: docker/build-push-action@v6
@@ -51,6 +77,31 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
-            ${{ steps.meta.outputs.image }}:latest
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Docker build summary
+        env:
+          IMAGE_REF: ${{ steps.meta.outputs.image_ref }}
+        run: |
+          # Manifest with `docker_image` pointing at the image just pushed,
+          # ready to paste into Gladys developer mode.
+          manifest=$(jq --arg image "$IMAGE_REF" '.docker_image = $image' \
+            gladys-assistant-integration.json)
+          {
+            echo "## Docker build summary"
+            echo ""
+            echo "Image pushed (linux/amd64 + linux/arm64):"
+            echo ""
+            echo '```'
+            echo "$IMAGE_REF"
+            echo '```'
+            echo ""
+            echo "### Test this build in Gladys"
+            echo ""
+            echo "1. In Gladys, open **Integrations → Install an integration → Developer mode**."
+            echo "2. Copy the manifest below (its \`docker_image\` already points to this build):"
+            echo ""
+            echo '```json'
+            echo "$manifest"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
