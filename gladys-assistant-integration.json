@@ -1,0 +1,65 @@
+{
+  "manifest_version": 1,
+  "type": "device",
+  "name": "Demo Devices Template",
+  "description": {
+    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
+    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+  },
+  "version": "1.0.0",
+  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "gladys_version": ">=4.62.0",
+  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
+  "config_schema": [
+    {
+      "key": "latitude",
+      "type": "number",
+      "label": { "en": "Latitude", "fr": "Latitude" },
+      "description": {
+        "en": "Latitude used for the demo weather sensor.",
+        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      },
+      "required": true,
+      "default": 48.8566,
+      "min": -90,
+      "max": 90
+    },
+    {
+      "key": "longitude",
+      "type": "number",
+      "label": { "en": "Longitude", "fr": "Longitude" },
+      "description": {
+        "en": "Longitude used for the demo weather sensor.",
+        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      },
+      "required": true,
+      "default": 2.3522,
+      "min": -180,
+      "max": 180
+    },
+    {
+      "key": "unit",
+      "type": "select",
+      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "required": false,
+      "default": "celsius",
+      "options": [
+        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
+        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+      ]
+    },
+    {
+      "key": "poll_frequency",
+      "type": "number",
+      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "description": {
+        "en": "How often sensors are polled, in seconds.",
+        "fr": "Fréquence d'interrogation des capteurs, en secondes."
+      },
+      "required": false,
+      "default": 300,
+      "min": 30,
+      "max": 3600
+    }
+  ]
+}
