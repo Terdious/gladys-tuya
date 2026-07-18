@@ -10,9 +10,9 @@ import { createFakeGladys } from '../helpers/fakeGladys.js';
 
 const CONFIG = normalizeConfig({
   endpoint: 'centralEurope',
-  accessKey: 'access-key',
-  secretKey: 'secret-key',
-  appAccountId: 'app-uid',
+  access_key: 'access-key',
+  secret_key: 'secret-key',
+  app_account_id: 'app-uid',
 });
 
 function createHandler() {
