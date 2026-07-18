@@ -47,8 +47,7 @@
     },
     {
       "key": "secretKey",
-      "type": "string",
-      "secret": true,
+      "type": "secret",
       "label": { "en": "Client Secret", "fr": "Client Secret" },
       "description": {
         "en": "Access Secret / Client Secret of your Tuya IoT cloud project.",
