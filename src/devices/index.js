@@ -1,23 +1,13 @@
 // -----------------------------------------------------------------------------
 // Device registry.
 //
-// Add or remove device types here. Each device lives in its own file and
-// exposes the same shape:
-//   - key                        : short identifier (used in logs)
-//   - deviceExternalId(gladys)   : the device external_id (for dispatch)
-//   - buildDevice(gladys, config): the discovery payload sent to Gladys
-//   - onPoll(gladys, config)      (optional): periodic read
-//   - onSetValue(gladys, {...})   (optional): run a user command
-//   - startPush(gladys, config)   (optional): subscribe to a real-time stream
+// One file per Tuya device type will live in this folder (smart-socket,
+// smart-meter...). The registry is empty for now: the demo devices of the
+// template have been removed, and the Tuya device types are added by the
+// next pull requests.
 // -----------------------------------------------------------------------------
 
-import { weatherStation } from './weatherStation.js';
-import { switchDevice } from './switchDevice.js';
-import { light } from './light.js';
-import { plug } from './plug.js';
-import { motionSensor } from './motionSensor.js';
-
-export const DEVICE_BLUEPRINTS = [weatherStation, switchDevice, light, plug, motionSensor];
+export const DEVICE_BLUEPRINTS = [];
 
 /**
  * Build the discovery payload for Gladys (all devices).

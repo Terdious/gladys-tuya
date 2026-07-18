@@ -1,65 +1,83 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Tuya",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Connect your Tuya / Smart Life devices to Gladys Assistant: smart sockets and smart energy meters, over the Tuya cloud with optional local (LAN) control.",
+    "fr": "Connectez vos appareils Tuya / Smart Life à Gladys Assistant : prises connectées et compteurs d'énergie, via le cloud Tuya avec contrôle local (LAN) optionnel."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/terdious/gladys-tuya:1.0.0",
   "gladys_version": ">=4.62.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
+  "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/main/cover.png",
   "config_schema": [
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
-    },
-    {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
+      "key": "endpoint",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
+      "label": { "en": "Endpoint", "fr": "Endpoint" },
+      "description": {
+        "en": "Tuya data center region of your cloud project.",
+        "fr": "Région du data center Tuya de votre projet cloud."
+      },
+      "required": true,
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        { "value": "china", "label": { "en": "China", "fr": "China" } },
+        {
+          "value": "westernAmerica",
+          "label": { "en": "Western America", "fr": "Western America" }
+        },
+        {
+          "value": "easternAmerica",
+          "label": { "en": "Eastern America", "fr": "Eastern America" }
+        },
+        { "value": "centralEurope", "label": { "en": "Central Europe", "fr": "Central Europe" } },
+        { "value": "westernEurope", "label": { "en": "Western Europe", "fr": "Western Europe" } },
+        { "value": "india", "label": { "en": "India", "fr": "India" } }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "accessKey",
+      "type": "string",
+      "label": { "en": "Client ID", "fr": "Client ID" },
       "description": {
-        "en": "How often sensors are polled, in seconds.",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes."
+        "en": "Access ID / Client ID of your Tuya IoT cloud project.",
+        "fr": "Access ID / Client ID de votre projet cloud Tuya IoT."
       },
-      "required": false,
-      "default": 300,
-      "min": 30,
-      "max": 3600
+      "required": true
+    },
+    {
+      "key": "secretKey",
+      "type": "string",
+      "secret": true,
+      "label": { "en": "Client Secret", "fr": "Client Secret" },
+      "description": {
+        "en": "Access Secret / Client Secret of your Tuya IoT cloud project.",
+        "fr": "Access Secret / Client Secret de votre projet cloud Tuya IoT."
+      },
+      "required": true
+    },
+    {
+      "key": "appAccountId",
+      "type": "string",
+      "label": { "en": "App account UID", "fr": "App account User ID" },
+      "description": {
+        "en": "UID of the Smart Life / Tuya app account linked to your cloud project.",
+        "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
+      },
+      "required": true
+    },
+    {
+      "key": "appUsername",
+      "type": "string",
+      "label": {
+        "en": "Smart Life username (optional)",
+        "fr": "Identifiant Smart Life (optionnel)"
+      },
+      "description": {
+        "en": "Smart Life account email or phone.",
+        "fr": "Email ou téléphone du compte Smart Life."
+      },
+      "required": false
     }
   ]
 }
