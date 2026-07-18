@@ -408,9 +408,9 @@ test('setValue falls back to the cloud when the local set fails', async () => {
 
 const CONFIG = normalizeConfig({
   endpoint: 'centralEurope',
-  accessKey: 'a',
-  secretKey: 's',
-  appAccountId: 'u',
+  access_key: 'a',
+  secret_key: 's',
+  app_account_id: 'u',
 });
 
 test('tryReconnect does nothing when auto-reconnect is not allowed', async () => {

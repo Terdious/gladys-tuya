@@ -3,8 +3,8 @@
   "type": "device",
   "name": "Tuya",
   "description": {
-    "en": "Connect your Tuya / Smart Life devices to Gladys Assistant: smart sockets and smart energy meters, over the Tuya cloud with optional local (LAN) control.",
-    "fr": "Connectez vos appareils Tuya / Smart Life à Gladys Assistant : prises connectées et compteurs d'énergie, via le cloud Tuya avec contrôle local (LAN) optionnel."
+    "en": "Tuya / Smart Life smart sockets and energy meters over the cloud, with optional local control.",
+    "fr": "Prises et compteurs d'énergie Tuya / Smart Life via le cloud, avec contrôle local optionnel."
   },
   "version": "1.0.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.0.0",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "key": "accessKey",
+      "key": "access_key",
       "type": "string",
       "label": { "en": "Client ID", "fr": "Client ID" },
       "description": {
@@ -47,7 +47,7 @@
       "required": true
     },
     {
-      "key": "secretKey",
+      "key": "secret_key",
       "type": "secret",
       "label": { "en": "Client Secret", "fr": "Client Secret" },
       "description": {
@@ -57,7 +57,7 @@
       "required": true
     },
     {
-      "key": "appAccountId",
+      "key": "app_account_id",
       "type": "string",
       "label": { "en": "App account UID", "fr": "App account User ID" },
       "description": {
@@ -67,7 +67,7 @@
       "required": true
     },
     {
-      "key": "appUsername",
+      "key": "app_username",
       "type": "string",
       "label": {
         "en": "Smart Life username (optional)",
