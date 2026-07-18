@@ -1,30 +1,33 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  DEVICE_BLUEPRINTS,
-  buildDiscoveredDevices,
-  findBlueprintByDevice,
-} from '../src/devices/index.js';
-import { normalizeConfig } from '../src/config.js';
-import { createFakeGladys } from './helpers/fakeGladys.js';
+import { DEVICE_TYPE_DEFINITIONS, globalCloudMapping } from '../src/devices/index.js';
 
-const gladys = createFakeGladys();
-const config = normalizeConfig();
-
-test('every blueprint exposes the required shape', () => {
-  for (const bp of DEVICE_BLUEPRINTS) {
-    assert.equal(typeof bp.key, 'string', 'key must be a string');
-    assert.equal(typeof bp.deviceExternalId, 'function', 'deviceExternalId must be a function');
-    assert.equal(typeof bp.buildDevice, 'function', 'buildDevice must be a function');
+test('every device type definition exposes the required shape', () => {
+  for (const definition of DEVICE_TYPE_DEFINITIONS) {
+    assert.equal(typeof definition.DEVICE_TYPE_NAME, 'string');
+    assert.ok(definition.CATEGORIES instanceof Set);
+    assert.ok(definition.PRODUCT_IDS instanceof Set);
+    assert.ok(Array.isArray(definition.KEYWORDS));
+    assert.ok(definition.REQUIRED_CODES instanceof Set);
+    assert.equal(typeof definition.CLOUD_MAPPINGS, 'object');
   }
 });
 
-test('buildDiscoveredDevices returns one payload per blueprint', () => {
-  const devices = buildDiscoveredDevices(gladys, config);
-  assert.equal(devices.length, DEVICE_BLUEPRINTS.length);
+test('device type names are unique', () => {
+  const names = DEVICE_TYPE_DEFINITIONS.map((d) => d.DEVICE_TYPE_NAME);
+  assert.equal(new Set(names).size, names.length);
 });
 
-test('findBlueprintByDevice returns undefined for an unknown device', () => {
-  const found = findBlueprintByDevice(gladys, { external_id: 'does-not-exist' });
-  assert.equal(found, undefined);
+test('every cloud mapping entry declares a category and a type', () => {
+  const allMappings = [globalCloudMapping, ...DEVICE_TYPE_DEFINITIONS.map((d) => d.CLOUD_MAPPINGS)];
+  for (const mapping of allMappings) {
+    for (const [code, entry] of Object.entries(mapping)) {
+      if (code === 'ignoredCodes') {
+        assert.ok(Array.isArray(entry));
+        continue;
+      }
+      assert.equal(typeof entry.category, 'string', `${code} has a category`);
+      assert.equal(typeof entry.type, 'string', `${code} has a type`);
+    }
+  }
 });

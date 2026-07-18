@@ -19,8 +19,9 @@
 import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './src/config.js';
 import { TuyaHandler } from './src/tuya/handler.js';
-import { STATUS, DEVICE_EXTERNAL_ID_TYPE } from './src/tuya/constants.js';
+import { STATUS } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
+import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -28,20 +29,9 @@ const tuya = new TuyaHandler(gladys);
 // Current configuration (hot-reloaded via onConfigUpdated).
 let config = normalizeConfig();
 
-/**
- * Convert the discovered raw Tuya devices to minimal Gladys discovery
- * payloads. The full conversion (features, params...) is ported in the next
- * pull request; this already gives every device its final external_id.
- */
+/** Convert the discovered raw Tuya devices to Gladys discovery payloads. */
 function buildDiscoveredDevices(tuyaDevices) {
-  return tuyaDevices.map((tuyaDevice) => {
-    const ids = gladys.externalIds(DEVICE_EXTERNAL_ID_TYPE, tuyaDevice.id);
-    return {
-      name: tuyaDevice.name || `Tuya ${tuyaDevice.id}`,
-      external_id: ids.device,
-      features: [],
-    };
-  });
+  return tuyaDevices.map((tuyaDevice) => convertDevice(gladys, tuyaDevice));
 }
 
 /** Connect the handler to the Tuya cloud with the current configuration. */
@@ -68,6 +58,17 @@ async function discoverAndPublish() {
 gladys.onScanRequest(async () => {
   logger.info('onScanRequest -> discovering Tuya devices');
   await discoverAndPublish();
+});
+
+// --- Command: the user acts on a controllable feature ------------------------
+gladys.onSetValue(async (device, feature, value) => {
+  logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
+  await tuya.setValue(device, feature, value);
+});
+
+// --- Polling: Gladys asks to refresh a device --------------------------------
+gladys.onPoll(async (device) => {
+  await tuya.poll(device);
 });
 
 // --- Configuration updated by the user ---------------------------------------
