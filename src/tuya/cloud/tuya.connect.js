@@ -118,7 +118,7 @@ export async function connect(configuration) {
   try {
     await this.connector.client.init();
     await validateAppAccount(this.connector, appAccountId);
-    this.manualDisconnect = false;
+    this.manualDisconnectEnabled = false;
     this.lastConnectedConfigHash = buildConfigHash(configuration);
     this.autoReconnectAllowed = true;
     this.status = STATUS.CONNECTED;

@@ -61,6 +61,29 @@ const cloudMapping = {
   },
 };
 
+// LAN mapping (ported from lib/mappings/local/smart-socket.js): strict, so
+// only the listed codes are read/written locally.
+const localMapping = {
+  strict: true,
+  ignoredDps: ['11'],
+  codeAliases: {
+    switch: ['power'],
+    power: ['switch'],
+    switch_1: ['switch', 'power'],
+    switch_2: ['switch'],
+    switch_3: ['switch'],
+    switch_4: ['switch'],
+  },
+  dps: {
+    switch: 1,
+    power: 1,
+    switch_1: 1,
+    switch_2: 2,
+    switch_3: 3,
+    switch_4: 4,
+  },
+};
+
 export const smartSocket = {
   DEVICE_TYPE_NAME: 'smart-socket',
   CATEGORIES: new Set(['cz']),
@@ -68,4 +91,5 @@ export const smartSocket = {
   KEYWORDS: ['socket', 'plug', 'outlet', 'prise'],
   REQUIRED_CODES: SWITCH_CODES,
   CLOUD_MAPPINGS: cloudMapping,
+  LOCAL_MAPPINGS: localMapping,
 };

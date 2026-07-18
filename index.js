@@ -22,6 +22,7 @@ import { TuyaHandler } from './src/tuya/handler.js';
 import { STATUS } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
 import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
+import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -44,13 +45,25 @@ async function connectTuya() {
   await tuya.connect(config);
 }
 
-/** Run a cloud discovery and publish the result to Gladys. */
+/**
+ * Run a cloud discovery, enrich it with a LAN scan (UDP broadcast), and
+ * publish the result to Gladys. The LAN scan is best-effort: inside the
+ * sandboxed container the broadcasts may not be reachable, in which case the
+ * devices simply stay in cloud mode.
+ */
 async function discoverAndPublish() {
   if (tuya.status !== STATUS.CONNECTED) {
     logger.warn(`Tuya discovery skipped (status=${tuya.status})`);
     return;
   }
-  const tuyaDevices = await tuya.discoverDevices();
+  let tuyaDevices = await tuya.discoverDevices();
+  try {
+    const scan = await tuya.localScan({ timeoutSeconds: 10 });
+    tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices);
+    tuya.discoveredDevices = tuyaDevices;
+  } catch (err) {
+    logger.warn('Tuya local scan failed (cloud discovery still published)', err);
+  }
   await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
 }
 
@@ -79,7 +92,9 @@ gladys.onConfigUpdated(async (newConfig) => {
   if (buildConfigHash(config) === previousHash && tuya.status === STATUS.CONNECTED) {
     return;
   }
+  tuya.disconnect();
   await connectTuya();
+  tuya.startReconnect();
   await discoverAndPublish();
 });
 
@@ -92,6 +107,7 @@ gladys.on('connected', async () => {
 
     // 2) Connect to the Tuya cloud and publish the devices.
     await connectTuya();
+    tuya.startReconnect();
     await discoverAndPublish();
   } catch (err) {
     logger.error('Post-connection initialization failed', err);
@@ -107,6 +123,7 @@ gladys.on('disconnected', () => {
 // the container (SIGTERM/SIGINT).
 gladys.handleShutdown((signal) => {
   logger.info(`Received ${signal} -> graceful shutdown`);
+  tuya.disconnect();
 });
 
 // --- Startup -----------------------------------------------------------------
