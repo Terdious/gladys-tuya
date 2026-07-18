@@ -16,7 +16,7 @@ RUN apk add --no-cache dumb-init
 WORKDIR /app
 
 # Install the PROD dependencies first (better build cache).
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* *.tgz ./
 RUN npm ci --omit=dev || npm install --omit=dev
 
 # Then the integration code.
