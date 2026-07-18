@@ -105,6 +105,58 @@ test('createScanCollector ignores unparseable packets', () => {
   assert.deepEqual(devices, {});
 });
 
+test('localScan runs a mediated udp-broadcast scan and parses the relayed payloads', async () => {
+  const { MessageParser, CommandType } = require('@demirdeniz/tuyapi-newgen/lib/message-parser.js');
+  const { UDP_KEY } = require('@demirdeniz/tuyapi-newgen/lib/config.js');
+  const parser = new MessageParser({ key: UDP_KEY, version: 3.1 });
+  const packet = parser.encode({
+    data: { ip: '192.168.1.50', gwId: 'dev1', productKey: 'pk', version: '3.3' },
+    commandByte: CommandType.UDP_NEW,
+    sequenceN: 0,
+  });
+
+  const gladys = createFakeGladys();
+  let scanArgs = null;
+  gladys.scanNetwork = async (type, options) => {
+    scanArgs = { type, options };
+    return [
+      { source_ip: '192.168.1.50', source_port: 6667, payload_base64: packet.toString('base64') },
+      { source_ip: '1.2.3.4', source_port: 6666, payload_base64: 'bm90IHR1eWE=' },
+    ];
+  };
+  const handler = new TuyaHandler(gladys);
+
+  const scan = await handler.localScan({ timeoutSeconds: 10 });
+
+  assert.deepEqual(scanArgs, { type: 'udp-broadcast', options: { timeoutSeconds: 10 } });
+  assert.deepEqual(scan.devices, {
+    dev1: { ip: '192.168.1.50', version: '3.3', productKey: 'pk' },
+  });
+});
+
+test('localScan clamps the timeout to an integer between 1 and 30 seconds', async () => {
+  const gladys = createFakeGladys();
+  const timeouts = [];
+  gladys.scanNetwork = async (type, options) => {
+    timeouts.push(options.timeoutSeconds);
+    return [];
+  };
+  const handler = new TuyaHandler(gladys);
+
+  await handler.localScan({ timeoutSeconds: 90 });
+  await handler.localScan({ timeoutSeconds: 2.6 });
+  await handler.localScan({ timeoutSeconds: 'not-a-number' });
+
+  assert.deepEqual(timeouts, [30, 3, 10]);
+});
+
+test('localScan degrades gracefully when the SDK has no scanNetwork', async () => {
+  const handler = new TuyaHandler(createFakeGladys());
+  const scan = await handler.localScan({ timeoutSeconds: 10 });
+  assert.deepEqual(scan.devices, {});
+  assert.equal(scan.unsupported, true);
+});
+
 test('applyLocalScanResults enriches matching devices and flags local_override', () => {
   const tuyaDevices = [
     {

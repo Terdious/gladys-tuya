@@ -46,10 +46,11 @@ async function connectTuya() {
 }
 
 /**
- * Run a cloud discovery, enrich it with a LAN scan (UDP broadcast), and
- * publish the result to Gladys. The LAN scan is best-effort: inside the
- * sandboxed container the broadcasts may not be reachable, in which case the
- * devices simply stay in cloud mode.
+ * Run a cloud discovery, enrich it with a LAN scan, and publish the result
+ * to Gladys. The LAN scan goes through the mediated network discovery of the
+ * core (`gladys.scanNetwork`, `network_discovery` manifest field) because a
+ * bridge container never receives the LAN UDP broadcasts. Best-effort: if
+ * the scan is unavailable or fails, the devices simply stay in cloud mode.
  */
 async function discoverAndPublish() {
   if (tuya.status !== STATUS.CONNECTED) {

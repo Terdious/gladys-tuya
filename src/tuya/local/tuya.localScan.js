@@ -1,27 +1,27 @@
-// Ported from server/services/tuya/lib/tuya.localScan.js.
+// Ported from server/services/tuya/lib/tuya.localScan.js, adapted to the
+// MEDIATED network discovery of external integrations.
 //
-// Differences with the core service:
-// - the core exposed the scan through a manual API/UI button; here the scan
-//   runs as part of the discovery flow (onScanRequest), so the message
-//   handling is factored into createScanCollector for reuse and testing;
-// - buildLocalScanResponse (an API-response builder mixing stateManager
-//   merges) is replaced by applyLocalScanResults, which enriches the
-//   discovered raw Tuya devices with the LAN info (ip, protocol version,
-//   product key, local_override).
+// A bridge container never receives the UDP broadcasts Tuya devices send on
+// the LAN (ports 6666/6667/7000): only the core, which runs on the host
+// network, sees them. The scan therefore goes through the core: the manifest
+// declares the capture (`network_discovery` field), `gladys.scanNetwork`
+// asks the core to listen during the scan window, and the RAW captured
+// datagrams come back base64-encoded — "the core captures, the integration
+// interprets". The parsing below (createScanCollector) is exactly the
+// message handling of the core Tuya service, fed with the relayed payloads.
 //
-// NOTE: the scan listens for the UDP broadcasts Tuya devices send on ports
-// 6666/6667/7000 of the LAN. Inside the sandboxed integration container this
-// traffic may be unreachable (isolated network namespace); the scan then
-// simply finds no device and cloud mode keeps working.
+// Reaching the devices afterwards (poll/set) is plain unicast, which crosses
+// the bridge NAT — no mediation needed (see tuya.localPoll.js).
 
-import dgram from 'node:dgram';
 import { UDP_KEY } from '@demirdeniz/tuyapi-newgen/lib/config.js';
 import { MessageParser } from '@demirdeniz/tuyapi-newgen/lib/message-parser.js';
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 const logger = createLogger({ name: 'tuya' });
 
-const DEFAULT_PORTS = [6666, 6667, 7000];
+const DEFAULT_TIMEOUT_SECONDS = 10;
+const MIN_TIMEOUT_SECONDS = 1;
+const MAX_TIMEOUT_SECONDS = 30;
 
 /**
  * @description Create a collector that parses Tuya UDP broadcast packets and
@@ -97,59 +97,47 @@ export function createScanCollector() {
 }
 
 /**
- * @description Scan local network for Tuya devices (UDP broadcast).
+ * @description Scan the local network for Tuya devices through the mediated
+ * network discovery of the core (`gladys.scanNetwork`, `udp-broadcast`
+ * capture declared in the manifest).
  * @param {number|object} input - Scan duration in seconds or options.
- * @returns {Promise<object>} { devices: { deviceId: { ip, version, productKey } }, portErrors }.
+ * @returns {Promise<object>} { devices: { deviceId: { ip, version, productKey } }, unsupported? }.
  * @example
- * await localScan({ timeoutSeconds: 10 });
+ * await handler.localScan({ timeoutSeconds: 10 });
  */
-export async function localScan(input = 10) {
+export async function localScan(input = DEFAULT_TIMEOUT_SECONDS) {
   const options = typeof input === 'object' ? input || {} : { timeoutSeconds: input };
   const parsedTimeout = Number(options.timeoutSeconds);
+  // The host API requires an INTEGER between 1 and 30 seconds.
   const timeoutSeconds = Number.isFinite(parsedTimeout)
-    ? Math.min(Math.max(parsedTimeout, 1), 30)
-    : 10;
-  const portErrors = {};
-  const sockets = [];
+    ? Math.min(Math.max(Math.round(parsedTimeout), MIN_TIMEOUT_SECONDS), MAX_TIMEOUT_SECONDS)
+    : DEFAULT_TIMEOUT_SECONDS;
   const { devices, onMessage } = createScanCollector();
 
-  logger.info(
-    `[Tuya][localScan] Starting udp scan for ${timeoutSeconds}s on ports ${DEFAULT_PORTS.join(', ')}`,
-  );
+  if (!this.gladys || typeof this.gladys.scanNetwork !== 'function') {
+    // SDK (or Gladys) without mediated network discovery: LAN discovery is
+    // simply unavailable — devices stay in cloud mode.
+    logger.warn(
+      '[Tuya][localScan] Mediated network scan unavailable (SDK without scanNetwork); skipping LAN discovery',
+    );
+    return { devices, unsupported: true };
+  }
 
-  DEFAULT_PORTS.forEach((port) => {
-    const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-    socket.on('message', onMessage);
-    socket.on('error', (err) => {
-      portErrors[port] = err && err.message ? err.message : 'unknown';
-      logger.info(`[Tuya][localScan] UDP socket error on port ${port}: ${err.message}`);
-    });
-    socket.on('listening', () => {
-      try {
-        const address = socket.address();
-        logger.info(`[Tuya][localScan] Listening on ${address.address}:${address.port}`);
-      } catch {
-        logger.info(`[Tuya][localScan] Listening on port ${port}`);
-      }
-    });
-    socket.bind({ port, address: '0.0.0.0', exclusive: false });
-    sockets.push(socket);
-  });
+  logger.info(`[Tuya][localScan] Starting mediated udp-broadcast scan for ${timeoutSeconds}s`);
+  const results = await this.gladys.scanNetwork('udp-broadcast', { timeoutSeconds });
 
-  await new Promise((resolve) => {
-    setTimeout(resolve, timeoutSeconds * 1000);
-  });
-
-  sockets.forEach((socket) => {
-    try {
-      socket.close();
-    } catch {
-      // ignore
+  (Array.isArray(results) ? results : []).forEach((result) => {
+    if (!result || typeof result.payload_base64 !== 'string') {
+      return;
     }
+    onMessage(Buffer.from(result.payload_base64, 'base64'), {
+      address: result.source_ip,
+      port: result.source_port,
+    });
   });
 
   logger.info(`[Tuya][localScan] Scan complete. Found ${Object.keys(devices).length} device(s).`);
-  return { devices, portErrors };
+  return { devices };
 }
 
 /**
