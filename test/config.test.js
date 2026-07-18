@@ -11,10 +11,10 @@ test('normalizeConfig returns the defaults (plus baseUrl) when called with no ar
 test('normalizeConfig keeps user values over the defaults', () => {
   const config = normalizeConfig({
     endpoint: 'centralEurope',
-    accessKey: 'my-access-key',
-    secretKey: 'my-secret-key',
-    appAccountId: 'my-uid',
-    appUsername: 'user@example.com',
+    access_key: 'my-access-key',
+    secret_key: 'my-secret-key',
+    app_account_id: 'my-uid',
+    app_username: 'user@example.com',
   });
   assert.equal(config.endpoint, 'centralEurope');
   assert.equal(config.accessKey, 'my-access-key');
@@ -34,7 +34,7 @@ test('normalizeConfig falls back to the China endpoint for an unknown region', (
 });
 
 test('normalizeConfig trims values coming from a form', () => {
-  const config = normalizeConfig({ accessKey: '  key  ', endpoint: ' centralEurope ' });
+  const config = normalizeConfig({ access_key: '  key  ', endpoint: ' centralEurope ' });
   assert.equal(config.accessKey, 'key');
   assert.equal(config.endpoint, 'centralEurope');
   assert.equal(config.baseUrl, TUYA_ENDPOINTS.centralEurope);
@@ -43,16 +43,16 @@ test('normalizeConfig trims values coming from a form', () => {
 test('isConfigured requires the cloud credentials and the app account UID', () => {
   assert.equal(isConfigured(normalizeConfig()), false);
   assert.equal(
-    isConfigured(normalizeConfig({ endpoint: 'centralEurope', accessKey: 'a', secretKey: 's' })),
+    isConfigured(normalizeConfig({ endpoint: 'centralEurope', access_key: 'a', secret_key: 's' })),
     false,
   );
   assert.equal(
     isConfigured(
       normalizeConfig({
         endpoint: 'centralEurope',
-        accessKey: 'a',
-        secretKey: 's',
-        appAccountId: 'u',
+        access_key: 'a',
+        secret_key: 's',
+        app_account_id: 'u',
       }),
     ),
     true,
@@ -62,9 +62,9 @@ test('isConfigured requires the cloud credentials and the app account UID', () =
 test('isConfigured does not require the optional Smart Life username', () => {
   const config = normalizeConfig({
     endpoint: 'westernEurope',
-    accessKey: 'a',
-    secretKey: 's',
-    appAccountId: 'u',
+    access_key: 'a',
+    secret_key: 's',
+    app_account_id: 'u',
   });
   assert.equal(config.appUsername, '');
   assert.equal(isConfigured(config), true);
