@@ -240,7 +240,12 @@ export async function poll(device) {
   }
   await Promise.all(this.pendingStates);
   this.pendingStates = [];
-  logger.debug(
-    `[Tuya][poll] device=${topic} mode=cloud cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing}`,
-  );
+  const summaryLine = `[Tuya][poll] device=${topic} mode=cloud features=${deviceFeatures.length} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing}`;
+  // Surface a poll that actually published states at info level so state
+  // feedback is visible in `docker logs` without LOG_LEVEL=debug.
+  if (cloudSummary.changed > 0) {
+    logger.info(summaryLine);
+  } else {
+    logger.debug(summaryLine);
+  }
 }
