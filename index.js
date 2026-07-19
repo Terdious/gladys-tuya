@@ -35,6 +35,27 @@ function buildDiscoveredDevices(tuyaDevices) {
   return tuyaDevices.map((tuyaDevice) => convertDevice(gladys, tuyaDevice));
 }
 
+/**
+ * Rebuild the full device for a poll/setValue command. The core sends only
+ * `{ external_id, selector, params }` over the WebSocket — NOT the features
+ * nor the device_type. Pull those from the user devices cached by the SDK
+ * (refreshed from GET /device on connect and on every device-* event), so
+ * poll knows which features to read and setValue can resolve the local DPS.
+ */
+function resolveDevice(device) {
+  const known = (gladys.devices || []).find((d) => d.external_id === device.external_id);
+  if (!known) {
+    return device;
+  }
+  return {
+    ...known,
+    ...device,
+    // The command params are the current ones; keep the cached features/type.
+    features: Array.isArray(known.features) ? known.features : [],
+    device_type: known.device_type,
+  };
+}
+
 /** Connect the handler to the Tuya cloud with the current configuration. */
 async function connectTuya() {
   if (!isConfigured(config)) {
@@ -91,12 +112,12 @@ gladys.onScanRequest(async () => {
 // --- Command: the user acts on a controllable feature ------------------------
 gladys.onSetValue(async (device, feature, value) => {
   logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
-  await tuya.setValue(device, feature, value);
+  await tuya.setValue(resolveDevice(device), feature, value);
 });
 
 // --- Polling: Gladys asks to refresh a device --------------------------------
 gladys.onPoll(async (device) => {
-  await tuya.poll(device);
+  await tuya.poll(resolveDevice(device));
 });
 
 // --- Configuration updated by the user ---------------------------------------

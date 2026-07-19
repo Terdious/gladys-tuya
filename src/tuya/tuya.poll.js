@@ -388,7 +388,12 @@ export async function poll(device) {
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
   await finish();
-  logger.debug(
-    `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`,
-  );
+  const summaryLine = `[Tuya][poll] device=${topic} mode=${modeUsed} features=${deviceFeatures.length} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`;
+  // Surface a poll that actually published states at info level so the local
+  // vs cloud path and state feedback are visible without LOG_LEVEL=debug.
+  if (localChanged > 0 || cloudSummary.changed > 0) {
+    logger.info(summaryLine);
+  } else {
+    logger.debug(summaryLine);
+  }
 }
