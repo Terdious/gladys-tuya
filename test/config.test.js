@@ -23,6 +23,13 @@ test('normalizeConfig keeps user values over the defaults', () => {
   assert.equal(config.appUsername, 'user@example.com');
 });
 
+test('normalizeConfig reads local_mode as a boolean, off by default', () => {
+  assert.equal(normalizeConfig().localMode, false);
+  assert.equal(normalizeConfig({ local_mode: true }).localMode, true);
+  assert.equal(normalizeConfig({ local_mode: 'true' }).localMode, true);
+  assert.equal(normalizeConfig({ local_mode: false }).localMode, false);
+});
+
 test('normalizeConfig resolves the base URL from the endpoint region', () => {
   const config = normalizeConfig({ endpoint: 'centralEurope' });
   assert.equal(config.baseUrl, 'https://openapi.tuyaeu.com');

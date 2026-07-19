@@ -78,6 +78,20 @@
         "fr": "Email ou téléphone du compte Smart Life."
       },
       "required": false
+    },
+    {
+      "key": "local_mode",
+      "type": "boolean",
+      "label": {
+        "en": "Local mode (LAN)",
+        "fr": "Mode local (LAN)"
+      },
+      "description": {
+        "en": "Poll and control devices over the LAN when reachable, cloud otherwise.",
+        "fr": "Interroge et pilote les appareils en LAN quand c'est possible, cloud sinon."
+      },
+      "required": false,
+      "default": false
     }
   ]
 }

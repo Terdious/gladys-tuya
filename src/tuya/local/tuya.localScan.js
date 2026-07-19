@@ -145,13 +145,21 @@ export async function localScan(input = DEFAULT_TIMEOUT_SECONDS) {
  * the LAN info found by the UDP scan (ip, protocol version, product key).
  * Devices seen on the LAN are flagged local_override so their conversion
  * stores the local params and the faster poll frequency.
+ * The LAN info (ip, protocol version, product key) is always stored so a
+ * device CAN be reached locally, but `local_override` (poll/control the
+ * device over the LAN instead of the cloud) is only enabled when the user
+ * opted into local mode through the configuration. This mirrors the core
+ * service, where the UDP scan filled the LAN info and `local_override` was a
+ * separate, explicit per-device choice (default: cloud) — here it is a single
+ * global toggle since the external configuration UI has no per-device switch.
  * @param {Array} tuyaDevices - Raw Tuya devices (cloud discovery).
  * @param {object} localDevicesById - UDP scan result (deviceId -> info).
+ * @param {boolean} [localMode] - Whether the user enabled local mode.
  * @returns {Array} Enriched raw Tuya devices.
  * @example
- * applyLocalScanResults(tuyaDevices, scan.devices);
+ * applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
  */
-export function applyLocalScanResults(tuyaDevices, localDevicesById) {
+export function applyLocalScanResults(tuyaDevices, localDevicesById, localMode = false) {
   const localById = localDevicesById || {};
   return (tuyaDevices || []).map((device) => {
     const localInfo = localById[device.id];
@@ -169,7 +177,11 @@ export function applyLocalScanResults(tuyaDevices, localDevicesById) {
         localInfo.productKey !== undefined && localInfo.productKey !== null
           ? localInfo.productKey
           : device.product_key,
-      local_override: true,
+      // Only opt a device into local polling/control when the user asked for
+      // it: LAN unicast is not guaranteed from the sandboxed bridge network,
+      // and a device already held by another local client (e.g. Home
+      // Assistant) refuses the connection.
+      local_override: localMode === true,
     };
   });
 }

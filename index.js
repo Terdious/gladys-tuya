@@ -70,7 +70,7 @@ function discoverAndPublish() {
     let tuyaDevices = await tuya.discoverDevices();
     try {
       const scan = await tuya.localScan({ timeoutSeconds: 10 });
-      tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices);
+      tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
       tuya.discoveredDevices = tuyaDevices;
     } catch (err) {
       logger.warn('Tuya local scan failed (cloud discovery still published)', err);

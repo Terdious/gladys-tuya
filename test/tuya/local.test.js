@@ -157,35 +157,51 @@ test('localScan degrades gracefully when the SDK has no scanNetwork', async () =
   assert.equal(scan.unsupported, true);
 });
 
-test('applyLocalScanResults enriches matching devices and flags local_override', () => {
-  const tuyaDevices = [
-    {
-      id: 'dev1',
-      name: 'Socket',
-      cloud_ip: '82.1.1.1',
-      ip: null,
-      protocol_version: null,
-      local_override: false,
-    },
-    {
-      id: 'dev2',
-      name: 'Other',
-      cloud_ip: '82.1.1.2',
-      ip: null,
-      protocol_version: null,
-      local_override: false,
-    },
-  ];
-  const enriched = applyLocalScanResults(tuyaDevices, {
+const scannedDevices = () => [
+  {
+    id: 'dev1',
+    name: 'Socket',
+    cloud_ip: '82.1.1.1',
+    ip: null,
+    protocol_version: null,
+    local_override: false,
+  },
+  {
+    id: 'dev2',
+    name: 'Other',
+    cloud_ip: '82.1.1.2',
+    ip: null,
+    protocol_version: null,
+    local_override: false,
+  },
+];
+
+test('applyLocalScanResults enriches the LAN info but keeps cloud mode by default', () => {
+  const enriched = applyLocalScanResults(scannedDevices(), {
     dev1: { ip: '192.168.1.50', version: '3.3', productKey: 'pk' },
   });
 
+  // LAN info is always stored so the device CAN be reached locally...
   assert.equal(enriched[0].ip, '192.168.1.50');
   assert.equal(enriched[0].protocol_version, '3.3');
   assert.equal(enriched[0].product_key, 'pk');
-  assert.equal(enriched[0].local_override, true);
+  // ...but without local mode the device stays on the cloud.
+  assert.equal(enriched[0].local_override, false);
   assert.equal(enriched[1].local_override, false);
   assert.equal(enriched[1].ip, null);
+});
+
+test('applyLocalScanResults opts scanned devices into local mode when enabled', () => {
+  const enriched = applyLocalScanResults(
+    scannedDevices(),
+    { dev1: { ip: '192.168.1.50', version: '3.3', productKey: 'pk' } },
+    true,
+  );
+
+  // Only the device actually seen on the LAN is switched to local mode.
+  assert.equal(enriched[0].local_override, true);
+  assert.equal(enriched[0].ip, '192.168.1.50');
+  assert.equal(enriched[1].local_override, false);
 });
 
 // --- poll: local branch ------------------------------------------------------
