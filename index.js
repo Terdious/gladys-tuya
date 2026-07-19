@@ -42,6 +42,21 @@ function buildDiscoveredDevices(tuyaDevices) {
  * (refreshed from GET /device on connect and on every device-* event), so
  * poll knows which features to read and setValue can resolve the local DPS.
  */
+function mergeParams(base, override) {
+  const byName = new Map();
+  (Array.isArray(base) ? base : []).forEach((param) => {
+    if (param && param.name) {
+      byName.set(param.name, param);
+    }
+  });
+  (Array.isArray(override) ? override : []).forEach((param) => {
+    if (param && param.name) {
+      byName.set(param.name, param);
+    }
+  });
+  return [...byName.values()];
+}
+
 function resolveDevice(device) {
   const known = (gladys.devices || []).find((d) => d.external_id === device.external_id);
   if (!known) {
@@ -50,7 +65,14 @@ function resolveDevice(device) {
   return {
     ...known,
     ...device,
-    // The command params are the current ones; keep the cached features/type.
+    // The core poll/setValue command carries only a minimal device ref: the
+    // Tuya id resolves from the external_id, but the LOCAL params (ip /
+    // local_key / protocol_version / local_override) live only on the stored
+    // device. Use the cached (GET /device) params as the authoritative base so
+    // a minimal command can never drop them, then let any command param win by
+    // name. Without this, `{ ...known, ...device }` lets an empty command
+    // params array erase the local config and every poll silently stays cloud.
+    params: mergeParams(known.params, device.params),
     features: Array.isArray(known.features) ? known.features : [],
     device_type: known.device_type,
   };
