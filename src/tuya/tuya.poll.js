@@ -451,7 +451,9 @@ export async function poll(device) {
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
   await finish();
-  const summaryLine = `[Tuya][poll] device=${topic} mode=${modeUsed} strategy=${
+  const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${Boolean(
+    hasLocalConfig,
+  )} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'
   } features=${deviceFeatures.length} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`;
   // Surface a poll that actually published states at info level so the local
