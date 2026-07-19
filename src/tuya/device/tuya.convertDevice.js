@@ -20,11 +20,12 @@ import { getDeviceType, getIgnoredCloudCodes, DEVICE_TYPES } from '../mappings/i
 
 const logger = createLogger({ name: 'tuya' });
 
-// Poll frequencies, in seconds (external-integration convention): 10 s when
-// the device is polled on the LAN, 30 s through the cloud — the same cadence
-// as the core EVERY_10_SECONDS / EVERY_30_SECONDS constants.
-const POLL_FREQUENCY_LOCAL = 10;
-const POLL_FREQUENCY_CLOUD = 30;
+// Poll frequencies in milliseconds: the core validates discovered devices
+// against its DEVICE_POLL_FREQUENCIES list (ms values), so these are exactly
+// the core EVERY_10_SECONDS / EVERY_30_SECONDS constants used by the native
+// Tuya service.
+const POLL_FREQUENCY_LOCAL = 10 * 1000;
+const POLL_FREQUENCY_CLOUD = 30 * 1000;
 
 const parseFeatureValues = (values) => {
   if (!values || typeof values !== 'object') {
