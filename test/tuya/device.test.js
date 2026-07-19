@@ -167,7 +167,7 @@ test('convertDevice converts a smart socket', () => {
   assert.equal(device.name, 'Office socket');
   assert.equal(device.device_type, DEVICE_TYPES.SMART_SOCKET);
   assert.equal(device.model, 'Smart Socket');
-  assert.equal(device.poll_frequency, 30);
+  assert.equal(device.poll_frequency, 30000);
   assert.equal(device.should_poll, true);
   assert.equal(device.online, true);
 
@@ -229,7 +229,7 @@ test('convertDevice marks local-override devices with the faster poll frequency'
     protocol_version: '3.3',
     local_override: true,
   });
-  assert.equal(device.poll_frequency, 10);
+  assert.equal(device.poll_frequency, 10000);
   const params = Object.fromEntries(device.params.map((p) => [p.name, p.value]));
   assert.equal(params[DEVICE_PARAM_NAME.LOCAL_OVERRIDE], true);
   assert.equal(params[DEVICE_PARAM_NAME.IP_ADDRESS], '192.168.1.30');
