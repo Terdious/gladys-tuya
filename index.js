@@ -45,6 +45,12 @@ async function connectTuya() {
   await tuya.connect(config);
 }
 
+// In-flight discovery run: connection events and scan requests can overlap,
+// and the core allows a single mediated network scan at a time per
+// integration (409 EXTERNAL_INTEGRATION_SCAN_ALREADY_RUNNING) — concurrent
+// callers just await the run already in progress.
+let discoveryInFlight = null;
+
 /**
  * Run a cloud discovery, enrich it with a LAN scan, and publish the result
  * to Gladys. The LAN scan goes through the mediated network discovery of the
@@ -52,20 +58,28 @@ async function connectTuya() {
  * bridge container never receives the LAN UDP broadcasts. Best-effort: if
  * the scan is unavailable or fails, the devices simply stay in cloud mode.
  */
-async function discoverAndPublish() {
-  if (tuya.status !== STATUS.CONNECTED) {
-    logger.warn(`Tuya discovery skipped (status=${tuya.status})`);
-    return;
+function discoverAndPublish() {
+  if (discoveryInFlight) {
+    return discoveryInFlight;
   }
-  let tuyaDevices = await tuya.discoverDevices();
-  try {
-    const scan = await tuya.localScan({ timeoutSeconds: 10 });
-    tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices);
-    tuya.discoveredDevices = tuyaDevices;
-  } catch (err) {
-    logger.warn('Tuya local scan failed (cloud discovery still published)', err);
-  }
-  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+  discoveryInFlight = (async () => {
+    if (tuya.status !== STATUS.CONNECTED) {
+      logger.warn(`Tuya discovery skipped (status=${tuya.status})`);
+      return;
+    }
+    let tuyaDevices = await tuya.discoverDevices();
+    try {
+      const scan = await tuya.localScan({ timeoutSeconds: 10 });
+      tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices);
+      tuya.discoveredDevices = tuyaDevices;
+    } catch (err) {
+      logger.warn('Tuya local scan failed (cloud discovery still published)', err);
+    }
+    await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+  })().finally(() => {
+    discoveryInFlight = null;
+  });
+  return discoveryInFlight;
 }
 
 // --- Discovery: Gladys asks for the list of devices --------------------------
