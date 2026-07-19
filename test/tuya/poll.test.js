@@ -87,6 +87,46 @@ test('poll uses the shadow endpoint when the device is configured for it', async
   ]);
 });
 
+test('poll falls back to the shadow endpoint when the configured legacy read returns no known code', async () => {
+  const { gladys, handler } = createHandler();
+  const requestedPaths = [];
+  handler.connector = {
+    request: async ({ path }) => {
+      requestedPaths.push(path);
+      if (path.endsWith('/status')) {
+        // Legacy endpoint knows nothing about this (thing-model only) device.
+        return { success: true, result: [] };
+      }
+      return { success: true, result: { properties: [{ code: 'switch', value: true }] } };
+    },
+  };
+
+  // Device configured (at discovery) for the legacy strategy, wrongly.
+  await handler.poll(createDevice());
+
+  assert.deepEqual(requestedPaths, [
+    `${API.VERSION_1_0}/devices/dev1/status`,
+    `${API.VERSION_2_0}/thing/dev1/shadow/properties`,
+  ]);
+  assert.deepEqual(gladys.published, [
+    { featureExternalId: 'ext:tuya:device:dev1:switch', state: 1 },
+  ]);
+});
+
+test('poll does not fall back when the configured endpoint returns a known code', async () => {
+  const { handler } = createHandler();
+  const requestedPaths = [];
+  handler.connector = {
+    request: async ({ path }) => {
+      requestedPaths.push(path);
+      return { success: true, result: [{ code: 'switch', value: true }] };
+    },
+  };
+
+  await handler.poll(createDevice());
+  assert.deepEqual(requestedPaths, [`${API.VERSION_1_0}/devices/dev1/status`]);
+});
+
 test('poll does not republish an unchanged value before the re-emit interval', async () => {
   const { gladys, handler } = createHandler();
   handler.connector = {
