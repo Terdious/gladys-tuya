@@ -127,6 +127,43 @@ const extractShadowValues = (response) => {
 };
 
 /**
+ * @description Read the raw cloud values of a device for one read strategy
+ * (legacy status endpoint or thing shadow properties).
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} strategy - CLOUD_STRATEGY.LEGACY or CLOUD_STRATEGY.SHADOW.
+ * @param {string} topic - Tuya device id used for the API path.
+ * @returns {Promise<object>} Map of code -> raw value.
+ * @example
+ * const values = await readCloudValues(self, CLOUD_STRATEGY.LEGACY, 'dev1');
+ */
+async function readCloudValues(self, strategy, topic) {
+  if (strategy === CLOUD_STRATEGY.SHADOW) {
+    const response = await self.connector.request({
+      method: 'GET',
+      path: `${API.VERSION_2_0}/thing/${topic}/shadow/properties`,
+    });
+    return extractShadowValues(response);
+  }
+  const response = await self.connector.request({
+    method: 'GET',
+    path: `${API.VERSION_1_0}/devices/${topic}/status`,
+  });
+  return extractValuesFromResultArray(response && response.result);
+}
+
+/**
+ * @description Whether any of the requested feature codes is present in the
+ * values read from the cloud.
+ * @param {object} values - Map of code -> raw value read from the cloud.
+ * @param {Array<string>} requestedCodes - Feature codes we expect to read.
+ * @returns {boolean} True when at least one code is present.
+ * @example
+ * const ok = hasAnyRequestedCode({ switch: true }, ['switch']);
+ */
+const hasAnyRequestedCode = (values, requestedCodes) =>
+  requestedCodes.some((code) => values[code] !== undefined);
+
+/**
  * @description Poll the given features against the Tuya cloud API and emit state changes.
  * @param {object} self - The TuyaHandler instance (passed explicitly to avoid `this` rebinding).
  * @param {object} device - The Gladys device (used to resolve the cloud read strategy).
@@ -143,6 +180,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     changed: 0,
     missing: 0,
     skipped: 0,
+    strategy: null,
   };
   if (!Array.isArray(deviceFeatures) || deviceFeatures.length === 0) {
     return summary;
@@ -153,22 +191,47 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     return summary;
   }
 
-  const cloudReadStrategy = getConfiguredCloudReadStrategy(device);
-  const response =
-    cloudReadStrategy === CLOUD_STRATEGY.SHADOW
-      ? await self.connector.request({
-          method: 'GET',
-          path: `${API.VERSION_2_0}/thing/${topic}/shadow/properties`,
-        })
-      : await self.connector.request({
-          method: 'GET',
-          path: `${API.VERSION_1_0}/devices/${topic}/status`,
-        });
+  // The read strategy (legacy vs shadow) is resolved once at discovery time
+  // from the device specifications. When those specifications are incomplete,
+  // the wrong endpoint can be stored, and the configured endpoint then returns
+  // none of the device codes on every poll (state feedback silently broken).
+  // Read with the configured strategy first, and when it returns none of the
+  // requested codes, retry once with the alternate endpoint before giving up.
+  const primaryStrategy = getConfiguredCloudReadStrategy(device);
+  const alternateStrategy =
+    primaryStrategy === CLOUD_STRATEGY.SHADOW ? CLOUD_STRATEGY.LEGACY : CLOUD_STRATEGY.SHADOW;
+  const requestedCodes = deviceFeatures.map((feature) => getFeatureCode(feature)).filter(Boolean);
 
-  const values =
-    cloudReadStrategy === CLOUD_STRATEGY.SHADOW
-      ? extractShadowValues(response)
-      : extractValuesFromResultArray(response && response.result);
+  let strategyUsed = primaryStrategy;
+  let values;
+  try {
+    values = await readCloudValues(self, primaryStrategy, topic);
+  } catch (e) {
+    logger.warn(
+      `[Tuya][poll][cloud] read failed for device=${topic} strategy=${primaryStrategy}`,
+      e,
+    );
+    values = {};
+  }
+
+  if (requestedCodes.length > 0 && !hasAnyRequestedCode(values, requestedCodes)) {
+    try {
+      const alternateValues = await readCloudValues(self, alternateStrategy, topic);
+      if (hasAnyRequestedCode(alternateValues, requestedCodes)) {
+        values = alternateValues;
+        strategyUsed = alternateStrategy;
+        logger.info(
+          `[Tuya][poll][cloud] device=${topic} switched read strategy ${primaryStrategy} -> ${alternateStrategy} (configured endpoint returned no known code)`,
+        );
+      }
+    } catch (e) {
+      logger.warn(
+        `[Tuya][poll][cloud] alternate read failed for device=${topic} strategy=${alternateStrategy}`,
+        e,
+      );
+    }
+  }
+  summary.strategy = strategyUsed;
 
   deviceFeatures.forEach((deviceFeature) => {
     const code = getFeatureCode(deviceFeature);
@@ -240,10 +303,17 @@ export async function poll(device) {
   }
   await Promise.all(this.pendingStates);
   this.pendingStates = [];
-  const summaryLine = `[Tuya][poll] device=${topic} mode=cloud features=${deviceFeatures.length} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing}`;
-  // Surface a poll that actually published states at info level so state
-  // feedback is visible in `docker logs` without LOG_LEVEL=debug.
-  if (cloudSummary.changed > 0) {
+  const summaryLine = `[Tuya][poll] device=${topic} mode=cloud strategy=${
+    cloudSummary.strategy || 'n/a'
+  } features=${deviceFeatures.length} cloud_handled=${cloudSummary.handled} cloud_changed=${
+    cloudSummary.changed
+  } cloud_missing=${cloudSummary.missing}`;
+  // A device that returns none of its codes reads "online but silent": state
+  // feedback is broken for it. Surface both that case and any published change
+  // at info level so the problem is visible in `docker logs` without
+  // LOG_LEVEL=debug; steady unchanged polls stay at debug.
+  const cloudBlind = cloudSummary.handled === 0 && cloudSummary.missing > 0;
+  if (cloudSummary.changed > 0 || cloudBlind) {
     logger.info(summaryLine);
   } else {
     logger.debug(summaryLine);
