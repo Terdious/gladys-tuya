@@ -230,6 +230,7 @@ function createLocalDevice() {
 test('poll uses the local DPS map when the device opted into local mode', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
   let localArgs = null;
   handler.localPoll = async (payload) => {
     localArgs = payload;
@@ -254,6 +255,7 @@ test('poll uses the local DPS map when the device opted into local mode', async 
 test('poll falls back to the cloud for features missing from the local mapping', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
   handler.localPoll = async () => ({ dps: { 1: true } });
   const cloudPaths = [];
   handler.connector = {
@@ -282,6 +284,7 @@ test('poll falls back to the cloud for features missing from the local mapping',
 test('poll falls back to the cloud when the local poll fails', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
   handler.localPoll = async () => {
     throw new Error('unreachable');
   };
@@ -298,6 +301,7 @@ test('poll falls back to the cloud when the local poll fails', async () => {
 test('poll skips the cloud fallback when local mode is on and the connector is missing', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
   handler.localPoll = async () => {
     throw new Error('unreachable');
   };
@@ -305,6 +309,25 @@ test('poll skips the cloud fallback when local mode is on and the connector is m
 
   await handler.poll(createLocalDevice());
   assert.deepEqual(gladys.published, []);
+});
+
+test('poll stays on the cloud for a LAN-capable device when local mode is off (live toggle)', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  // Toggle OFF: even though the device has ip/local_key/protocol, poll must
+  // use the cloud and never open a local connection.
+  handler.config = { localMode: false };
+  handler.localPoll = async () => {
+    throw new Error('local must not be called when the toggle is off');
+  };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: true }] }),
+  };
+
+  await handler.poll(createLocalDevice());
+  assert.deepEqual(gladys.published, [
+    { featureExternalId: 'ext:tuya:device:dev1:switch', state: 1 },
+  ]);
 });
 
 // --- setValue: local branch --------------------------------------------------
@@ -336,6 +359,7 @@ function createFakeLocalApi(log, { failSet = false } = {}) {
 
 test('setValue sets the DPS locally for a local-override device', async () => {
   const handler = new TuyaHandler(createFakeGladys());
+  handler.config = { localMode: true };
   const log = [];
   handler.localApiClasses = {
     TuyAPI: createFakeLocalApi(log),
@@ -365,6 +389,7 @@ test('setValue sets the DPS locally for a local-override device', async () => {
 
 test('setValue uses the new-gen API for protocols 3.4/3.5', async () => {
   const handler = new TuyaHandler(createFakeGladys());
+  handler.config = { localMode: true };
   const legacyLog = [];
   const newGenLog = [];
   handler.localApiClasses = {
@@ -393,6 +418,7 @@ test('setValue uses the new-gen API for protocols 3.4/3.5', async () => {
 
 test('setValue falls back to the cloud when the local set fails', async () => {
   const handler = new TuyaHandler(createFakeGladys());
+  handler.config = { localMode: true };
   const log = [];
   handler.localApiClasses = {
     TuyAPI: createFakeLocalApi(log, { failSet: true }),

@@ -111,12 +111,20 @@ function discoverAndPublish() {
       return;
     }
     let tuyaDevices = await tuya.discoverDevices();
-    try {
-      const scan = await tuya.localScan({ timeoutSeconds: 10 });
-      tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
+    // The "Mode local (LAN)" toggle drives the discovery: ON = cloud discovery
+    // enriched with a LAN UDP scan (so devices get their ip/protocol and can be
+    // polled locally); OFF = cloud-only discovery (no scan). The scan is the
+    // slow part, so skipping it when local mode is off keeps a cloud refresh fast.
+    if (config.localMode === true) {
+      try {
+        const scan = await tuya.localScan({ timeoutSeconds: 10 });
+        tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
+        tuya.discoveredDevices = tuyaDevices;
+      } catch (err) {
+        logger.warn('Tuya local scan failed (cloud discovery still published)', err);
+      }
+    } else {
       tuya.discoveredDevices = tuyaDevices;
-    } catch (err) {
-      logger.warn('Tuya local scan failed (cloud discovery still published)', err);
     }
     await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
   })().finally(() => {
@@ -145,15 +153,30 @@ gladys.onPoll(async (device) => {
 // --- Configuration updated by the user ---------------------------------------
 gladys.onConfigUpdated(async (newConfig) => {
   logger.info('onConfigUpdated -> new configuration received');
+  const previousConfig = config;
   const previousHash = buildConfigHash(config);
   config = normalizeConfig(newConfig);
-  if (buildConfigHash(config) === previousHash && tuya.status === STATUS.CONNECTED) {
+  // Keep the handler config live so poll()'s local-vs-cloud decision follows
+  // the toggle immediately, even when no reconnect is needed.
+  tuya.config = config;
+
+  const credentialsChanged = buildConfigHash(config) !== previousHash;
+  const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+
+  if (credentialsChanged || tuya.status !== STATUS.CONNECTED) {
+    // Cloud credentials changed (or we are not connected): full reconnect.
+    tuya.disconnect();
+    await connectTuya();
+    tuya.startReconnect();
+    await discoverAndPublish();
     return;
   }
-  tuya.disconnect();
-  await connectTuya();
-  tuya.startReconnect();
-  await discoverAndPublish();
+  if (localModeChanged) {
+    // Only the "Mode local (LAN)" toggle changed: no reconnect, just re-run a
+    // background discovery so the LAN scan is (re)applied per the new
+    // preference (ON = cloud + UDP scan, OFF = cloud only).
+    await discoverAndPublish();
+  }
 });
 
 // --- Connection lifecycle ----------------------------------------------------

@@ -10,7 +10,6 @@ import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { writeValues } from './device/tuya.deviceMapping.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
-import { normalizeBoolean } from './utils/tuya.normalize.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 
@@ -46,9 +45,10 @@ export async function setValue(device, deviceFeature, value) {
     protocolVersionRaw !== null && protocolVersionRaw !== undefined
       ? String(protocolVersionRaw).trim()
       : undefined;
-  const localOverride = normalizeBoolean(getParamValue(params, DEVICE_PARAM_NAME.LOCAL_OVERRIDE));
-
-  const hasLocalConfig = ipAddress && localKey && protocolVersion && localOverride === true;
+  // Follow the same live "Mode local (LAN)" toggle as poll(): command a device
+  // over the LAN only when the toggle is on AND the device is locally reachable.
+  const localModeEnabled = Boolean(this.config && this.config.localMode === true);
+  const hasLocalConfig = Boolean(ipAddress && localKey && protocolVersion && localModeEnabled);
 
   const localDps = getLocalDpsFromCode(command, device);
 
