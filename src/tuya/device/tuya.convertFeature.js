@@ -7,6 +7,7 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
+import { buildFeatureSelector } from '../utils/tuya.selector.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -21,7 +22,7 @@ const logger = createLogger({ name: 'tuya' });
  */
 export function convertFeature(tuyaFunctions, ids, options = {}) {
   const { code, values, readOnly } = tuyaFunctions;
-  const { deviceType, ignoredCloudCodes } = options;
+  const { deviceType, ignoredCloudCodes, deviceSelector } = options;
 
   const codeLower = normalizeCode(code);
   const ignoredCodes = Array.isArray(ignoredCloudCodes)
@@ -52,6 +53,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
 
   const feature = {
     external_id: ids.feature(code),
+    // Scope the selector to the device so two devices exposing a feature with
+    // the same code/name do not collide on a globally-unique selector (the
+    // core rejects duplicates). When no device selector is provided, let the
+    // core derive it from the name (legacy behaviour).
+    ...(deviceSelector ? { selector: buildFeatureSelector(deviceSelector, code) } : {}),
     read_only: readOnly,
     has_feedback: false,
     min: 0,

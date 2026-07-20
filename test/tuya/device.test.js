@@ -185,6 +185,29 @@ test('convertDevice converts a smart socket', () => {
   assert.equal(params[DEVICE_PARAM_NAME.CLOUD_IP], '82.64.1.1');
   assert.equal(params[DEVICE_PARAM_NAME.PRODUCT_ID], 'cya3zxfd38g4qp8d');
   assert.equal(params[DEVICE_PARAM_NAME.CLOUD_READ_STRATEGY], CLOUD_STRATEGY.LEGACY);
+
+  // The device selector embeds the Tuya id, and features are scoped to it.
+  assert.equal(device.selector, 'office-socket-socket1');
+  device.features.forEach((feature) => {
+    assert.ok(
+      feature.selector && feature.selector.startsWith('office-socket-socket1-'),
+      `feature ${feature.external_id} selector should be device-scoped, got ${feature.selector}`,
+    );
+  });
+});
+
+test('convertDevice gives two same-named devices collision-free feature selectors', () => {
+  const first = convertDevice(gladys, { ...SMART_SOCKET_DEVICE, id: 'plugA', name: 'Plug' });
+  const second = convertDevice(gladys, { ...SMART_SOCKET_DEVICE, id: 'plugB', name: 'Plug' });
+
+  assert.notEqual(first.selector, second.selector);
+  const firstSelectors = first.features.map((f) => f.selector);
+  const secondSelectors = second.features.map((f) => f.selector);
+  // No selector is shared between the two devices (the pre-fix bug).
+  firstSelectors.forEach((selector) => {
+    assert.ok(selector);
+    assert.ok(!secondSelectors.includes(selector), `selector ${selector} collides across devices`);
+  });
 });
 
 test('convertDevice falls back to the thing model (shadow strategy)', () => {
