@@ -15,10 +15,12 @@ const SELECTOR = 'tuya';
 export function createFakeGladys() {
   const published = [];
   const discovered = [];
+  const transports = [];
 
   return {
     published,
     discovered,
+    transports,
 
     externalIds(type, platformId) {
       const device = `ext:${SELECTOR}:${type}:${platformId}`;
@@ -41,6 +43,13 @@ export function createFakeGladys() {
     async publishDiscoveredDevices(devices) {
       discovered.push(devices);
       return { success: true, count: devices.length };
+    },
+
+    async publishTransports(entries) {
+      for (const entry of entries) {
+        transports.push(entry);
+      }
+      return { success: true };
     },
   };
 }

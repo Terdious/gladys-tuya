@@ -26,6 +26,7 @@ import { disconnect } from './tuya.disconnect.js';
 import { manualDisconnect } from './tuya.manualDisconnect.js';
 import { localPoll } from './local/tuya.localPoll.js';
 import { localScan } from './local/tuya.localScan.js';
+import { detectProtocol } from './local/tuya.detectProtocol.js';
 import {
   tryReconnect,
   scheduleQuickReconnects,
@@ -58,6 +59,8 @@ export class TuyaHandler {
     this.featureStates = new Map();
     // Per-device local health / circuit breaker (see tuya.localCircuit.js).
     this.localCircuit = new Map();
+    // Last published transport badge per device external_id (publish on change).
+    this.lastTransports = new Map();
     // In-flight publishState promises of the current poll cycle.
     this.pendingStates = [];
 
@@ -85,6 +88,7 @@ TuyaHandler.prototype.disconnect = disconnect;
 TuyaHandler.prototype.manualDisconnect = manualDisconnect;
 TuyaHandler.prototype.localPoll = localPoll;
 TuyaHandler.prototype.localScan = localScan;
+TuyaHandler.prototype.detectProtocol = detectProtocol;
 TuyaHandler.prototype.tryReconnect = tryReconnect;
 TuyaHandler.prototype.scheduleQuickReconnects = scheduleQuickReconnects;
 TuyaHandler.prototype.clearQuickReconnects = clearQuickReconnects;

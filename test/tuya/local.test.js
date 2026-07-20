@@ -354,6 +354,86 @@ test('poll stays on the cloud for a LAN-capable device when local mode is off (l
   ]);
 });
 
+// --- transport badge ---------------------------------------------------------
+
+test('poll publishes the local transport badge once per state', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  handler.localPoll = async () => ({ dps: { 1: true } });
+
+  const device = createLocalDevice();
+  await handler.poll(device);
+  await handler.poll(device);
+
+  // Two local polls, one single badge publication (publish on change only).
+  assert.deepEqual(gladys.transports, [
+    { external_id: 'ext:tuya:device:dev1', transport: 'local' },
+  ]);
+});
+
+test('poll publishes the cloud badge when the local poll fails', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  handler.localPoll = async () => {
+    throw new Error('unreachable');
+  };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: false }] }),
+  };
+
+  await handler.poll(createLocalDevice());
+  assert.deepEqual(gladys.transports, [
+    { external_id: 'ext:tuya:device:dev1', transport: 'cloud' },
+  ]);
+});
+
+test('poll publishes the unreachable badge when local and cloud both fail', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  handler.localPoll = async () => {
+    throw new Error('unreachable');
+  };
+  handler.connector = {
+    request: async () => {
+      throw new Error('cloud down');
+    },
+  };
+
+  await handler.poll(createLocalDevice());
+  assert.deepEqual(gladys.transports, [
+    { external_id: 'ext:tuya:device:dev1', transport: 'unreachable' },
+  ]);
+});
+
+test('poll updates the badge when the transport changes back', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  let localUp = true;
+  handler.localPoll = async () => {
+    if (!localUp) {
+      throw new Error('unreachable');
+    }
+    return { dps: { 1: true } };
+  };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: true }] }),
+  };
+
+  const device = createLocalDevice();
+  await handler.poll(device);
+  localUp = false;
+  await handler.poll(device);
+
+  assert.deepEqual(
+    gladys.transports.map((t) => t.transport),
+    ['local', 'cloud'],
+  );
+});
+
 // --- setValue: local branch --------------------------------------------------
 
 function createFakeLocalApi(log, { failSet = false } = {}) {

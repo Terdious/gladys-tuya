@@ -139,6 +139,52 @@ gladys.onScanRequest(async () => {
   await discoverAndPublish();
 });
 
+// --- Action: manual-IP protocol detection ------------------------------------
+// For a device the UDP scan did not find, the user types its Tuya id + IP in
+// the Configuration screen (manifest `actions`): the integration probes the
+// local protocol versions, and on success persists ip/protocol on the device
+// through the re-publish params upsert of the core. The resolved message is
+// shown under the action button.
+gladys.onAction('detect_protocol', async (fields) => {
+  const deviceId = String((fields && fields.device_id) || '').trim();
+  const ip = String((fields && fields.ip) || '').trim();
+  if (!deviceId || !ip) {
+    throw new Error('device_id and ip are required');
+  }
+  if (tuya.status !== STATUS.CONNECTED) {
+    throw new Error('Tuya cloud is not connected yet');
+  }
+  logger.info(`onAction detect_protocol <- device=${deviceId} ip=${ip}`);
+
+  // The local key only comes from the cloud discovery: refresh the cache when
+  // needed (fast, cloud only — no LAN scan here).
+  if (!Array.isArray(tuya.discoveredDevices) || tuya.discoveredDevices.length === 0) {
+    tuya.discoveredDevices = await tuya.discoverDevices();
+  }
+  const rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceId);
+  if (!rawDevice) {
+    throw new Error(`Device ${deviceId} not found in the Tuya cloud project`);
+  }
+  if (!rawDevice.local_key) {
+    throw new Error(`Device ${deviceId} has no local key (cloud project permissions?)`);
+  }
+
+  const { version } = await tuya.detectProtocol({ deviceId, ip, localKey: rawDevice.local_key });
+
+  // Persist: enrich the cached raw device and re-publish the discovered list —
+  // the core upserts the params (ip/protocol) of the already-created device
+  // without touching its name or features.
+  rawDevice.ip = ip;
+  rawDevice.protocol_version = version;
+  rawDevice.local_override = config.localMode === true;
+  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuya.discoveredDevices));
+
+  return {
+    en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,
+    fr: `Protocole ${version} détecté sur ${ip} — appareil mis à jour, mode local prêt.`,
+  };
+});
+
 // --- Command: the user acts on a controllable feature ------------------------
 gladys.onSetValue(async (device, feature, value) => {
   logger.info(`onSetValue <- ${feature.external_id} = ${value}`);

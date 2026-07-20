@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG = {
   secretKey: '', // Tuya cloud project Access Secret / Client Secret
   appAccountId: '', // Smart Life / Tuya app account UID
   appUsername: '', // Smart Life account email or phone (optional)
-  localMode: false, // poll/control over the LAN when reachable, cloud otherwise
+  localMode: true, // "Prefer the local connection" (GLADYS_PREFER_LOCAL, default true)
 };
 
 const asTrimmedString = (value, fallback) => {
@@ -32,7 +32,11 @@ const asTrimmedString = (value, fallback) => {
   return String(value).trim();
 };
 
-const asBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+// GLADYS_PREFER_LOCAL is a user PREFERENCE injected by the core (manifest
+// `transports: ["local", "cloud"]`), default true — so only an explicit
+// opt-out turns it off.
+const asBooleanDefaultTrue = (value) =>
+  !(value === false || value === 'false' || value === 0 || value === '0');
 
 /**
  * Normalize the user config (snake_case `config_schema` keys) into the
@@ -49,7 +53,10 @@ export function normalizeConfig(raw = {}) {
     secretKey: asTrimmedString(raw.secret_key, DEFAULT_CONFIG.secretKey),
     appAccountId: asTrimmedString(raw.app_account_id, DEFAULT_CONFIG.appAccountId),
     appUsername: asTrimmedString(raw.app_username, DEFAULT_CONFIG.appUsername),
-    localMode: asBoolean(raw.local_mode),
+    // Standard "Prefer the local connection" toggle: the core renders it when
+    // the manifest declares both transports, and injects the reserved
+    // GLADYS_PREFER_LOCAL config key (read-only for the integration).
+    localMode: asBooleanDefaultTrue(raw.GLADYS_PREFER_LOCAL),
     // Same fallback as the core service: unknown region -> China endpoint.
     baseUrl: TUYA_ENDPOINTS[endpoint] || TUYA_ENDPOINTS.china,
   };

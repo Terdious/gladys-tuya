@@ -23,11 +23,13 @@ test('normalizeConfig keeps user values over the defaults', () => {
   assert.equal(config.appUsername, 'user@example.com');
 });
 
-test('normalizeConfig reads local_mode as a boolean, off by default', () => {
-  assert.equal(normalizeConfig().localMode, false);
-  assert.equal(normalizeConfig({ local_mode: true }).localMode, true);
-  assert.equal(normalizeConfig({ local_mode: 'true' }).localMode, true);
-  assert.equal(normalizeConfig({ local_mode: false }).localMode, false);
+test('normalizeConfig reads GLADYS_PREFER_LOCAL, on by default', () => {
+  // The reserved key is injected by the core (manifest transports) with a
+  // default of true: only an explicit opt-out turns local mode off.
+  assert.equal(normalizeConfig().localMode, true);
+  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: true }).localMode, true);
+  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: false }).localMode, false);
+  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: 'false' }).localMode, false);
 });
 
 test('normalizeConfig resolves the base URL from the endpoint region', () => {

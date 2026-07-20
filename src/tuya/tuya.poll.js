@@ -112,6 +112,43 @@ const emitFeatureState = (
   return { emitted, changed };
 };
 
+// Effective transport of a device, as shown by the Gladys badge.
+export const TRANSPORT = {
+  LOCAL: 'local',
+  CLOUD: 'cloud',
+  UNREACHABLE: 'unreachable',
+};
+
+/**
+ * @description Publish the effective transport of a device (Gladys renders it
+ * as a badge on the device card). Only published on change, fire-and-forget:
+ * a badge failure must never break a poll cycle.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The polled Gladys device.
+ * @param {string} transport - TRANSPORT.LOCAL | CLOUD | UNREACHABLE.
+ * @returns {void}
+ * @example
+ * publishTransport(this, device, TRANSPORT.LOCAL);
+ */
+const publishTransport = (self, device, transport) => {
+  const externalId = device && device.external_id;
+  if (!externalId || typeof self.gladys.publishTransports !== 'function') {
+    return;
+  }
+  if (!self.lastTransports) {
+    self.lastTransports = new Map();
+  }
+  if (self.lastTransports.get(externalId) === transport) {
+    return;
+  }
+  self.lastTransports.set(externalId, transport);
+  self.gladys.publishTransports([{ external_id: externalId, transport }]).catch((e) => {
+    // Roll back so the next poll retries the publication.
+    self.lastTransports.delete(externalId);
+    logger.debug(`[Tuya][poll] failed to publish transport for ${externalId}: ${e.message}`);
+  });
+};
+
 const extractValuesFromResultArray = (result) => {
   const values = {};
   const entries = Array.isArray(result) ? result : [];
@@ -190,6 +227,8 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     missing: 0,
     skipped: 0,
     strategy: null,
+    // False when the cloud API itself could not be read (transport badge).
+    reachable: true,
   };
   if (!Array.isArray(deviceFeatures) || deviceFeatures.length === 0) {
     return summary;
@@ -197,6 +236,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
 
   if (!self.connector || typeof self.connector.request !== 'function') {
     logger.warn(`[Tuya][poll][cloud] connector unavailable for device=${topic}`);
+    summary.reachable = false;
     return summary;
   }
 
@@ -213,8 +253,10 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
 
   let strategyUsed = primaryStrategy;
   let values;
+  let anyReadOk = false;
   try {
     values = await readCloudValues(self, primaryStrategy, topic);
+    anyReadOk = true;
   } catch (e) {
     logger.warn(
       `[Tuya][poll][cloud] read failed for device=${topic} strategy=${primaryStrategy}`,
@@ -226,6 +268,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
   if (requestedCodes.length > 0 && !hasAnyRequestedCode(values, requestedCodes)) {
     try {
       const alternateValues = await readCloudValues(self, alternateStrategy, topic);
+      anyReadOk = true;
       if (hasAnyRequestedCode(alternateValues, requestedCodes)) {
         values = alternateValues;
         strategyUsed = alternateStrategy;
@@ -241,6 +284,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     }
   }
   summary.strategy = strategyUsed;
+  summary.reachable = anyReadOk;
 
   deviceFeatures.forEach((deviceFeature) => {
     const code = getFeatureCode(deviceFeature);
@@ -426,6 +470,7 @@ export async function poll(device) {
 
         if (pendingCloudFeatures.length === 0) {
           modeUsed = 'local';
+          publishTransport(this, device, TRANSPORT.LOCAL);
           await finish();
           logger.debug(
             `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=0 cloud_changed=0 cloud_missing=0 fallback=${fallbackReason}`,
@@ -444,6 +489,9 @@ export async function poll(device) {
           fallbackReason = 'cloud_fallback_failed';
         }
         modeUsed = 'local+cloud';
+        // The LAN link answered: the device counts as local even when some
+        // features complete over the cloud.
+        publishTransport(this, device, TRANSPORT.LOCAL);
         await finish();
         logger.debug(
           `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`,
@@ -491,6 +539,8 @@ export async function poll(device) {
   if (useLocal && (!this.connector || typeof this.connector.request !== 'function')) {
     fallbackReason =
       fallbackReason === 'none' ? 'cloud_unavailable' : `${fallbackReason}+cloud_unavailable`;
+    // The LAN did not answer and there is no cloud either.
+    publishTransport(this, device, TRANSPORT.UNREACHABLE);
     await finish();
     logger.debug(
       `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=0 cloud_changed=0 cloud_missing=0 fallback=${fallbackReason}`,
@@ -505,6 +555,15 @@ export async function poll(device) {
     fallbackReason =
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
+  // Badge: the cloud answered (even codes-missing counts as reachable) ->
+  // cloud; the cloud API itself could not be read -> unreachable.
+  publishTransport(
+    this,
+    device,
+    fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false
+      ? TRANSPORT.UNREACHABLE
+      : TRANSPORT.CLOUD,
+  );
   await finish();
   const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'
