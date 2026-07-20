@@ -15,6 +15,7 @@ import { createLogger } from '@gladysassistant/integration-sdk';
 import { DEVICE_PARAM_NAME, DEVICE_EXTERNAL_ID_TYPE } from '../constants.js';
 import { normalizeBoolean } from '../utils/tuya.normalize.js';
 import { resolveCloudReadStrategy } from '../cloud/tuya.cloudStrategy.js';
+import { buildDeviceSelector } from '../utils/tuya.selector.js';
 import { convertFeature } from './tuya.convertFeature.js';
 import { getDeviceType, getIgnoredCloudCodes, DEVICE_TYPES } from '../mappings/index.js';
 
@@ -233,11 +234,13 @@ export function convertDevice(gladys, tuyaDevice) {
     };
   });
 
+  const deviceSelector = buildDeviceSelector(name, id);
   const ignoredCloudCodes = getIgnoredCloudCodes(deviceType);
   const features = Object.values(groups).map((group) =>
     convertFeature(group, ids, {
       deviceType,
       ignoredCloudCodes,
+      deviceSelector,
     }),
   );
   const filteredFeatures = features.filter((feature) => feature);
@@ -255,6 +258,7 @@ export function convertDevice(gladys, tuyaDevice) {
 
   const device = {
     name,
+    selector: deviceSelector,
     features: filteredFeatures,
     device_type: deviceType,
     external_id: externalId,
