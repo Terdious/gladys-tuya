@@ -14,7 +14,6 @@ import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
-import { normalizeBoolean } from './utils/tuya.normalize.js';
 import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
 
 const logger = createLogger({ name: 'tuya' });
@@ -298,15 +297,19 @@ export async function poll(device) {
     protocolVersionRaw !== null && protocolVersionRaw !== undefined
       ? String(protocolVersionRaw).trim()
       : undefined;
-  const localOverride = normalizeBoolean(getParamValue(params, DEVICE_PARAM_NAME.LOCAL_OVERRIDE));
-  const hasLocalConfig = Boolean(
-    ipAddress && localKey && protocolVersion && localOverride === true,
-  );
-  const requestedMode = localOverride === true ? 'local' : 'cloud';
+  // Live decision (point 3): the "Mode local (LAN)" toggle is a GLOBAL, live
+  // preference read at poll time from the current config — NOT a per-device
+  // flag frozen at discovery. A device is polled locally when the toggle is on
+  // AND it is locally reachable (ip + local_key + protocol known); otherwise
+  // (toggle off, or no LAN info) it is polled over the cloud. The stored
+  // LOCAL_OVERRIDE param is no longer read here; it only drives the discovery
+  // poll frequency.
+  const hasLocalCapability = Boolean(ipAddress && localKey && protocolVersion);
+  const localModeEnabled = Boolean(this.config && this.config.localMode === true);
+  const useLocal = localModeEnabled && hasLocalCapability;
+  const requestedMode = localModeEnabled ? 'local' : 'cloud';
   logger.debug(
-    `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${Boolean(
-      hasLocalConfig,
-    )} protocol=${protocolVersion || 'none'} ip=${ipAddress || 'none'}`,
+    `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} local_mode=${localModeEnabled} protocol=${protocolVersion || 'none'} ip=${ipAddress || 'none'}`,
   );
 
   this.pendingStates = [];
@@ -326,14 +329,14 @@ export async function poll(device) {
     this.pendingStates = [];
   };
 
-  if (localOverride === true && !hasLocalConfig) {
+  if (localModeEnabled && !hasLocalCapability && (ipAddress || localKey || protocolVersion)) {
     fallbackReason = 'incomplete_local_config';
     logger.warn(
-      `[Tuya][poll] local mode enabled but config is incomplete for device=${topic} (ip/protocol/local_key missing)`,
+      `[Tuya][poll] local mode enabled but LAN info is incomplete for device=${topic} (ip/protocol/local_key missing)`,
     );
   }
 
-  if (hasLocalConfig) {
+  if (useLocal) {
     try {
       const localResult = await this.localPoll({
         deviceId: topic,
@@ -433,7 +436,7 @@ export async function poll(device) {
   // `connector unavailable` warning on every poll cycle. The cloud-direct
   // path (LOCAL_OVERRIDE=false) still goes through pollCloudFeatures, which
   // surfaces the warn so a missing connector is visible.
-  if (hasLocalConfig && (!this.connector || typeof this.connector.request !== 'function')) {
+  if (useLocal && (!this.connector || typeof this.connector.request !== 'function')) {
     fallbackReason =
       fallbackReason === 'none' ? 'cloud_unavailable' : `${fallbackReason}+cloud_unavailable`;
     await finish();
@@ -451,9 +454,7 @@ export async function poll(device) {
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
   await finish();
-  const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${Boolean(
-    hasLocalConfig,
-  )} mode=${modeUsed} strategy=${
+  const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'
   } features=${deviceFeatures.length} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`;
   // Surface a poll that actually published states at info level so the local
