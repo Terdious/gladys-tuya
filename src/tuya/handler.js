@@ -56,6 +56,8 @@ export class TuyaHandler {
 
     // Last emitted value per feature external_id (poll same-value throttling).
     this.featureStates = new Map();
+    // Per-device local health / circuit breaker (see tuya.localCircuit.js).
+    this.localCircuit = new Map();
     // In-flight publishState promises of the current poll cycle.
     this.pendingStates = [];
 

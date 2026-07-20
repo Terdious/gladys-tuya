@@ -311,6 +311,30 @@ test('poll skips the cloud fallback when local mode is on and the connector is m
   assert.deepEqual(gladys.published, []);
 });
 
+test('poll stops retrying local after repeated failures (circuit breaker)', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  let localCalls = 0;
+  handler.localPoll = async () => {
+    localCalls += 1;
+    throw new Error('unreachable');
+  };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: true }] }),
+  };
+
+  const device = createLocalDevice();
+  // Poll several times: the first 3 attempt local (and fall back to cloud),
+  // then the device is parked and local is no longer attempted.
+  for (let i = 0; i < 6; i += 1) {
+    await handler.poll(device);
+  }
+  assert.equal(localCalls, 3, 'local is attempted only up to the failure threshold');
+  // Cloud still served every cycle (state feedback keeps working).
+  assert.equal(gladys.published.length >= 1, true);
+});
+
 test('poll stays on the cloud for a LAN-capable device when local mode is off (live toggle)', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);

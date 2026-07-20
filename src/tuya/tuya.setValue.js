@@ -12,6 +12,7 @@ import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
+import { isLocalInCooldown } from './local/tuya.localCircuit.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -47,8 +48,14 @@ export async function setValue(device, deviceFeature, value) {
       : undefined;
   // Follow the same live "Mode local (LAN)" toggle as poll(): command a device
   // over the LAN only when the toggle is on AND the device is locally reachable.
+  // Also honour the poll circuit breaker: if local polling parked this device
+  // (repeated timeouts), send the command straight over the cloud instead of
+  // hanging on a doomed 3s local connect.
   const localModeEnabled = Boolean(this.config && this.config.localMode === true);
-  const hasLocalConfig = Boolean(ipAddress && localKey && protocolVersion && localModeEnabled);
+  const localParked = this.localCircuit && isLocalInCooldown(this.localCircuit, topic, Date.now());
+  const hasLocalConfig = Boolean(
+    ipAddress && localKey && protocolVersion && localModeEnabled && !localParked,
+  );
 
   const localDps = getLocalDpsFromCode(command, device);
 

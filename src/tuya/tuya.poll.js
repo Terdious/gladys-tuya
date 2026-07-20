@@ -15,6 +15,14 @@ import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.clo
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
+import {
+  isLocalInCooldown,
+  localCooldownRemainingMs,
+  recordLocalSuccess,
+  recordLocalFailure,
+  shouldLogIncompleteLocal,
+  LOCAL_FAILURE_THRESHOLD,
+} from './local/tuya.localCircuit.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -329,14 +337,34 @@ export async function poll(device) {
     this.pendingStates = [];
   };
 
+  if (!this.localCircuit) {
+    this.localCircuit = new Map();
+  }
+
   if (localModeEnabled && !hasLocalCapability && (ipAddress || localKey || protocolVersion)) {
     fallbackReason = 'incomplete_local_config';
-    logger.warn(
-      `[Tuya][poll] local mode enabled but LAN info is incomplete for device=${topic} (ip/protocol/local_key missing)`,
+    // Stable condition (device not seen on the LAN): warn once, then stay quiet
+    // and use the cloud. It recovers on its own once the IP is provided.
+    if (shouldLogIncompleteLocal(this.localCircuit, topic, Date.now())) {
+      logger.warn(
+        `[Tuya][poll] local mode on but LAN info incomplete for device=${topic} (ip/protocol/local_key missing) — using cloud; set the IP to enable local`,
+      );
+    }
+  }
+
+  // Circuit breaker: after repeated local failures, a device is parked on the
+  // cloud for a cooldown instead of wasting a 3s local timeout every cycle.
+  const localParked = useLocal && isLocalInCooldown(this.localCircuit, topic, Date.now());
+  if (localParked) {
+    fallbackReason = 'local_cooldown';
+    logger.debug(
+      `[Tuya][poll] device=${topic} local parked (${Math.round(
+        localCooldownRemainingMs(this.localCircuit, topic, Date.now()) / 1000,
+      )}s left) -> cloud`,
     );
   }
 
-  if (useLocal) {
+  if (useLocal && !localParked) {
     try {
       const localResult = await this.localPoll({
         deviceId: topic,
@@ -350,6 +378,8 @@ export async function poll(device) {
 
       const dps = localResult && localResult.dps ? localResult.dps : null;
       if (dps && typeof dps === 'object') {
+        // Local poll succeeded: clear any accumulated failures / cooldown.
+        recordLocalSuccess(this.localCircuit, topic);
         const pendingCloudFeatures = [];
 
         deviceFeatures.forEach((deviceFeature) => {
@@ -422,12 +452,34 @@ export async function poll(device) {
       }
 
       fallbackReason = 'invalid_local_payload';
-      logger.warn(
-        `[Tuya][poll] local poll returned invalid DPS payload for ${topic}, falling back to cloud`,
-      );
+      {
+        const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
+        if (tripped) {
+          logger.info(
+            `[Tuya][poll] device=${topic} local parked ${Math.round(
+              cooldownMs / 1000,
+            )}s after ${LOCAL_FAILURE_THRESHOLD} failures (invalid payload) -> cloud`,
+          );
+        } else {
+          logger.debug(
+            `[Tuya][poll] local poll returned invalid DPS payload for ${topic}, falling back to cloud`,
+          );
+        }
+      }
     } catch (e) {
-      logger.warn(`[Tuya][poll] local poll failed for ${topic}, falling back to cloud`, e);
       fallbackReason = 'local_poll_failed';
+      const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
+      if (tripped) {
+        logger.info(
+          `[Tuya][poll] device=${topic} local parked ${Math.round(
+            cooldownMs / 1000,
+          )}s after ${LOCAL_FAILURE_THRESHOLD} failures (${e.message}) -> cloud`,
+        );
+      } else {
+        logger.debug(
+          `[Tuya][poll] local poll failed for ${topic}, falling back to cloud: ${e.message}`,
+        );
+      }
     }
   }
 
