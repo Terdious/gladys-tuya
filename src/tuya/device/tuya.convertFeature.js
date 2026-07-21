@@ -12,6 +12,7 @@ import {
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
 import { buildFeatureSelector } from '../utils/tuya.selector.js';
+import { buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -26,21 +27,24 @@ const logger = createLogger({ name: 'tuya' });
  */
 export function convertFeature(tuyaFunctions, ids, options = {}) {
   const { code, values, readOnly } = tuyaFunctions;
-  const { deviceType, ignoredCloudCodes, deviceSelector } = options;
+  const { deviceType, ignoredCloudCodes, deviceSelector, temperatureUnit, productId } = options;
 
   const codeLower = normalizeCode(code);
   const ignoredCodes = Array.isArray(ignoredCloudCodes)
     ? ignoredCloudCodes
-    : getIgnoredCloudCodes(deviceType);
+    : getIgnoredCloudCodes(deviceType, productId);
   if (codeLower && ignoredCodes.includes(codeLower)) {
     return undefined;
   }
 
-  const featuresCategoryAndType = getFeatureMapping(code, deviceType);
-  if (!featuresCategoryAndType) {
+  const mappingEntry = getFeatureMapping(code, deviceType, productId);
+  if (!mappingEntry) {
     logger.warn(`Tuya function with "${code}" code is not managed`);
     return undefined;
   }
+  // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by
+  // the read/write pipeline); it must not leak onto the persisted feature.
+  const { tuyaEnum: _tuyaEnum, ...featuresCategoryAndType } = mappingEntry;
 
   let valuesObject = {};
   if (values && typeof values === 'object') {
@@ -74,27 +78,50 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   // behaviour for device types without curated names. (`code` is always defined
   // here: an empty code is rejected earlier by getFeatureMapping.)
   feature.name = featuresCategoryAndType.name || code;
-  if ('min' in valuesObject) {
+  if (typeof valuesObject.min === 'number') {
     feature.min = valuesObject.min;
   }
-  if ('max' in valuesObject) {
+  if (typeof valuesObject.max === 'number') {
     feature.max = valuesObject.max;
   }
   if ('scale' in valuesObject) {
     feature.scale = valuesObject.scale;
   }
+  // Some devices report their temperatures in Fahrenheit (temp_unit_convert /
+  // unit property): reflect the real device unit on the feature.
+  if (
+    temperatureUnit &&
+    (codeLower === 'temp_set' || codeLower === 'temp_current') &&
+    feature.unit !== undefined
+  ) {
+    feature.unit = temperatureUnit;
+  }
 
   // Scaled target temperatures declare their bounds in device units (an AC
   // spec with min 160 / max 880 and scale 1 means 16..88 degrees): bring the
   // Gladys min/max back to real degrees, like the value transforms do.
-  if (
-    feature.scale !== undefined &&
-    feature.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
-    feature.type === DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE
-  ) {
+  const isScaledTargetTemperature =
+    (feature.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
+      feature.type === DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE) ||
+    (feature.category === DEVICE_FEATURE_CATEGORIES.THERMOSTAT &&
+      feature.type === DEVICE_FEATURE_TYPES.THERMOSTAT.TARGET_TEMPERATURE);
+  if (feature.scale !== undefined && isScaledTargetTemperature) {
     const divider = 10 ** feature.scale;
     feature.min /= divider;
     feature.max /= divider;
+  }
+  // A writable feature reports its state back after a command.
+  if (feature.read_only === false) {
+    feature.has_feedback = true;
+  }
+  if (
+    feature.category === DEVICE_FEATURE_CATEGORIES.HEATER &&
+    feature.type === DEVICE_FEATURE_TYPES.HEATER.PILOT_WIRE_MODE
+  ) {
+    // Restrict UI mode choices to what this device really supports: the spec
+    // enum range intersected with the device vocabulary (variants may lack
+    // Off/Thermostat — writing them is rejected anyway).
+    feature.supported_options = buildPilotWireSupportedOptions(mappingEntry, valuesObject.range);
   }
 
   return feature;

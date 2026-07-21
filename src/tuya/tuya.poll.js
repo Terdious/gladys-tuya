@@ -15,7 +15,7 @@ import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.clo
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
-import { getDeviceType, getFeatureMapping } from './mappings/index.js';
+import { getDeviceType, getFeatureMapping, getProductIdFromDevice } from './mappings/index.js';
 import {
   isLocalInCooldown,
   localCooldownRemainingMs,
@@ -40,10 +40,11 @@ const getFeatureReader = (deviceFeature) => {
   return categoryReaders[deviceFeature.type] || null;
 };
 
-// Resolve the cloud-mapping entry of a feature code for this device.
-const resolveFeatureMappingEntry = (device, code) => {
+// Resolve the (possibly product-variant) cloud-mapping entry of a feature
+// code for this device.
+export const resolveFeatureMappingEntry = (device, code) => {
   const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
-  return getFeatureMapping(code, deviceType);
+  return getFeatureMapping(code, deviceType, getProductIdFromDevice(device));
 };
 
 /**
@@ -340,9 +341,12 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
       return;
     }
     const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, code);
+    // The mapping entry gives the reader per-variant metadata (e.g. the
+    // tuyaEnum pilot-wire vocabulary).
+    const mappingEntry = resolveFeatureMappingEntry(device, code);
     let transformedValue;
     try {
-      transformedValue = reader(value, featureWithScale);
+      transformedValue = reader(value, featureWithScale, mappingEntry);
     } catch (e) {
       summary.skipped += 1;
       logger.warn(`[Tuya][poll][cloud] reader failed for device=${topic} code=${code}`, e);
@@ -402,9 +406,10 @@ export function emitLocalDpsStates(self, device, dps, pending) {
       return;
     }
     const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, code);
+    const mappingEntry = resolveFeatureMappingEntry(device, code);
     let transformedValue;
     try {
-      transformedValue = reader(rawValue, featureWithScale);
+      transformedValue = reader(rawValue, featureWithScale, mappingEntry);
     } catch (e) {
       pendingCloudFeatures.push(deviceFeature);
       logger.warn(

@@ -13,7 +13,7 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { DEVICE_PARAM_NAME, DEVICE_EXTERNAL_ID_TYPE } from '../constants.js';
-import { normalizeBoolean } from '../utils/tuya.normalize.js';
+import { normalizeBoolean, normalizeTemperatureUnit } from '../utils/tuya.normalize.js';
 import { resolveCloudReadStrategy } from '../cloud/tuya.cloudStrategy.js';
 import { buildDeviceSelector } from '../utils/tuya.selector.js';
 import { convertFeature } from './tuya.convertFeature.js';
@@ -27,6 +27,18 @@ const logger = createLogger({ name: 'tuya' });
 // Tuya service.
 const POLL_FREQUENCY_LOCAL = 10 * 1000;
 const POLL_FREQUENCY_CLOUD = 30 * 1000;
+
+// The real temperature unit of the device (some report Fahrenheit through the
+// temp_unit_convert / unit shadow property).
+const getTemperatureUnit = (properties) => {
+  const currentProperties = Array.isArray(properties && properties.properties)
+    ? properties.properties
+    : [];
+  const unitProperty = currentProperties.find(
+    (property) => property && (property.code === 'temp_unit_convert' || property.code === 'unit'),
+  );
+  return normalizeTemperatureUnit(unitProperty && unitProperty.value);
+};
 
 const parseFeatureValues = (values) => {
   if (!values || typeof values !== 'object') {
@@ -235,12 +247,15 @@ export function convertDevice(gladys, tuyaDevice) {
   });
 
   const deviceSelector = buildDeviceSelector(name, id);
-  const ignoredCloudCodes = getIgnoredCloudCodes(deviceType);
+  const ignoredCloudCodes = getIgnoredCloudCodes(deviceType, productId);
+  const temperatureUnit = getTemperatureUnit(properties);
   const features = Object.values(groups).map((group) =>
     convertFeature(group, ids, {
       deviceType,
       ignoredCloudCodes,
       deviceSelector,
+      temperatureUnit,
+      productId,
     }),
   );
   const filteredFeatures = features.filter((feature) => feature);

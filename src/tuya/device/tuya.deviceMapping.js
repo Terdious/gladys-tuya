@@ -9,12 +9,81 @@ import { intToRgb, rgbToHsb, rgbToInt, hsbToRgb } from '../utils/colors.js';
 import { normalizeBoolean } from '../utils/tuya.normalize.js';
 // Mirror of the core AC_MODE constant (server/utils/constants.js).
 import { AC_MODE } from '../../devices/airConditioner.js';
+// Mirror of the core PILOT_WIRE_MODE constant (server/utils/constants.js).
+import { PILOT_WIRE_MODE } from '../../devices/pilotThermostat.js';
 
 // Mirror of the core COVER_STATE constant (server/utils/constants.js).
 export const COVER_STATE = {
   STOP: 0,
   OPEN: 1,
   CLOSE: -1,
+};
+
+// Mirror of the core OPENING_SENSOR_STATE constant (server/utils/constants.js).
+export const OPENING_SENSOR_STATE = {
+  OPEN: 0,
+  CLOSE: 1,
+};
+
+// Default pilot-wire vocabulary (RP5-style thermostats). Every pilot-wire
+// product uses its own mode strings (there is no Tuya standard for fil
+// pilote): a cloud-mapping entry can carry a `tuyaEnum` map (tuya string ->
+// Gladys PILOT_WIRE_MODE) overriding this default vocabulary.
+const TUYA_PILOT_WIRE_MODE_TO_GLADYS = {
+  Standby: PILOT_WIRE_MODE.OFF,
+  Anti_forst: PILOT_WIRE_MODE.FROST_PROTECTION,
+  ECO: PILOT_WIRE_MODE.ECO,
+  Comfort_1: PILOT_WIRE_MODE.COMFORT_1,
+  Comfort_2: PILOT_WIRE_MODE.COMFORT_2,
+  Comfort: PILOT_WIRE_MODE.COMFORT,
+  Programming: PILOT_WIRE_MODE.PROGRAMMING,
+  Thermostat: PILOT_WIRE_MODE.THERMOSTAT,
+};
+
+const getPilotWireTuyaEnum = (mappingEntry) =>
+  mappingEntry && mappingEntry.tuyaEnum && typeof mappingEntry.tuyaEnum === 'object'
+    ? mappingEntry.tuyaEnum
+    : TUYA_PILOT_WIRE_MODE_TO_GLADYS;
+
+// English fallback labels for pilot-wire supported options: the frontend
+// renders its own localized label from the option value, these only keep the
+// API payload human-readable.
+const PILOT_WIRE_MODE_LABELS = {
+  [PILOT_WIRE_MODE.OFF]: 'Off',
+  [PILOT_WIRE_MODE.FROST_PROTECTION]: 'Frost Protection',
+  [PILOT_WIRE_MODE.ECO]: 'Eco',
+  [PILOT_WIRE_MODE.COMFORT_1]: 'Comfort -1°C',
+  [PILOT_WIRE_MODE.COMFORT_2]: 'Comfort -2°C',
+  [PILOT_WIRE_MODE.COMFORT]: 'Comfort',
+  [PILOT_WIRE_MODE.PROGRAMMING]: 'Programming',
+  [PILOT_WIRE_MODE.THERMOSTAT]: 'Thermostat',
+};
+
+// Build the supported_options of a pilot-wire-mode feature: the Gladys modes
+// actually reachable on this device. A curated variant vocabulary (explicit
+// `tuyaEnum`, e.g. the eCosy) is the COMPLETE truth — it exists precisely
+// because the device specs are unreliable, and it already drives what
+// setValue accepts. The default vocabulary spans every generic product, so it
+// is narrowed by the spec enum range (a status enum may expose fewer values
+// than its rw sibling); without a usable range the full default vocabulary is
+// assumed.
+export const buildPilotWireSupportedOptions = (mappingEntry, range) => {
+  const hasCuratedEnum = Boolean(
+    mappingEntry && mappingEntry.tuyaEnum && typeof mappingEntry.tuyaEnum === 'object',
+  );
+  const tuyaEnum = getPilotWireTuyaEnum(mappingEntry);
+  const tuyaValues =
+    !hasCuratedEnum && Array.isArray(range) && range.length > 0 ? range : Object.keys(tuyaEnum);
+  const supportedValues = [
+    ...new Set(
+      tuyaValues.map((tuyaValue) => tuyaEnum[tuyaValue]).filter((value) => value !== undefined),
+    ),
+  ].sort((a, b) => a - b);
+  return supportedValues.map((value, index) => ({
+    value,
+    label: PILOT_WIRE_MODE_LABELS[value] || String(value),
+    sort_order: index,
+  }));
 };
 
 const OPEN = 'open';
@@ -98,6 +167,33 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.CHILD_LOCK]: {
+    [DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY]: (valueFromGladys) => {
+      return valueFromGladys === 1;
+    },
+  },
+
+  [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.TARGET_TEMPERATURE]: (valueFromGladys, deviceFeature) => {
+      return unscaleValue(valueFromGladys, deviceFeature, 0);
+    },
+  },
+
+  [DEVICE_FEATURE_CATEGORIES.HEATER]: {
+    [DEVICE_FEATURE_TYPES.HEATER.PILOT_WIRE_MODE]: (
+      valueFromGladys,
+      deviceFeature,
+      mappingEntry,
+    ) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      const tuyaEnum = getPilotWireTuyaEnum(mappingEntry);
+      // Returns undefined when the device vocabulary has no such mode (e.g.
+      // OFF on a device whose on/off is a separate switch DPS): setValue
+      // rejects it instead of sending garbage.
+      return Object.keys(tuyaEnum).find((tuyaValue) => tuyaEnum[tuyaValue] === parsedValue);
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING]: {
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromGladys) => {
       return valueFromGladys === 1;
@@ -171,6 +267,35 @@ export const readValues = {
       return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
+  [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.TARGET_TEMPERATURE]: (valueFromDevice, deviceFeature) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.HEATER]: {
+    [DEVICE_FEATURE_TYPES.HEATER.PILOT_WIRE_MODE]: (
+      valueFromDevice,
+      deviceFeature,
+      mappingEntry,
+    ) => {
+      const tuyaEnum = getPilotWireTuyaEnum(mappingEntry);
+      return Object.prototype.hasOwnProperty.call(tuyaEnum, valueFromDevice)
+        ? tuyaEnum[valueFromDevice]
+        : null;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.OPENING_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice)
+        ? OPENING_SENSOR_STATE.OPEN
+        : OPENING_SENSOR_STATE.CLOSE;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.CHILD_LOCK]: {
+    [DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
     [DEVICE_FEATURE_TYPES.SWITCH.BINARY]: (valueFromDevice) => {
       return normalizeBoolean(valueFromDevice) ? 1 : 0;
@@ -191,6 +316,9 @@ export const readValues = {
   [DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR]: {
     [DEVICE_FEATURE_TYPES.ENERGY_SENSOR.POWER]: (valueFromDevice, deviceFeature) => {
       return scaleValue(valueFromDevice, deviceFeature, 1);
+    },
+    [DEVICE_FEATURE_TYPES.ENERGY_SENSOR.INDEX_TODAY]: (valueFromDevice, deviceFeature) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
     },
     [DEVICE_FEATURE_TYPES.ENERGY_SENSOR.ENERGY]: (valueFromDevice, deviceFeature) => {
       return scaleValue(valueFromDevice, deviceFeature, 2);

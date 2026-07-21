@@ -13,9 +13,32 @@ import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 import { isLocalInCooldown } from './local/tuya.localCircuit.js';
-import { getFeatureWithFallbackScale } from './tuya.poll.js';
+import { getFeatureWithFallbackScale, resolveFeatureMappingEntry } from './tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
+
+const FEEDBACK_POLL_DELAY_MS = 1000;
+
+// After a successful command, re-read the device shortly after so Gladys
+// shows the confirmed state (has_feedback), as the core PR8 does. The poll is
+// fire-and-forget: a command must not block on it, and the timer is unref'd
+// so it never keeps the process alive.
+const scheduleFeedbackPoll = (self, device, reason) => {
+  if (!self || typeof self.poll !== 'function' || !device || !device.external_id) {
+    return;
+  }
+  const delayMs = Number.isFinite(self.feedbackPollDelayMs)
+    ? self.feedbackPollDelayMs
+    : FEEDBACK_POLL_DELAY_MS;
+  const timer = setTimeout(() => {
+    self.poll(device).catch((e) => {
+      logger.debug(`[Tuya][setValue] feedback poll failed after ${reason}`, e);
+    });
+  }, delayMs);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+};
 
 /**
  * @description Send the new device value over device protocol.
@@ -38,9 +61,20 @@ export async function setValue(device, deviceFeature, value) {
   const writeFn = writeCategory ? writeCategory[deviceFeature.type] : null;
   // The feature is passed along for scale-aware transforms (e.g. an AC target
   // temperature with scale 1 stores 20.0 degrees as 200). Gladys does not
-  // persist the scale, so restore it from the device-type mapping first.
+  // persist the scale, so restore it from the device-type mapping first. The
+  // mapping entry gives the writer per-variant metadata (e.g. the tuyaEnum
+  // pilot-wire vocabulary).
   const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, command);
-  const transformedValue = writeFn ? writeFn(value, featureWithScale) : value;
+  const mappingEntry = resolveFeatureMappingEntry(device, command);
+  const transformedValue = writeFn ? writeFn(value, featureWithScale, mappingEntry) : value;
+  if (writeFn && transformedValue === undefined) {
+    // e.g. a pilot-wire mode the device vocabulary does not support (OFF on a
+    // device whose on/off is a separate switch DPS): reject instead of
+    // sending garbage to the device.
+    throw new Error(
+      `Tuya: value "${value}" is not supported for command "${command}" on device "${topic}"`,
+    );
+  }
   logger.debug(`Change value for devices ${topic}/${command} to value ${transformedValue}...`);
 
   const params = device.params || [];
@@ -73,6 +107,8 @@ export async function setValue(device, deviceFeature, value) {
       try {
         const done = await this.localSessionSet(topic, localDps, transformedValue);
         if (done) {
+          // No feedback poll here: the persistent session pushes the DPS
+          // change (~1s) on its own.
           return;
         }
       } catch {
@@ -85,6 +121,7 @@ export async function setValue(device, deviceFeature, value) {
             body: { commands: [{ code: command, value: transformedValue }] },
           });
           logger.debug(`[Tuya][setValue] ${JSON.stringify(response)}`);
+          scheduleFeedbackPoll(this, device, 'cloud fallback command');
         } else {
           logger.warn(
             `[Tuya][setValue] session set failed for device=${topic} and no cloud fallback is available`,
@@ -148,6 +185,7 @@ export async function setValue(device, deviceFeature, value) {
 
     const localSuccess = await runLocalSet();
     if (localSuccess) {
+      scheduleFeedbackPoll(this, device, 'local command');
       return;
     }
   }
@@ -172,4 +210,5 @@ export async function setValue(device, deviceFeature, value) {
     },
   });
   logger.debug(`[Tuya][setValue] ${JSON.stringify(response)}`);
+  scheduleFeedbackPoll(this, device, 'cloud command');
 }
