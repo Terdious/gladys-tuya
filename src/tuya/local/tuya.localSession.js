@@ -18,6 +18,7 @@ import { DEVICE_PARAM_NAME } from '../constants.js';
 import { getParamValue } from '../utils/tuya.deviceParams.js';
 import { localApiClasses } from './tuya.localPoll.js';
 import { recordLocalSuccess } from './tuya.localCircuit.js';
+import { formatSocketError } from './tuya.socketError.js';
 import { emitLocalDpsStates, publishTransport, TRANSPORT } from '../tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
@@ -122,7 +123,7 @@ export async function ensureLocalSession({ deviceId, ip, localKey, protocolVersi
       api.on('dp-refresh', onPush);
       api.on('error', (err) => {
         logger.debug(
-          `[Tuya][localSession] device=${deviceId} socket error: ${err && err.message ? err.message : err}`,
+          `[Tuya][localSession] device=${deviceId} socket error: ${formatSocketError(err, ip)}`,
         );
       });
       api.on('disconnected', () => {

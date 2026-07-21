@@ -13,6 +13,7 @@ import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 import { isLocalInCooldown } from './local/tuya.localCircuit.js';
+import { formatSocketError } from './local/tuya.socketError.js';
 import { getFeatureWithFallbackScale, resolveFeatureMappingEntry } from './tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
@@ -158,7 +159,7 @@ export async function setValue(device, deviceFeature, value) {
       if (typeof tuyaLocal.on === 'function') {
         tuyaLocal.on('error', (err) => {
           logger.info(
-            `[Tuya][setValue][local] socket error for device=${topic}: ${err && err.message ? err.message : err}`,
+            `[Tuya][setValue][local] socket error for device=${topic}: ${formatSocketError(err, ipAddress)}`,
           );
         });
       }

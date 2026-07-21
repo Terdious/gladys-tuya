@@ -280,6 +280,17 @@ gladys.handleShutdown((signal) => {
   tuya.disconnect();
 });
 
+// --- Last-resort error containment -------------------------------------------
+// In the external-integration model an unhandled error kills the whole
+// container (there is no core supervisor to catch it): log and keep running.
+// Anything reaching these guards is a bug to fix upstream of them.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection (bug: should be caught upstream)', reason);
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception (bug: should be caught upstream)', err);
+});
+
 // --- Startup -----------------------------------------------------------------
 logger.info('Starting the Tuya integration...');
 gladys.connect().catch((err) => {

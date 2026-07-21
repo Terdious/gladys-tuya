@@ -8,6 +8,13 @@ import { API } from '../constants.js';
 
 const logger = createLogger({ name: 'tuya' });
 
+// Safety cap on the recursive cloud pagination: at page_size 100 this already
+// covers 10 000 devices, far beyond any real account. It only ever triggers if
+// the API keeps returning full non-empty pages with has_more=true (a
+// misbehaving upstream), turning a would-be runaway recursion into a bounded
+// stop.
+export const MAX_DEVICE_PAGES = 100;
+
 /**
  * @description Load Tuya cloud devices (paginated).
  * @param {number} pageNo - Page number.
@@ -46,7 +53,12 @@ export async function loadDevices(pageNo = 1, pageSize = 100) {
   }
 
   const result = responsePage.result || [];
-  const list = Array.isArray(result) ? result : result.list || [];
+  let list = [];
+  if (Array.isArray(result)) {
+    list = result;
+  } else if (Array.isArray(result && result.list)) {
+    list = result.list;
+  }
   let hasMore = list.length === pageSize;
   if (!Array.isArray(result) && typeof result.has_more === 'boolean') {
     hasMore = result.has_more;
@@ -55,6 +67,12 @@ export async function loadDevices(pageNo = 1, pageSize = 100) {
   if (hasMore) {
     if (list.length === 0) {
       throw new Error('Tuya API pagination did not advance (has_more=true with empty page)');
+    }
+    if (pageNo >= MAX_DEVICE_PAGES) {
+      logger.warn(
+        `Tuya device pagination reached the safety cap of ${MAX_DEVICE_PAGES} pages; stopping to avoid runaway recursion`,
+      );
+      return list;
     }
     const nextResult = await this.loadDevices(pageNo + 1, pageSize);
     list.push(...nextResult);

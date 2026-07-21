@@ -90,7 +90,8 @@ test('convertFeature converts a mapped writable feature', () => {
   assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
   assert.equal(feature.type, DEVICE_FEATURE_TYPES.SWITCH.BINARY);
   assert.equal(feature.read_only, false);
-  assert.equal(feature.name, 'switch');
+  // The curated mapping name wins over the raw Tuya code.
+  assert.equal(feature.name, 'Switch');
 });
 
 test('convertFeature applies min/max/scale from the Tuya values', () => {
