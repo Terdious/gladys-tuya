@@ -13,6 +13,7 @@ import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 import { isLocalInCooldown } from './local/tuya.localCircuit.js';
+import { getFeatureWithFallbackScale } from './tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -35,7 +36,11 @@ export async function setValue(device, deviceFeature, value) {
 
   const writeCategory = writeValues[deviceFeature.category];
   const writeFn = writeCategory ? writeCategory[deviceFeature.type] : null;
-  const transformedValue = writeFn ? writeFn(value) : value;
+  // The feature is passed along for scale-aware transforms (e.g. an AC target
+  // temperature with scale 1 stores 20.0 degrees as 200). Gladys does not
+  // persist the scale, so restore it from the device-type mapping first.
+  const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, command);
+  const transformedValue = writeFn ? writeFn(value, featureWithScale) : value;
   logger.debug(`Change value for devices ${topic}/${command} to value ${transformedValue}...`);
 
   const params = device.params || [];

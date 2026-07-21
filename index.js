@@ -23,6 +23,7 @@ import { STATUS } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
 import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
+import { enrichFromCreatedDevices } from './src/tuya/device/tuya.enrichDiscovery.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -119,13 +120,15 @@ function discoverAndPublish() {
       try {
         const scan = await tuya.localScan({ timeoutSeconds: 10 });
         tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
-        tuya.discoveredDevices = tuyaDevices;
       } catch (err) {
         logger.warn('Tuya local scan failed (cloud discovery still published)', err);
       }
-    } else {
-      tuya.discoveredDevices = tuyaDevices;
     }
+    // Never publish LESS than Gladys already knows: a device the scan missed
+    // this time keeps the LAN info stored on its created device, so an
+    // "Update" from the Discovery screen cannot wipe a manually-detected IP.
+    tuyaDevices = enrichFromCreatedDevices(tuyaDevices, gladys.devices, config.localMode);
+    tuya.discoveredDevices = tuyaDevices;
     await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
   })().finally(() => {
     discoveryInFlight = null;
@@ -191,6 +194,11 @@ gladys.onAction('detect_protocol', async (fields) => {
   rawDevice.ip = ip;
   rawDevice.protocol_version = version;
   rawDevice.local_override = config.localMode === true;
+  tuya.discoveredDevices = enrichFromCreatedDevices(
+    tuya.discoveredDevices,
+    gladys.devices,
+    config.localMode,
+  );
   await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuya.discoveredDevices));
 
   return {

@@ -7,6 +7,8 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 
 import { intToRgb, rgbToHsb, rgbToInt, hsbToRgb } from '../utils/colors.js';
 import { normalizeBoolean } from '../utils/tuya.normalize.js';
+// Mirror of the core AC_MODE constant (server/utils/constants.js).
+import { AC_MODE } from '../../devices/airConditioner.js';
 
 // Mirror of the core COVER_STATE constant (server/utils/constants.js).
 export const COVER_STATE = {
@@ -37,6 +39,37 @@ const scaleValue = (valueFromDevice, deviceFeature, defaultScale = 0) => {
   return parsedValue / 10 ** scale;
 };
 
+const unscaleValue = (valueFromGladys, deviceFeature, defaultScale = 0) => {
+  const parsedValue = Number(valueFromGladys);
+  if (Number.isNaN(parsedValue)) {
+    return parsedValue;
+  }
+  const scale = getScale(deviceFeature, defaultScale);
+  return Math.round(parsedValue * 10 ** scale);
+};
+
+// Tuya AC mode vocabulary -> Gladys AC_MODE values (aliases like cold/cool
+// come from the many Tuya AC firmwares).
+const TUYA_AC_MODE_TO_GLADYS = {
+  auto: AC_MODE.AUTO,
+  cold: AC_MODE.COOLING,
+  cool: AC_MODE.COOLING,
+  heat: AC_MODE.HEATING,
+  hot: AC_MODE.HEATING,
+  wet: AC_MODE.DRYING,
+  dry: AC_MODE.DRYING,
+  fan: AC_MODE.FAN,
+  wind: AC_MODE.FAN,
+};
+
+const GLADYS_AC_MODE_TO_TUYA = {
+  [AC_MODE.AUTO]: 'auto',
+  [AC_MODE.COOLING]: 'cold',
+  [AC_MODE.HEATING]: 'heat',
+  [AC_MODE.DRYING]: 'wet',
+  [AC_MODE.FAN]: 'fan',
+};
+
 export const writeValues = {
   [DEVICE_FEATURE_CATEGORIES.LIGHT]: {
     [DEVICE_FEATURE_TYPES.LIGHT.BINARY]: (valueFromGladys) => {
@@ -62,6 +95,23 @@ export const writeValues = {
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
     [DEVICE_FEATURE_TYPES.SWITCH.BINARY]: (valueFromGladys) => {
       return valueFromGladys === 1;
+    },
+  },
+
+  [DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING]: {
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromGladys) => {
+      return valueFromGladys === 1;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_AC_MODE_TO_TUYA[parsedValue];
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (
+      valueFromGladys,
+      deviceFeature,
+    ) => {
+      // A device declaring scale 1 stores 20.0 degrees as 200.
+      return unscaleValue(valueFromGladys, deviceFeature, 0);
     },
   },
 
@@ -100,6 +150,27 @@ export const readValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING]: {
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromDevice) => {
+      return Object.prototype.hasOwnProperty.call(TUYA_AC_MODE_TO_GLADYS, valueFromDevice)
+        ? TUYA_AC_MODE_TO_GLADYS[valueFromDevice]
+        : null;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (
+      valueFromDevice,
+      deviceFeature,
+    ) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
     [DEVICE_FEATURE_TYPES.SWITCH.BINARY]: (valueFromDevice) => {
       return normalizeBoolean(valueFromDevice) ? 1 : 0;
