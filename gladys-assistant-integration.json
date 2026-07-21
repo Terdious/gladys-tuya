@@ -6,12 +6,24 @@
     "en": "Tuya / Smart Life smart sockets and energy meters over the cloud, with optional local control.",
     "fr": "Prises et compteurs d'énergie Tuya / Smart Life via le cloud, avec contrôle local optionnel."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/terdious/gladys-tuya:1.0.0",
+  "version": "1.0.1",
+  "docker_image": "ghcr.io/terdious/gladys-tuya:1.0.1",
   "gladys_version": ">=4.62.0",
   "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/master/cover.png",
-  "network_discovery": [{ "type": "udp-broadcast", "ports": [6666, 6667, 7000] }],
-  "transports": ["local", "cloud"],
+  "network_discovery": [
+    {
+      "type": "udp-broadcast",
+      "ports": [
+        6666,
+        6667,
+        7000
+      ]
+    }
+  ],
+  "transports": [
+    "local",
+    "cloud"
+  ],
   "actions": [
     {
       "key": "detect_protocol",
@@ -41,7 +53,10 @@
         {
           "key": "ip",
           "type": "string",
-          "label": { "en": "Device IP address", "fr": "Adresse IP de l'appareil" },
+          "label": {
+            "en": "Device IP address",
+            "fr": "Adresse IP de l'appareil"
+          },
           "required": true
         }
       ]
@@ -51,31 +66,67 @@
     {
       "key": "endpoint",
       "type": "select",
-      "label": { "en": "Endpoint", "fr": "Endpoint" },
+      "label": {
+        "en": "Endpoint",
+        "fr": "Endpoint"
+      },
       "description": {
         "en": "Tuya data center region of your cloud project.",
         "fr": "Région du data center Tuya de votre projet cloud."
       },
       "required": true,
       "options": [
-        { "value": "china", "label": { "en": "China", "fr": "China" } },
+        {
+          "value": "china",
+          "label": {
+            "en": "China",
+            "fr": "China"
+          }
+        },
         {
           "value": "westernAmerica",
-          "label": { "en": "Western America", "fr": "Western America" }
+          "label": {
+            "en": "Western America",
+            "fr": "Western America"
+          }
         },
         {
           "value": "easternAmerica",
-          "label": { "en": "Eastern America", "fr": "Eastern America" }
+          "label": {
+            "en": "Eastern America",
+            "fr": "Eastern America"
+          }
         },
-        { "value": "centralEurope", "label": { "en": "Central Europe", "fr": "Central Europe" } },
-        { "value": "westernEurope", "label": { "en": "Western Europe", "fr": "Western Europe" } },
-        { "value": "india", "label": { "en": "India", "fr": "India" } }
+        {
+          "value": "centralEurope",
+          "label": {
+            "en": "Central Europe",
+            "fr": "Central Europe"
+          }
+        },
+        {
+          "value": "westernEurope",
+          "label": {
+            "en": "Western Europe",
+            "fr": "Western Europe"
+          }
+        },
+        {
+          "value": "india",
+          "label": {
+            "en": "India",
+            "fr": "India"
+          }
+        }
       ]
     },
     {
       "key": "access_key",
       "type": "string",
-      "label": { "en": "Client ID", "fr": "Client ID" },
+      "label": {
+        "en": "Client ID",
+        "fr": "Client ID"
+      },
       "description": {
         "en": "Access ID / Client ID of your Tuya IoT cloud project.",
         "fr": "Access ID / Client ID de votre projet cloud Tuya IoT."
@@ -85,7 +136,10 @@
     {
       "key": "secret_key",
       "type": "secret",
-      "label": { "en": "Client Secret", "fr": "Client Secret" },
+      "label": {
+        "en": "Client Secret",
+        "fr": "Client Secret"
+      },
       "description": {
         "en": "Access Secret / Client Secret of your Tuya IoT cloud project.",
         "fr": "Access Secret / Client Secret de votre projet cloud Tuya IoT."
@@ -95,7 +149,10 @@
     {
       "key": "app_account_id",
       "type": "string",
-      "label": { "en": "App account UID", "fr": "App account User ID" },
+      "label": {
+        "en": "App account UID",
+        "fr": "App account User ID"
+      },
       "description": {
         "en": "UID of the Smart Life / Tuya app account linked to your cloud project.",
         "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
