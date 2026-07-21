@@ -18,6 +18,11 @@ export function disconnect(options = {}) {
   const { manual = false } = options;
   logger.info(`Disconnecting from Tuya... (manual=${manual})`);
   this.stopReconnect();
+  // Release every persistent local session (a Tuya device only accepts one
+  // local connection: never leave sockets behind).
+  if (typeof this.closeAllLocalSessions === 'function') {
+    this.closeAllLocalSessions().catch(() => {});
+  }
   this.connector = null;
   this.status = STATUS.NOT_INITIALIZED;
   this.lastError = null;

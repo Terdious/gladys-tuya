@@ -28,6 +28,14 @@ import { localPoll } from './local/tuya.localPoll.js';
 import { localScan } from './local/tuya.localScan.js';
 import { detectProtocol } from './local/tuya.detectProtocol.js';
 import {
+  ensureLocalSession,
+  localRead,
+  localSessionSet,
+  handleLocalPush,
+  closeLocalSession,
+  closeAllLocalSessions,
+} from './local/tuya.localSession.js';
+import {
   tryReconnect,
   scheduleQuickReconnects,
   clearQuickReconnects,
@@ -61,6 +69,8 @@ export class TuyaHandler {
     this.localCircuit = new Map();
     // Last published transport badge per device external_id (publish on change).
     this.lastTransports = new Map();
+    // Persistent local sessions per Tuya device id (issue #9).
+    this.localSessions = new Map();
     // In-flight publishState promises of the current poll cycle.
     this.pendingStates = [];
 
@@ -89,6 +99,12 @@ TuyaHandler.prototype.manualDisconnect = manualDisconnect;
 TuyaHandler.prototype.localPoll = localPoll;
 TuyaHandler.prototype.localScan = localScan;
 TuyaHandler.prototype.detectProtocol = detectProtocol;
+TuyaHandler.prototype.ensureLocalSession = ensureLocalSession;
+TuyaHandler.prototype.localRead = localRead;
+TuyaHandler.prototype.localSessionSet = localSessionSet;
+TuyaHandler.prototype.handleLocalPush = handleLocalPush;
+TuyaHandler.prototype.closeLocalSession = closeLocalSession;
+TuyaHandler.prototype.closeAllLocalSessions = closeAllLocalSessions;
 TuyaHandler.prototype.tryReconnect = tryReconnect;
 TuyaHandler.prototype.scheduleQuickReconnects = scheduleQuickReconnects;
 TuyaHandler.prototype.clearQuickReconnects = clearQuickReconnects;

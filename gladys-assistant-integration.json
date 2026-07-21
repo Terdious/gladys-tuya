@@ -13,17 +13,10 @@
   "network_discovery": [
     {
       "type": "udp-broadcast",
-      "ports": [
-        6666,
-        6667,
-        7000
-      ]
+      "ports": [6666, 6667, 7000]
     }
   ],
-  "transports": [
-    "local",
-    "cloud"
-  ],
+  "transports": ["local", "cloud"],
   "actions": [
     {
       "key": "detect_protocol",

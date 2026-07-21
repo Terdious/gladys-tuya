@@ -232,7 +232,12 @@ gladys.onConfigUpdated(async (newConfig) => {
     return;
   }
   if (localModeChanged) {
-    // Only the "Mode local (LAN)" toggle changed: no reconnect, just re-run a
+    if (config.localMode !== true) {
+      // Local preference turned off: release every persistent local session
+      // (the polls switch to the cloud on their own).
+      await tuya.closeAllLocalSessions();
+    }
+    // Only the "Prefer local" toggle changed: no reconnect, just re-run a
     // background discovery so the LAN scan is (re)applied per the new
     // preference (ON = cloud + UDP scan, OFF = cloud only).
     await discoverAndPublish();

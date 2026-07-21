@@ -77,6 +77,7 @@ const toTimestamp = (value) => {
  */
 const emitFeatureState = (
   self,
+  pending,
   deviceFeature,
   transformedValue,
   previousValue,
@@ -102,7 +103,7 @@ const emitFeatureState = (
       lastValue: transformedValue,
       lastValueChanged: new Date(),
     });
-    self.pendingStates.push(
+    pending.push(
       self.gladys.publishState(deviceFeature.external_id, transformedValue).catch((e) => {
         logger.warn(`[Tuya][poll] failed to publish state for ${deviceFeature.external_id}`, e);
       }),
@@ -130,7 +131,7 @@ export const TRANSPORT = {
  * @example
  * publishTransport(this, device, TRANSPORT.LOCAL);
  */
-const publishTransport = (self, device, transport) => {
+export const publishTransport = (self, device, transport) => {
   const externalId = device && device.external_id;
   if (!externalId || typeof self.gladys.publishTransports !== 'function') {
     return;
@@ -219,7 +220,7 @@ const hasAnyRequestedCode = (values, requestedCodes) =>
  * @example
  * const summary = await pollCloudFeatures(this, device, deviceFeatures, topic);
  */
-export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
+export async function pollCloudFeatures(self, device, deviceFeatures, topic, pending = []) {
   const summary = {
     polled: Array.isArray(deviceFeatures) ? deviceFeatures.length : 0,
     handled: 0,
@@ -315,6 +316,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     const { lastValue, lastValueChanged } = getCurrentFeatureState(self, deviceFeature);
     const { changed } = emitFeatureState(
       self,
+      pending,
       deviceFeature,
       transformedValue,
       lastValue,
@@ -327,6 +329,70 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
   });
 
   return summary;
+}
+
+/**
+ * @description Map a local DPS payload onto the device features and publish
+ * the changed states. Shared by the poll local branch and the persistent
+ * session push path (tuya.localSession.js).
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device (features + params).
+ * @param {object} dps - DPS map (may be partial, e.g. a push).
+ * @param {Array} pending - Sink for the in-flight publishState promises.
+ * @returns {object} { localHandled, localChanged, pendingCloudFeatures }.
+ * @example
+ * const result = emitLocalDpsStates(handler, device, { 1: true }, pending);
+ */
+export function emitLocalDpsStates(self, device, dps, pending) {
+  const deviceFeatures = Array.isArray(device.features) ? device.features : [];
+  const pendingCloudFeatures = [];
+  let localHandled = 0;
+  let localChanged = 0;
+
+  deviceFeatures.forEach((deviceFeature) => {
+    const code = getFeatureCode(deviceFeature);
+    const dpsKey = getLocalDpsFromCode(code, device);
+    const reader = getFeatureReader(deviceFeature);
+
+    if (!code || dpsKey === null || !reader || !hasDpsKey(dps, dpsKey)) {
+      pendingCloudFeatures.push(deviceFeature);
+      return;
+    }
+
+    const rawValue = Object.prototype.hasOwnProperty.call(dps, String(dpsKey))
+      ? dps[String(dpsKey)]
+      : dps[dpsKey];
+    if (rawValue === undefined) {
+      pendingCloudFeatures.push(deviceFeature);
+      return;
+    }
+    let transformedValue;
+    try {
+      transformedValue = reader(rawValue, deviceFeature);
+    } catch (e) {
+      pendingCloudFeatures.push(deviceFeature);
+      logger.warn(
+        `[Tuya][poll] local reader failed for device feature ${deviceFeature.external_id}; falling back to cloud`,
+        e,
+      );
+      return;
+    }
+    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, deviceFeature);
+    const { changed } = emitFeatureState(
+      self,
+      pending,
+      deviceFeature,
+      transformedValue,
+      lastValue,
+      lastValueChanged,
+    );
+    if (changed) {
+      localChanged += 1;
+    }
+    localHandled += 1;
+  });
+
+  return { localHandled, localChanged, pendingCloudFeatures };
 }
 
 /**
@@ -364,7 +430,9 @@ export async function poll(device) {
     `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} local_mode=${localModeEnabled} protocol=${protocolVersion || 'none'} ip=${ipAddress || 'none'}`,
   );
 
-  this.pendingStates = [];
+  // Per-call sink for the in-flight publishState promises: a push received on
+  // a persistent session must never interleave with a running poll cycle.
+  const pending = [];
   let modeUsed = 'cloud';
   let localHandled = 0;
   let localChanged = 0;
@@ -377,8 +445,8 @@ export async function poll(device) {
   };
   let fallbackReason = 'none';
   const finish = async () => {
-    await Promise.all(this.pendingStates);
-    this.pendingStates = [];
+    await Promise.all(pending);
+    pending.length = 0;
   };
 
   if (!this.localCircuit) {
@@ -408,65 +476,31 @@ export async function poll(device) {
     );
   }
 
+  // Leaving the local path (toggle off or parked by the breaker): release the
+  // device's single local slot so nothing holds a stale socket.
+  if ((!useLocal || localParked) && this.localSessions && this.localSessions.has(topic)) {
+    this.closeLocalSession(topic).catch(() => {});
+  }
+
   if (useLocal && !localParked) {
     try {
-      const localResult = await this.localPoll({
+      // Persistent-session read (issue #9): fresh push cache when available,
+      // otherwise an active read over the live socket — no per-poll handshake.
+      const localResult = await this.localRead({
         deviceId: topic,
         ip: ipAddress,
         localKey,
         protocolVersion,
-        timeoutMs: 3000,
-        fastScan: true,
-        logDps: false,
       });
 
       const dps = localResult && localResult.dps ? localResult.dps : null;
       if (dps && typeof dps === 'object') {
-        // Local poll succeeded: clear any accumulated failures / cooldown.
+        // Local read succeeded: clear any accumulated failures / cooldown.
         recordLocalSuccess(this.localCircuit, topic);
-        const pendingCloudFeatures = [];
-
-        deviceFeatures.forEach((deviceFeature) => {
-          const code = getFeatureCode(deviceFeature);
-          const dpsKey = getLocalDpsFromCode(code, device);
-          const reader = getFeatureReader(deviceFeature);
-
-          if (!code || dpsKey === null || !reader || !hasDpsKey(dps, dpsKey)) {
-            pendingCloudFeatures.push(deviceFeature);
-            return;
-          }
-
-          const rawValue = Object.prototype.hasOwnProperty.call(dps, String(dpsKey))
-            ? dps[String(dpsKey)]
-            : dps[dpsKey];
-          if (rawValue === undefined) {
-            pendingCloudFeatures.push(deviceFeature);
-            return;
-          }
-          let transformedValue;
-          try {
-            transformedValue = reader(rawValue, deviceFeature);
-          } catch (e) {
-            pendingCloudFeatures.push(deviceFeature);
-            logger.warn(
-              `[Tuya][poll] local reader failed for device=${topic} code=${code}; falling back to cloud`,
-              e,
-            );
-            return;
-          }
-          const { lastValue, lastValueChanged } = getCurrentFeatureState(this, deviceFeature);
-          const { changed } = emitFeatureState(
-            this,
-            deviceFeature,
-            transformedValue,
-            lastValue,
-            lastValueChanged,
-          );
-          if (changed) {
-            localChanged += 1;
-          }
-          localHandled += 1;
-        });
+        const localResultStates = emitLocalDpsStates(this, device, dps, pending);
+        localHandled = localResultStates.localHandled;
+        localChanged = localResultStates.localChanged;
+        const { pendingCloudFeatures } = localResultStates;
 
         if (pendingCloudFeatures.length === 0) {
           modeUsed = 'local';
@@ -480,7 +514,13 @@ export async function poll(device) {
 
         fallbackReason = 'partial_local_mapping';
         try {
-          cloudSummary = await pollCloudFeatures(this, device, pendingCloudFeatures, topic);
+          cloudSummary = await pollCloudFeatures(
+            this,
+            device,
+            pendingCloudFeatures,
+            topic,
+            pending,
+          );
         } catch (e) {
           logger.warn(
             `[Tuya][poll] local poll succeeded but cloud fallback failed for ${topic}`,
@@ -503,6 +543,9 @@ export async function poll(device) {
       {
         const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
         if (tripped) {
+          if (this.closeLocalSession) {
+            this.closeLocalSession(topic).catch(() => {});
+          }
           logger.info(
             `[Tuya][poll] device=${topic} local parked ${Math.round(
               cooldownMs / 1000,
@@ -518,6 +561,10 @@ export async function poll(device) {
       fallbackReason = 'local_poll_failed';
       const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
       if (tripped) {
+        // Parked: also release the local slot so nothing keeps a dead socket.
+        if (this.closeLocalSession) {
+          this.closeLocalSession(topic).catch(() => {});
+        }
         logger.info(
           `[Tuya][poll] device=${topic} local parked ${Math.round(
             cooldownMs / 1000,
@@ -549,7 +596,7 @@ export async function poll(device) {
   }
 
   try {
-    cloudSummary = await pollCloudFeatures(this, device, deviceFeatures, topic);
+    cloudSummary = await pollCloudFeatures(this, device, deviceFeatures, topic, pending);
   } catch (e) {
     logger.warn(`[Tuya][poll] cloud poll failed for ${topic}`, e);
     fallbackReason =
