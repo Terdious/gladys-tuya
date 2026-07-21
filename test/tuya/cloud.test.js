@@ -63,7 +63,7 @@ test('connect reaches CONNECTED and records the config hash on success', async (
   assert.equal(handler.status, STATUS.CONNECTED);
   assert.equal(handler.lastError, null);
   assert.equal(handler.autoReconnectAllowed, true);
-  assert.equal(handler.manualDisconnect, false);
+  assert.equal(handler.manualDisconnectEnabled, false);
   assert.equal(handler.lastConnectedConfigHash, buildConfigHash(CONFIG));
   assert.equal(FakeTuyaContext.lastOptions.baseUrl, TUYA_ENDPOINTS.centralEurope);
   assert.equal(FakeTuyaContext.lastOptions.store, handler);

@@ -1,19 +1,28 @@
-// Ported from server/services/tuya/lib/tuya.poll.js (cloud path).
+// Ported from server/services/tuya/lib/tuya.poll.js.
 //
 // Differences with the core service:
 // - states are published to Gladys with `gladys.publishState` instead of the
 //   core NEW_STATE event bus;
 // - the last emitted value/timestamp comes from an in-memory cache on the
 //   handler (the core read it from its stateManager), with the device
-//   feature `last_value` / `last_value_changed` sent by Gladys as fallback;
-// - the local (LAN) poll path arrives with the local-mode PR.
+//   feature `last_value` / `last_value_changed` sent by Gladys as fallback.
 
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { readValues } from './device/tuya.deviceMapping.js';
-import { API } from './constants.js';
+import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
+import { getParamValue } from './utils/tuya.deviceParams.js';
+import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
+import {
+  isLocalInCooldown,
+  localCooldownRemainingMs,
+  recordLocalSuccess,
+  recordLocalFailure,
+  shouldLogIncompleteLocal,
+  LOCAL_FAILURE_THRESHOLD,
+} from './local/tuya.localCircuit.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -103,6 +112,43 @@ const emitFeatureState = (
   return { emitted, changed };
 };
 
+// Effective transport of a device, as shown by the Gladys badge.
+export const TRANSPORT = {
+  LOCAL: 'local',
+  CLOUD: 'cloud',
+  UNREACHABLE: 'unreachable',
+};
+
+/**
+ * @description Publish the effective transport of a device (Gladys renders it
+ * as a badge on the device card). Only published on change, fire-and-forget:
+ * a badge failure must never break a poll cycle.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The polled Gladys device.
+ * @param {string} transport - TRANSPORT.LOCAL | CLOUD | UNREACHABLE.
+ * @returns {void}
+ * @example
+ * publishTransport(this, device, TRANSPORT.LOCAL);
+ */
+const publishTransport = (self, device, transport) => {
+  const externalId = device && device.external_id;
+  if (!externalId || typeof self.gladys.publishTransports !== 'function') {
+    return;
+  }
+  if (!self.lastTransports) {
+    self.lastTransports = new Map();
+  }
+  if (self.lastTransports.get(externalId) === transport) {
+    return;
+  }
+  self.lastTransports.set(externalId, transport);
+  self.gladys.publishTransports([{ external_id: externalId, transport }]).catch((e) => {
+    // Roll back so the next poll retries the publication.
+    self.lastTransports.delete(externalId);
+    logger.debug(`[Tuya][poll] failed to publish transport for ${externalId}: ${e.message}`);
+  });
+};
+
 const extractValuesFromResultArray = (result) => {
   const values = {};
   const entries = Array.isArray(result) ? result : [];
@@ -181,6 +227,8 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     missing: 0,
     skipped: 0,
     strategy: null,
+    // False when the cloud API itself could not be read (transport badge).
+    reachable: true,
   };
   if (!Array.isArray(deviceFeatures) || deviceFeatures.length === 0) {
     return summary;
@@ -188,6 +236,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
 
   if (!self.connector || typeof self.connector.request !== 'function') {
     logger.warn(`[Tuya][poll][cloud] connector unavailable for device=${topic}`);
+    summary.reachable = false;
     return summary;
   }
 
@@ -204,8 +253,10 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
 
   let strategyUsed = primaryStrategy;
   let values;
+  let anyReadOk = false;
   try {
     values = await readCloudValues(self, primaryStrategy, topic);
+    anyReadOk = true;
   } catch (e) {
     logger.warn(
       `[Tuya][poll][cloud] read failed for device=${topic} strategy=${primaryStrategy}`,
@@ -217,6 +268,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
   if (requestedCodes.length > 0 && !hasAnyRequestedCode(values, requestedCodes)) {
     try {
       const alternateValues = await readCloudValues(self, alternateStrategy, topic);
+      anyReadOk = true;
       if (hasAnyRequestedCode(alternateValues, requestedCodes)) {
         values = alternateValues;
         strategyUsed = alternateStrategy;
@@ -232,6 +284,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
     }
   }
   summary.strategy = strategyUsed;
+  summary.reachable = anyReadOk;
 
   deviceFeatures.forEach((deviceFeature) => {
     const code = getFeatureCode(deviceFeature);
@@ -277,7 +330,8 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic) {
 }
 
 /**
- * @description Poll values of a Tuya device (cloud mode).
+ * @description Poll values of a Tuya device (local mode first when the device
+ * opted in through LOCAL_OVERRIDE, with cloud fallback).
  * @param {object} device - The device to poll.
  * @returns {Promise} Promise of nothing.
  * @example
@@ -287,7 +341,33 @@ export async function poll(device) {
   const topic = getTuyaDeviceId(device);
   const deviceFeatures = Array.isArray(device.features) ? device.features : [];
 
+  const params = device.params || [];
+  const ipAddress = getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS);
+  const localKey = getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY);
+  const protocolVersionRaw = getParamValue(params, DEVICE_PARAM_NAME.PROTOCOL_VERSION);
+  const protocolVersion =
+    protocolVersionRaw !== null && protocolVersionRaw !== undefined
+      ? String(protocolVersionRaw).trim()
+      : undefined;
+  // Live decision (point 3): the "Mode local (LAN)" toggle is a GLOBAL, live
+  // preference read at poll time from the current config — NOT a per-device
+  // flag frozen at discovery. A device is polled locally when the toggle is on
+  // AND it is locally reachable (ip + local_key + protocol known); otherwise
+  // (toggle off, or no LAN info) it is polled over the cloud. The stored
+  // LOCAL_OVERRIDE param is no longer read here; it only drives the discovery
+  // poll frequency.
+  const hasLocalCapability = Boolean(ipAddress && localKey && protocolVersion);
+  const localModeEnabled = Boolean(this.config && this.config.localMode === true);
+  const useLocal = localModeEnabled && hasLocalCapability;
+  const requestedMode = localModeEnabled ? 'local' : 'cloud';
+  logger.debug(
+    `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} local_mode=${localModeEnabled} protocol=${protocolVersion || 'none'} ip=${ipAddress || 'none'}`,
+  );
+
   this.pendingStates = [];
+  let modeUsed = 'cloud';
+  let localHandled = 0;
+  let localChanged = 0;
   let cloudSummary = {
     polled: 0,
     handled: 0,
@@ -295,25 +375,205 @@ export async function poll(device) {
     missing: 0,
     skipped: 0,
   };
+  let fallbackReason = 'none';
+  const finish = async () => {
+    await Promise.all(this.pendingStates);
+    this.pendingStates = [];
+  };
+
+  if (!this.localCircuit) {
+    this.localCircuit = new Map();
+  }
+
+  if (localModeEnabled && !hasLocalCapability && (ipAddress || localKey || protocolVersion)) {
+    fallbackReason = 'incomplete_local_config';
+    // Stable condition (device not seen on the LAN): warn once, then stay quiet
+    // and use the cloud. It recovers on its own once the IP is provided.
+    if (shouldLogIncompleteLocal(this.localCircuit, topic, Date.now())) {
+      logger.warn(
+        `[Tuya][poll] local mode on but LAN info incomplete for device=${topic} (ip/protocol/local_key missing) — using cloud; set the IP to enable local`,
+      );
+    }
+  }
+
+  // Circuit breaker: after repeated local failures, a device is parked on the
+  // cloud for a cooldown instead of wasting a 3s local timeout every cycle.
+  const localParked = useLocal && isLocalInCooldown(this.localCircuit, topic, Date.now());
+  if (localParked) {
+    fallbackReason = 'local_cooldown';
+    logger.debug(
+      `[Tuya][poll] device=${topic} local parked (${Math.round(
+        localCooldownRemainingMs(this.localCircuit, topic, Date.now()) / 1000,
+      )}s left) -> cloud`,
+    );
+  }
+
+  if (useLocal && !localParked) {
+    try {
+      const localResult = await this.localPoll({
+        deviceId: topic,
+        ip: ipAddress,
+        localKey,
+        protocolVersion,
+        timeoutMs: 3000,
+        fastScan: true,
+        logDps: false,
+      });
+
+      const dps = localResult && localResult.dps ? localResult.dps : null;
+      if (dps && typeof dps === 'object') {
+        // Local poll succeeded: clear any accumulated failures / cooldown.
+        recordLocalSuccess(this.localCircuit, topic);
+        const pendingCloudFeatures = [];
+
+        deviceFeatures.forEach((deviceFeature) => {
+          const code = getFeatureCode(deviceFeature);
+          const dpsKey = getLocalDpsFromCode(code, device);
+          const reader = getFeatureReader(deviceFeature);
+
+          if (!code || dpsKey === null || !reader || !hasDpsKey(dps, dpsKey)) {
+            pendingCloudFeatures.push(deviceFeature);
+            return;
+          }
+
+          const rawValue = Object.prototype.hasOwnProperty.call(dps, String(dpsKey))
+            ? dps[String(dpsKey)]
+            : dps[dpsKey];
+          if (rawValue === undefined) {
+            pendingCloudFeatures.push(deviceFeature);
+            return;
+          }
+          let transformedValue;
+          try {
+            transformedValue = reader(rawValue, deviceFeature);
+          } catch (e) {
+            pendingCloudFeatures.push(deviceFeature);
+            logger.warn(
+              `[Tuya][poll] local reader failed for device=${topic} code=${code}; falling back to cloud`,
+              e,
+            );
+            return;
+          }
+          const { lastValue, lastValueChanged } = getCurrentFeatureState(this, deviceFeature);
+          const { changed } = emitFeatureState(
+            this,
+            deviceFeature,
+            transformedValue,
+            lastValue,
+            lastValueChanged,
+          );
+          if (changed) {
+            localChanged += 1;
+          }
+          localHandled += 1;
+        });
+
+        if (pendingCloudFeatures.length === 0) {
+          modeUsed = 'local';
+          publishTransport(this, device, TRANSPORT.LOCAL);
+          await finish();
+          logger.debug(
+            `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=0 cloud_changed=0 cloud_missing=0 fallback=${fallbackReason}`,
+          );
+          return;
+        }
+
+        fallbackReason = 'partial_local_mapping';
+        try {
+          cloudSummary = await pollCloudFeatures(this, device, pendingCloudFeatures, topic);
+        } catch (e) {
+          logger.warn(
+            `[Tuya][poll] local poll succeeded but cloud fallback failed for ${topic}`,
+            e,
+          );
+          fallbackReason = 'cloud_fallback_failed';
+        }
+        modeUsed = 'local+cloud';
+        // The LAN link answered: the device counts as local even when some
+        // features complete over the cloud.
+        publishTransport(this, device, TRANSPORT.LOCAL);
+        await finish();
+        logger.debug(
+          `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`,
+        );
+        return;
+      }
+
+      fallbackReason = 'invalid_local_payload';
+      {
+        const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
+        if (tripped) {
+          logger.info(
+            `[Tuya][poll] device=${topic} local parked ${Math.round(
+              cooldownMs / 1000,
+            )}s after ${LOCAL_FAILURE_THRESHOLD} failures (invalid payload) -> cloud`,
+          );
+        } else {
+          logger.debug(
+            `[Tuya][poll] local poll returned invalid DPS payload for ${topic}, falling back to cloud`,
+          );
+        }
+      }
+    } catch (e) {
+      fallbackReason = 'local_poll_failed';
+      const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
+      if (tripped) {
+        logger.info(
+          `[Tuya][poll] device=${topic} local parked ${Math.round(
+            cooldownMs / 1000,
+          )}s after ${LOCAL_FAILURE_THRESHOLD} failures (${e.message}) -> cloud`,
+        );
+      } else {
+        logger.debug(
+          `[Tuya][poll] local poll failed for ${topic}, falling back to cloud: ${e.message}`,
+        );
+      }
+    }
+  }
+
+  // When the device explicitly opted into local mode and the cloud connector
+  // is missing, skip the cloud fallback to avoid flooding the logs with a
+  // `connector unavailable` warning on every poll cycle. The cloud-direct
+  // path (LOCAL_OVERRIDE=false) still goes through pollCloudFeatures, which
+  // surfaces the warn so a missing connector is visible.
+  if (useLocal && (!this.connector || typeof this.connector.request !== 'function')) {
+    fallbackReason =
+      fallbackReason === 'none' ? 'cloud_unavailable' : `${fallbackReason}+cloud_unavailable`;
+    // The LAN did not answer and there is no cloud either.
+    publishTransport(this, device, TRANSPORT.UNREACHABLE);
+    await finish();
+    logger.debug(
+      `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=0 cloud_changed=0 cloud_missing=0 fallback=${fallbackReason}`,
+    );
+    return;
+  }
 
   try {
     cloudSummary = await pollCloudFeatures(this, device, deviceFeatures, topic);
   } catch (e) {
     logger.warn(`[Tuya][poll] cloud poll failed for ${topic}`, e);
+    fallbackReason =
+      fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
-  await Promise.all(this.pendingStates);
-  this.pendingStates = [];
-  const summaryLine = `[Tuya][poll] device=${topic} mode=cloud strategy=${
+  // Badge: the cloud answered (even codes-missing counts as reachable) ->
+  // cloud; the cloud API itself could not be read -> unreachable.
+  publishTransport(
+    this,
+    device,
+    fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false
+      ? TRANSPORT.UNREACHABLE
+      : TRANSPORT.CLOUD,
+  );
+  await finish();
+  const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'
-  } features=${deviceFeatures.length} cloud_handled=${cloudSummary.handled} cloud_changed=${
-    cloudSummary.changed
-  } cloud_missing=${cloudSummary.missing}`;
-  // A device that returns none of its codes reads "online but silent": state
-  // feedback is broken for it. Surface both that case and any published change
-  // at info level so the problem is visible in `docker logs` without
-  // LOG_LEVEL=debug; steady unchanged polls stay at debug.
-  const cloudBlind = cloudSummary.handled === 0 && cloudSummary.missing > 0;
-  if (cloudSummary.changed > 0 || cloudBlind) {
+  } features=${deviceFeatures.length} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=${cloudSummary.handled} cloud_changed=${cloudSummary.changed} cloud_missing=${cloudSummary.missing} fallback=${fallbackReason}`;
+  // Surface a poll that actually published states at info level so the local
+  // vs cloud path and state feedback are visible without LOG_LEVEL=debug. Also
+  // surface a device that returns none of its codes ("online but silent"):
+  // state feedback is broken for it. Steady unchanged polls stay at debug.
+  const cloudBlind = modeUsed === 'cloud' && cloudSummary.handled === 0 && cloudSummary.missing > 0;
+  if (localChanged > 0 || cloudSummary.changed > 0 || cloudBlind) {
     logger.info(summaryLine);
   } else {
     logger.debug(summaryLine);

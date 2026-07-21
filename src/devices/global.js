@@ -1,6 +1,7 @@
 // -----------------------------------------------------------------------------
-// Global (type-agnostic) cloud mapping, ported from
-// server/services/tuya/lib/mappings/cloud/global.js.
+// Global (type-agnostic) mappings, ported from
+// server/services/tuya/lib/mappings/cloud/global.js and
+// server/services/tuya/lib/mappings/local/global.js.
 //
 // Used as fallback for Tuya devices whose type could not be inferred
 // (device type "unknown").
@@ -84,5 +85,19 @@ export const globalCloudMapping = {
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.VOLTAGE,
     unit: DEVICE_FEATURE_UNITS.VOLT,
+  },
+};
+
+// LAN mapping: Tuya code -> DPS index. Non-strict: unknown codes fall back to
+// the generic switch/switch_N inference (see tuya.localMapping.js).
+export const globalLocalMapping = {
+  strict: false,
+  codeAliases: {
+    switch: ['power'],
+    power: ['switch'],
+  },
+  dps: {
+    switch: 1,
+    power: 1,
   },
 };

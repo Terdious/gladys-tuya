@@ -22,6 +22,7 @@ import { TuyaHandler } from './src/tuya/handler.js';
 import { STATUS } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
 import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
+import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -87,20 +88,115 @@ async function connectTuya() {
   await tuya.connect(config);
 }
 
-/** Run a cloud discovery and publish the result to Gladys. */
-async function discoverAndPublish() {
-  if (tuya.status !== STATUS.CONNECTED) {
-    logger.warn(`Tuya discovery skipped (status=${tuya.status})`);
-    return;
+// In-flight discovery run: connection events and scan requests can overlap,
+// and the core allows a single mediated network scan at a time per
+// integration (409 EXTERNAL_INTEGRATION_SCAN_ALREADY_RUNNING) — concurrent
+// callers just await the run already in progress.
+let discoveryInFlight = null;
+
+/**
+ * Run a cloud discovery, enrich it with a LAN scan, and publish the result
+ * to Gladys. The LAN scan goes through the mediated network discovery of the
+ * core (`gladys.scanNetwork`, `network_discovery` manifest field) because a
+ * bridge container never receives the LAN UDP broadcasts. Best-effort: if
+ * the scan is unavailable or fails, the devices simply stay in cloud mode.
+ */
+function discoverAndPublish() {
+  if (discoveryInFlight) {
+    return discoveryInFlight;
   }
-  const tuyaDevices = await tuya.discoverDevices();
-  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+  discoveryInFlight = (async () => {
+    if (tuya.status !== STATUS.CONNECTED) {
+      logger.warn(`Tuya discovery skipped (status=${tuya.status})`);
+      return;
+    }
+    let tuyaDevices = await tuya.discoverDevices();
+    // The "Mode local (LAN)" toggle drives the discovery: ON = cloud discovery
+    // enriched with a LAN UDP scan (so devices get their ip/protocol and can be
+    // polled locally); OFF = cloud-only discovery (no scan). The scan is the
+    // slow part, so skipping it when local mode is off keeps a cloud refresh fast.
+    if (config.localMode === true) {
+      try {
+        const scan = await tuya.localScan({ timeoutSeconds: 10 });
+        tuyaDevices = applyLocalScanResults(tuyaDevices, scan.devices, config.localMode);
+        tuya.discoveredDevices = tuyaDevices;
+      } catch (err) {
+        logger.warn('Tuya local scan failed (cloud discovery still published)', err);
+      }
+    } else {
+      tuya.discoveredDevices = tuyaDevices;
+    }
+    await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+  })().finally(() => {
+    discoveryInFlight = null;
+  });
+  return discoveryInFlight;
 }
 
 // --- Discovery: Gladys asks for the list of devices --------------------------
 gladys.onScanRequest(async () => {
   logger.info('onScanRequest -> discovering Tuya devices');
   await discoverAndPublish();
+});
+
+// --- Action: manual-IP protocol detection ------------------------------------
+// For a device the UDP scan did not find, the user types its Tuya id + IP in
+// the Configuration screen (manifest `actions`): the integration probes the
+// local protocol versions, and on success persists ip/protocol on the device
+// through the re-publish params upsert of the core. The resolved message is
+// shown under the action button.
+gladys.onAction('detect_protocol', async (fields) => {
+  const deviceRef = String((fields && fields.device) || (fields && fields.device_id) || '').trim();
+  const ip = String((fields && fields.ip) || '').trim();
+  if (!deviceRef || !ip) {
+    throw new Error('device and ip are required');
+  }
+  if (tuya.status !== STATUS.CONNECTED) {
+    throw new Error('Tuya cloud is not connected yet');
+  }
+  logger.info(`onAction detect_protocol <- device=${deviceRef} ip=${ip}`);
+
+  // The local key only comes from the cloud discovery: refresh the cache when
+  // needed (fast, cloud only — no LAN scan here).
+  if (!Array.isArray(tuya.discoveredDevices) || tuya.discoveredDevices.length === 0) {
+    tuya.discoveredDevices = await tuya.discoverDevices();
+  }
+  // Resolve by Tuya id first, then by display name (the name the user actually
+  // sees on the device card — nobody knows the Tuya id by heart).
+  let rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceRef);
+  if (!rawDevice) {
+    const wanted = deviceRef.toLowerCase();
+    const byName = tuya.discoveredDevices.filter(
+      (d) => d && typeof d.name === 'string' && d.name.trim().toLowerCase() === wanted,
+    );
+    if (byName.length > 1) {
+      const ids = byName.map((d) => d.id).join(', ');
+      throw new Error(`Several devices are named "${deviceRef}" — use the Tuya id (${ids})`);
+    }
+    [rawDevice] = byName;
+  }
+  if (!rawDevice) {
+    throw new Error(`Device "${deviceRef}" not found in the Tuya cloud project (name or id)`);
+  }
+  const deviceId = rawDevice.id;
+  if (!rawDevice.local_key) {
+    throw new Error(`Device ${deviceId} has no local key (cloud project permissions?)`);
+  }
+
+  const { version } = await tuya.detectProtocol({ deviceId, ip, localKey: rawDevice.local_key });
+
+  // Persist: enrich the cached raw device and re-publish the discovered list —
+  // the core upserts the params (ip/protocol) of the already-created device
+  // without touching its name or features.
+  rawDevice.ip = ip;
+  rawDevice.protocol_version = version;
+  rawDevice.local_override = config.localMode === true;
+  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuya.discoveredDevices));
+
+  return {
+    en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,
+    fr: `Protocole ${version} détecté sur ${ip} — appareil mis à jour, mode local prêt.`,
+  };
 });
 
 // --- Command: the user acts on a controllable feature ------------------------
@@ -117,13 +213,30 @@ gladys.onPoll(async (device) => {
 // --- Configuration updated by the user ---------------------------------------
 gladys.onConfigUpdated(async (newConfig) => {
   logger.info('onConfigUpdated -> new configuration received');
+  const previousConfig = config;
   const previousHash = buildConfigHash(config);
   config = normalizeConfig(newConfig);
-  if (buildConfigHash(config) === previousHash && tuya.status === STATUS.CONNECTED) {
+  // Keep the handler config live so poll()'s local-vs-cloud decision follows
+  // the toggle immediately, even when no reconnect is needed.
+  tuya.config = config;
+
+  const credentialsChanged = buildConfigHash(config) !== previousHash;
+  const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+
+  if (credentialsChanged || tuya.status !== STATUS.CONNECTED) {
+    // Cloud credentials changed (or we are not connected): full reconnect.
+    tuya.disconnect();
+    await connectTuya();
+    tuya.startReconnect();
+    await discoverAndPublish();
     return;
   }
-  await connectTuya();
-  await discoverAndPublish();
+  if (localModeChanged) {
+    // Only the "Mode local (LAN)" toggle changed: no reconnect, just re-run a
+    // background discovery so the LAN scan is (re)applied per the new
+    // preference (ON = cloud + UDP scan, OFF = cloud only).
+    await discoverAndPublish();
+  }
 });
 
 // --- Connection lifecycle ----------------------------------------------------
@@ -135,6 +248,7 @@ gladys.on('connected', async () => {
 
     // 2) Connect to the Tuya cloud and publish the devices.
     await connectTuya();
+    tuya.startReconnect();
     await discoverAndPublish();
   } catch (err) {
     logger.error('Post-connection initialization failed', err);
@@ -150,6 +264,7 @@ gladys.on('disconnected', () => {
 // the container (SIGTERM/SIGINT).
 gladys.handleShutdown((signal) => {
   logger.info(`Received ${signal} -> graceful shutdown`);
+  tuya.disconnect();
 });
 
 // --- Startup -----------------------------------------------------------------

@@ -122,6 +122,47 @@ const cloudMapping = {
   },
 };
 
+// LAN mapping (ported from lib/mappings/local/smart-meter.js): strict, DPS
+// indexes of the bidirectional meter channels.
+const localMapping = {
+  strict: true,
+  ignoredDps: [
+    '102',
+    '103',
+    '104',
+    '110',
+    '116',
+    '117',
+    '118',
+    '119',
+    '120',
+    '121',
+    '122',
+    '123',
+    '124',
+    '125',
+    '126',
+    '127',
+    '128',
+    '129',
+  ],
+  codeAliases: {},
+  dps: {
+    power_a: 101,
+    power_b: 105,
+    energy_forword_a: 106,
+    energy_reverse_a: 107,
+    energy_forword_b: 108,
+    energy_reserse_b: 109,
+    voltage_a: 112,
+    current_a: 113,
+    current_b: 114,
+    total_power: 115,
+    forward_energy_total: 130,
+    reverse_energy_total: 131,
+  },
+};
+
 export const smartMeter = {
   DEVICE_TYPE_NAME: 'smart-meter',
   CATEGORIES: new Set(),
@@ -129,4 +170,5 @@ export const smartMeter = {
   KEYWORDS: ['smart meter', 'meter'],
   REQUIRED_CODES: SMART_METER_CODES,
   CLOUD_MAPPINGS: cloudMapping,
+  LOCAL_MAPPINGS: localMapping,
 };

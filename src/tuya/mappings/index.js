@@ -1,11 +1,15 @@
 // -----------------------------------------------------------------------------
 // Device type inference and mapping lookups, ported from
-// server/services/tuya/lib/mappings/index.js (cloud part).
+// server/services/tuya/lib/mappings/index.js.
 //
 // The per-type definitions live in src/devices/ (one file per device type).
 // -----------------------------------------------------------------------------
 
-import { DEVICE_TYPE_DEFINITIONS, globalCloudMapping } from '../../devices/index.js';
+import {
+  DEVICE_TYPE_DEFINITIONS,
+  globalCloudMapping,
+  globalLocalMapping,
+} from '../../devices/index.js';
 
 export const DEVICE_TYPES = {
   SMART_METER: 'smart-meter',
@@ -72,6 +76,38 @@ export const getCloudMapping = (deviceType) => {
     return { ...definition.CLOUD_MAPPINGS };
   }
   return { ...globalCloudMapping };
+};
+
+export const getLocalMapping = (deviceType) => {
+  const normalizeLocalMapping = (mapping) => {
+    const current = mapping && typeof mapping === 'object' ? mapping : {};
+    return {
+      strict: current.strict === true,
+      codeAliases: { ...(current.codeAliases || {}) },
+      dps: { ...(current.dps || {}) },
+      ignoredDps: Array.from(
+        new Set(
+          (Array.isArray(current.ignoredDps) ? current.ignoredDps : []).map((value) =>
+            String(value),
+          ),
+        ),
+      ),
+    };
+  };
+
+  if (!deviceType || deviceType === DEVICE_TYPES.UNKNOWN) {
+    return normalizeLocalMapping(globalLocalMapping);
+  }
+  const definition = DEVICE_TYPE_INDEX[normalizeCode(deviceType)];
+  if (definition && definition.LOCAL_MAPPINGS) {
+    return normalizeLocalMapping(definition.LOCAL_MAPPINGS);
+  }
+  return normalizeLocalMapping(globalLocalMapping);
+};
+
+export const getIgnoredLocalDps = (deviceType) => {
+  const { ignoredDps } = getLocalMapping(deviceType);
+  return Array.isArray(ignoredDps) ? ignoredDps : [];
 };
 
 export const extractCodesFromSpecifications = (specifications) => {
