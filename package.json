@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
+  "name": "gladys-tuya",
   "version": "1.0.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Tuya external integration for Gladys Assistant (smart sockets and smart meters, cloud + local modes).",
   "type": "module",
   "main": "index.js",
   "scripts": {
