@@ -15,6 +15,7 @@ import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.clo
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
+import { getDeviceType, getFeatureMapping } from './mappings/index.js';
 import {
   isLocalInCooldown,
   localCooldownRemainingMs,
@@ -37,6 +38,39 @@ const getFeatureReader = (deviceFeature) => {
     return null;
   }
   return categoryReaders[deviceFeature.type] || null;
+};
+
+// Resolve the cloud-mapping entry of a feature code for this device.
+const resolveFeatureMappingEntry = (device, code) => {
+  const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
+  return getFeatureMapping(code, deviceType);
+};
+
+/**
+ * @description Gladys does not persist the feature `scale` (it only exists on
+ * the discovery payload), so a feature read back from the created devices
+ * loses it and a scaled value (e.g. an AC temperature stored as 230 for 23.0)
+ * would be published raw. Restore the scale from the device-type cloud
+ * mapping, as the core service does.
+ * @param {object} device - The Gladys device (for the device type).
+ * @param {object} deviceFeature - The feature as loaded from Gladys.
+ * @param {string} code - Tuya feature code.
+ * @returns {object} The feature, with its scale restored when known.
+ * @example
+ * const feature = getFeatureWithFallbackScale(device, deviceFeature, 'temp_set');
+ */
+export const getFeatureWithFallbackScale = (device, deviceFeature, code) => {
+  if (!deviceFeature || deviceFeature.scale !== undefined) {
+    return deviceFeature;
+  }
+  const mapping = resolveFeatureMappingEntry(device, code);
+  if (!mapping || mapping.scale === undefined) {
+    return deviceFeature;
+  }
+  return {
+    ...deviceFeature,
+    scale: mapping.scale,
+  };
 };
 
 const getCurrentFeatureState = (self, deviceFeature) => {
@@ -305,19 +339,20 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
       summary.missing += 1;
       return;
     }
+    const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, code);
     let transformedValue;
     try {
-      transformedValue = reader(value, deviceFeature);
+      transformedValue = reader(value, featureWithScale);
     } catch (e) {
       summary.skipped += 1;
       logger.warn(`[Tuya][poll][cloud] reader failed for device=${topic} code=${code}`, e);
       return;
     }
-    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, deviceFeature);
+    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, featureWithScale);
     const { changed } = emitFeatureState(
       self,
       pending,
-      deviceFeature,
+      featureWithScale,
       transformedValue,
       lastValue,
       lastValueChanged,
@@ -366,9 +401,10 @@ export function emitLocalDpsStates(self, device, dps, pending) {
       pendingCloudFeatures.push(deviceFeature);
       return;
     }
+    const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, code);
     let transformedValue;
     try {
-      transformedValue = reader(rawValue, deviceFeature);
+      transformedValue = reader(rawValue, featureWithScale);
     } catch (e) {
       pendingCloudFeatures.push(deviceFeature);
       logger.warn(
@@ -377,11 +413,11 @@ export function emitLocalDpsStates(self, device, dps, pending) {
       );
       return;
     }
-    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, deviceFeature);
+    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, featureWithScale);
     const { changed } = emitFeatureState(
       self,
       pending,
-      deviceFeature,
+      featureWithScale,
       transformedValue,
       lastValue,
       lastValueChanged,

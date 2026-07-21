@@ -170,6 +170,74 @@ test('the AC local DPS mapping resolves the supported codes (strict)', () => {
   assert.equal(getLocalDpsFromCode('windspeed', device), null);
 });
 
+// Gladys does not persist the feature `scale`: a device read back from the
+// API carries features WITHOUT it (the bench symptom: 230 published instead
+// of 23.0). The transforms must restore the scale from the device-type
+// mapping.
+function createHandlerWithDbFeatures() {
+  const { fake, handler, device } = createHandlerWithFeatures();
+  device.features = device.features.map((f) => {
+    const { scale: _scale, ...rest } = f;
+    return rest;
+  });
+  // A device loaded from Gladys has no device_type either: the type must be
+  // re-inferred from the name and the feature codes.
+  delete device.device_type;
+  device.name = 'Clim Salle de test';
+  return { fake, handler, device };
+}
+
+test('poll restores the scale lost by Gladys persistence (cloud read)', async () => {
+  const { fake, handler, device } = createHandlerWithDbFeatures();
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'temp_set', value: 240 },
+        { code: 'temp_current', value: 230 },
+      ],
+    }),
+  };
+
+  await handler.poll(device);
+
+  const states = Object.fromEntries(fake.published.map((p) => [p.featureExternalId, p.state]));
+  assert.equal(states['ext:tuya:device:ac1:temp_set'], 24);
+  assert.equal(states['ext:tuya:device:ac1:temp_current'], 23);
+});
+
+test('poll restores the scale lost by Gladys persistence (local read)', async () => {
+  const { fake, handler, device } = createHandlerWithDbFeatures();
+  handler.config = { localMode: true };
+  device.params.push(
+    { name: DEVICE_PARAM_NAME.IP_ADDRESS, value: '10.0.0.20' },
+    { name: DEVICE_PARAM_NAME.LOCAL_KEY, value: 'lk' },
+    { name: DEVICE_PARAM_NAME.PROTOCOL_VERSION, value: '3.3' },
+  );
+  handler.localRead = async () => ({ dps: { 1: true, 2: 240, 3: 230, 4: 'heat' } });
+
+  await handler.poll(device);
+
+  const states = Object.fromEntries(fake.published.map((p) => [p.featureExternalId, p.state]));
+  assert.equal(states['ext:tuya:device:ac1:temp_set'], 24);
+  assert.equal(states['ext:tuya:device:ac1:temp_current'], 23);
+});
+
+test('setValue restores the scale lost by Gladys persistence', async () => {
+  const { handler, device } = createHandlerWithDbFeatures();
+  const commands = [];
+  handler.connector = {
+    request: async ({ body }) => {
+      commands.push(body.commands[0]);
+      return { success: true };
+    },
+  };
+  const feature = (code) => device.features.find((f) => f.external_id.endsWith(`:${code}`));
+
+  await handler.setValue(device, feature('temp_set'), 24);
+  assert.deepEqual(commands, [{ code: 'temp_set', value: 240 }]);
+});
+
 test('a local DPS poll publishes the AC states (persistent session read)', async () => {
   const { fake, handler, device } = createHandlerWithFeatures();
   handler.config = { localMode: true };
