@@ -146,25 +146,39 @@ gladys.onScanRequest(async () => {
 // through the re-publish params upsert of the core. The resolved message is
 // shown under the action button.
 gladys.onAction('detect_protocol', async (fields) => {
-  const deviceId = String((fields && fields.device_id) || '').trim();
+  const deviceRef = String((fields && fields.device) || (fields && fields.device_id) || '').trim();
   const ip = String((fields && fields.ip) || '').trim();
-  if (!deviceId || !ip) {
-    throw new Error('device_id and ip are required');
+  if (!deviceRef || !ip) {
+    throw new Error('device and ip are required');
   }
   if (tuya.status !== STATUS.CONNECTED) {
     throw new Error('Tuya cloud is not connected yet');
   }
-  logger.info(`onAction detect_protocol <- device=${deviceId} ip=${ip}`);
+  logger.info(`onAction detect_protocol <- device=${deviceRef} ip=${ip}`);
 
   // The local key only comes from the cloud discovery: refresh the cache when
   // needed (fast, cloud only — no LAN scan here).
   if (!Array.isArray(tuya.discoveredDevices) || tuya.discoveredDevices.length === 0) {
     tuya.discoveredDevices = await tuya.discoverDevices();
   }
-  const rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceId);
+  // Resolve by Tuya id first, then by display name (the name the user actually
+  // sees on the device card — nobody knows the Tuya id by heart).
+  let rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceRef);
   if (!rawDevice) {
-    throw new Error(`Device ${deviceId} not found in the Tuya cloud project`);
+    const wanted = deviceRef.toLowerCase();
+    const byName = tuya.discoveredDevices.filter(
+      (d) => d && typeof d.name === 'string' && d.name.trim().toLowerCase() === wanted,
+    );
+    if (byName.length > 1) {
+      const ids = byName.map((d) => d.id).join(', ');
+      throw new Error(`Several devices are named "${deviceRef}" — use the Tuya id (${ids})`);
+    }
+    [rawDevice] = byName;
   }
+  if (!rawDevice) {
+    throw new Error(`Device "${deviceRef}" not found in the Tuya cloud project (name or id)`);
+  }
+  const deviceId = rawDevice.id;
   if (!rawDevice.local_key) {
     throw new Error(`Device ${deviceId} has no local key (cloud project permissions?)`);
   }

@@ -26,9 +26,16 @@
       "timeout_seconds": 60,
       "fields": [
         {
-          "key": "device_id",
+          "key": "device",
           "type": "string",
-          "label": { "en": "Tuya device ID", "fr": "Identifiant Tuya de l'appareil" },
+          "label": {
+            "en": "Device (name or Tuya ID)",
+            "fr": "Appareil (nom ou identifiant Tuya)"
+          },
+          "description": {
+            "en": "The device name as shown in Gladys, or its Tuya ID.",
+            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya."
+          },
           "required": true
         },
         {
