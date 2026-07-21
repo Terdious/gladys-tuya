@@ -213,6 +213,18 @@ test('convertDevice maps the RP5 features (thing model based)', () => {
   assert.equal(byCode.window_state.category, DEVICE_FEATURE_CATEGORIES.OPENING_SENSOR);
   assert.equal(byCode.electricity_statistics.type, DEVICE_FEATURE_TYPES.ENERGY_SENSOR.INDEX_TODAY);
   assert.equal(byCode.average_power.type, DEVICE_FEATURE_TYPES.ENERGY_SENSOR.POWER);
+
+  // supported_options list the Gladys modes really reachable on the device:
+  // the writable mode exposes the full 8-value spec range, the read-only
+  // running_mode enum only exposes 6 values.
+  assert.deepEqual(
+    byCode.mode.supported_options.map((o) => o.value),
+    [0, 1, 2, 3, 4, 5, 6, 7],
+  );
+  assert.deepEqual(
+    byCode.running_mode.supported_options.map((o) => o.value),
+    [0, 1, 2, 3, 4, 5],
+  );
 });
 
 test('convertDevice maps the eCosy variant (own vocabulary, no setpoint)', () => {
@@ -241,6 +253,13 @@ test('convertDevice maps the eCosy variant (own vocabulary, no setpoint)', () =>
   assert.equal(byCode.lock_switch.category, DEVICE_FEATURE_CATEGORIES.CHILD_LOCK);
   // The tuyaEnum mapping metadata never leaks onto the persisted feature.
   assert.equal(byCode.mode.tuyaEnum, undefined);
+
+  // The curated eCosy vocabulary is the complete truth: no OFF (0) nor
+  // THERMOSTAT (7) — those orders do not exist on this device.
+  assert.deepEqual(
+    byCode.mode.supported_options.map((o) => o.value),
+    [1, 2, 3, 4, 5, 6],
+  );
 });
 
 function createHandler(rawDevice) {
