@@ -6,17 +6,24 @@
     "en": "Tuya / Smart Life smart sockets and energy meters over the cloud, with optional local control.",
     "fr": "Prises et compteurs d'énergie Tuya / Smart Life via le cloud, avec contrôle local optionnel."
   },
-  "version": "1.0.1",
-  "docker_image": "ghcr.io/terdious/gladys-tuya:1.0.1",
+  "version": "1.1.0",
+  "docker_image": "ghcr.io/terdious/gladys-tuya:1.1.0",
   "gladys_version": ">=4.62.0",
   "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/master/cover.png",
   "network_discovery": [
     {
       "type": "udp-broadcast",
-      "ports": [6666, 6667, 7000]
+      "ports": [
+        6666,
+        6667,
+        7000
+      ]
     }
   ],
-  "transports": ["local", "cloud"],
+  "transports": [
+    "local",
+    "cloud"
+  ],
   "actions": [
     {
       "key": "detect_protocol",
