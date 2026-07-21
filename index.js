@@ -79,14 +79,37 @@ function resolveDevice(device) {
   };
 }
 
+/**
+ * Publish the application-level connection status (SDK contract C.3): the
+ * Configuration screen shows whether the integration is really talking to the
+ * Tuya cloud, with the failure reason when it is not. Fire-and-forget.
+ */
+function reportConnectionStatus(connected, message) {
+  gladys.setConnectionStatus(connected, message).catch(() => {});
+}
+
 /** Connect the handler to the Tuya cloud with the current configuration. */
 async function connectTuya() {
   if (!isConfigured(config)) {
     logger.warn('Tuya is not configured yet: fill in the integration settings in Gladys');
+    reportConnectionStatus(false, {
+      en: 'Not configured yet: fill in the Tuya cloud credentials.',
+      fr: 'Pas encore configuré : renseignez les identifiants du cloud Tuya.',
+    });
     return;
   }
   tuya.config = config;
-  await tuya.connect(config);
+  try {
+    await tuya.connect(config);
+    reportConnectionStatus(true);
+  } catch (err) {
+    const reason = err && err.message ? err.message : 'unknown error';
+    reportConnectionStatus(false, {
+      en: `Tuya cloud connection failed: ${reason}`,
+      fr: `Connexion au cloud Tuya échouée : ${reason}`,
+    });
+    throw err;
+  }
 }
 
 // In-flight discovery run: connection events and scan requests can overlap,
@@ -219,6 +242,17 @@ gladys.onAction('detect_protocol', async (fields) => {
 gladys.onDeviceDeleted(async (device) => {
   logger.info(`onDeviceDeleted <- ${device && device.external_id}`);
   await tuya.cleanupDevice(device);
+});
+
+// A freshly created device gets its first states immediately instead of
+// waiting for the first scheduled poll cycle.
+gladys.onDeviceCreated(async (device) => {
+  logger.info(`onDeviceCreated <- ${device && device.external_id}`);
+  try {
+    await tuya.poll(resolveDevice(device));
+  } catch (err) {
+    logger.warn(`First poll of freshly created device failed`, err);
+  }
 });
 
 // --- Command: the user acts on a controllable feature ------------------------
