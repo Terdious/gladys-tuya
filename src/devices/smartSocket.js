@@ -14,7 +14,24 @@ import {
 const SWITCH_CODES = new Set(['switch', 'switch_1', 'switch_2', 'power']);
 
 const cloudMapping = {
-  ignoredCodes: ['countdown', 'countdown_1'],
+  // Ported from the core PR7 branch (tuya-lsc-power-plug-fr-power-meter):
+  // configuration/calibration codes of the LSC Power Plug FR (power meter)
+  // that must not become Gladys features.
+  ignoredCodes: [
+    'countdown',
+    'countdown_1',
+    'relay_status',
+    'overcharge_switch',
+    'light_mode',
+    'cycle_time',
+    'random_time',
+    'switch_inching',
+    'voltage_coe',
+    'electric_coe',
+    'power_coe',
+    'electricity_coe',
+    'test_bit',
+  ],
   switch: {
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
@@ -38,6 +55,10 @@ const cloudMapping = {
   switch_4: {
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+  },
+  child_lock: {
+    category: DEVICE_FEATURE_CATEGORIES.CHILD_LOCK,
+    type: DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY,
   },
   add_ele: {
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
@@ -65,8 +86,11 @@ const cloudMapping = {
 // only the listed codes are read/written locally.
 const localMapping = {
   strict: true,
-  ignoredDps: ['11'],
+  // DPS pushed by the LSC Power Plug FR that carry no Gladys feature
+  // (calibration coefficients, LED mode, inching config...).
+  ignoredDps: ['9', '11', '21', '22', '23', '24', '25', '38', '39', '40', '42', '43', '44'],
   codeAliases: {
+    child_lock: [],
     switch: ['power'],
     power: ['switch'],
     switch_1: ['switch', 'power'],
@@ -75,6 +99,11 @@ const localMapping = {
     switch_4: ['switch'],
   },
   dps: {
+    add_ele: 17,
+    cur_current: 18,
+    cur_power: 19,
+    cur_voltage: 20,
+    child_lock: 41,
     switch: 1,
     power: 1,
     switch_1: 1,

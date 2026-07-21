@@ -28,7 +28,8 @@ test('getLocalMapping returns the per-type mapping with the global fallback', ()
   const socket = getLocalMapping(DEVICE_TYPES.SMART_SOCKET);
   assert.equal(socket.strict, true);
   assert.equal(socket.dps.switch_2, 2);
-  assert.deepEqual(socket.ignoredDps, ['11']);
+  assert.ok(socket.ignoredDps.includes('11'));
+  assert.ok(socket.ignoredDps.includes('21'), 'the LSC calibration DPS are ignored');
 
   const meter = getLocalMapping(DEVICE_TYPES.SMART_METER);
   assert.equal(meter.dps.total_power, 115);

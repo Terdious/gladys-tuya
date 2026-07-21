@@ -71,7 +71,9 @@ test('getFeatureMapping resolves per device type, with global fallback', () => {
 });
 
 test('getIgnoredCloudCodes returns the per-type ignore list', () => {
-  assert.deepEqual(getIgnoredCloudCodes(DEVICE_TYPES.SMART_SOCKET), ['countdown', 'countdown_1']);
+  const socketIgnored = getIgnoredCloudCodes(DEVICE_TYPES.SMART_SOCKET);
+  assert.ok(socketIgnored.includes('countdown'));
+  assert.ok(socketIgnored.includes('relay_status'), 'the LSC configuration codes are ignored');
   assert.ok(getIgnoredCloudCodes(DEVICE_TYPES.SMART_METER).includes('freq'));
   assert.deepEqual(getIgnoredCloudCodes(DEVICE_TYPES.UNKNOWN), []);
 });

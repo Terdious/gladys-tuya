@@ -98,6 +98,12 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.CHILD_LOCK]: {
+    [DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY]: (valueFromGladys) => {
+      return valueFromGladys === 1;
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING]: {
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromGladys) => {
       return valueFromGladys === 1;
@@ -169,6 +175,11 @@ export const readValues = {
   [DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR]: {
     [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
       return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.CHILD_LOCK]: {
+    [DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
     },
   },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
