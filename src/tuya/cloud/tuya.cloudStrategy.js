@@ -7,14 +7,19 @@
 
 import { DEVICE_PARAM_NAME } from '../constants.js';
 import { getParamValue } from '../utils/tuya.deviceParams.js';
-import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
+import {
+  getFeatureMapping,
+  getIgnoredCloudCodes,
+  getProductIdFromDevice,
+  normalizeCode,
+} from '../mappings/index.js';
 
 export const CLOUD_STRATEGY = {
   LEGACY: 'legacy',
   SHADOW: 'shadow',
 };
 
-const isSupportedCloudCode = (code, deviceType, ignoredCloudCodes) => {
+const isSupportedCloudCode = (code, deviceType, ignoredCloudCodes, productId) => {
   const normalizedCode = normalizeCode(code);
   if (!normalizedCode) {
     return false;
@@ -22,7 +27,7 @@ const isSupportedCloudCode = (code, deviceType, ignoredCloudCodes) => {
   if (ignoredCloudCodes.includes(normalizedCode)) {
     return false;
   }
-  return Boolean(getFeatureMapping(normalizedCode, deviceType));
+  return Boolean(getFeatureMapping(normalizedCode, deviceType, productId));
 };
 
 const getThingModelProperties = (device) => {
@@ -35,19 +40,24 @@ const getThingModelProperties = (device) => {
 };
 
 export const resolveCloudReadStrategy = (device, deviceType) => {
-  const ignoredCloudCodes = getIgnoredCloudCodes(deviceType);
+  // Variant devices (per-product mappings, e.g. the Konyks eCosy) must be
+  // evaluated against THEIR mapping, not the family default one.
+  const productId = getProductIdFromDevice(device);
+  const ignoredCloudCodes = getIgnoredCloudCodes(deviceType, productId);
   const status = Array.isArray(device && device.specifications && device.specifications.status)
     ? device.specifications.status
     : [];
   if (
-    status.some((entry) => isSupportedCloudCode(entry && entry.code, deviceType, ignoredCloudCodes))
+    status.some((entry) =>
+      isSupportedCloudCode(entry && entry.code, deviceType, ignoredCloudCodes, productId),
+    )
   ) {
     return CLOUD_STRATEGY.LEGACY;
   }
   const thingProperties = getThingModelProperties(device);
   if (
     thingProperties.some((entry) =>
-      isSupportedCloudCode(entry && entry.code, deviceType, ignoredCloudCodes),
+      isSupportedCloudCode(entry && entry.code, deviceType, ignoredCloudCodes, productId),
     )
   ) {
     return CLOUD_STRATEGY.SHADOW;

@@ -14,13 +14,11 @@ test('normalizeConfig keeps user values over the defaults', () => {
     access_key: 'my-access-key',
     secret_key: 'my-secret-key',
     app_account_id: 'my-uid',
-    app_username: 'user@example.com',
   });
   assert.equal(config.endpoint, 'centralEurope');
   assert.equal(config.accessKey, 'my-access-key');
   assert.equal(config.secretKey, 'my-secret-key');
   assert.equal(config.appAccountId, 'my-uid');
-  assert.equal(config.appUsername, 'user@example.com');
 });
 
 test('normalizeConfig reads GLADYS_PREFER_LOCAL, on by default', () => {
@@ -68,13 +66,12 @@ test('isConfigured requires the cloud credentials and the app account UID', () =
   );
 });
 
-test('isConfigured does not require the optional Smart Life username', () => {
+test('isConfigured only requires the four cloud credentials', () => {
   const config = normalizeConfig({
     endpoint: 'westernEurope',
     access_key: 'a',
     secret_key: 's',
     app_account_id: 'u',
   });
-  assert.equal(config.appUsername, '');
   assert.equal(isConfigured(config), true);
 });

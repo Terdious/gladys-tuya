@@ -59,6 +59,35 @@ const mergeDps = (session, dps) => {
 };
 
 /**
+ * @description Close a tuyapi instance for real. `disconnect()` early-returns
+ * while a connect is still pending (`_connected` false), which would leak the
+ * open socket of a stalled handshake: destroy the underlying net.Socket
+ * explicitly after it.
+ * @param {object} api - Tuyapi / tuyapi-newgen instance.
+ * @returns {Promise} Promise of nothing.
+ * @example
+ * await forceCloseApi(session.api);
+ */
+export const forceCloseApi = async (api) => {
+  if (!api) {
+    return;
+  }
+  try {
+    await api.disconnect();
+  } catch {
+    // ignore
+  }
+  const socket = api.client || api._client;
+  if (socket && typeof socket.destroy === 'function') {
+    try {
+      socket.destroy();
+    } catch {
+      // ignore
+    }
+  }
+};
+
+/**
  * @description Get or open the persistent session of a device. Reconnects a
  * dropped session; recreates it when the LAN parameters changed (DHCP).
  * @param {object} payload - Local connection info.
@@ -70,15 +99,40 @@ const mergeDps = (session, dps) => {
  * @example
  * const session = await handler.ensureLocalSession({ deviceId, ip, localKey, protocolVersion });
  */
-export async function ensureLocalSession({ deviceId, ip, localKey, protocolVersion }) {
+export async function ensureLocalSession(payload) {
+  // Single-flight per device: two concurrent callers (a poll and the ~1s
+  // feedback poll of a command, for instance) must never both create a
+  // session — the second one would orphan the first one's socket while the
+  // device only accepts a single local session.
+  if (!this.localSessionEnsures) {
+    this.localSessionEnsures = new Map();
+  }
+  const inFlight = this.localSessionEnsures.get(payload.deviceId);
+  if (inFlight) {
+    return inFlight;
+  }
+  const run = ensureLocalSessionInner.call(this, payload).finally(() => {
+    this.localSessionEnsures.delete(payload.deviceId);
+  });
+  this.localSessionEnsures.set(payload.deviceId, run);
+  return run;
+}
+
+async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion }) {
   if (!this.localSessions) {
     this.localSessions = new Map();
   }
   let session = this.localSessions.get(deviceId);
 
-  // LAN parameters changed (new DHCP lease, protocol re-detected): the old
-  // socket points at the wrong place — drop it and start clean.
-  if (session && (session.ip !== ip || session.protocolVersion !== protocolVersion)) {
+  // LAN parameters changed (new DHCP lease, protocol re-detected, device
+  // re-paired with a new local key): the old socket points at the wrong
+  // place or encrypts with a stale key — drop it and start clean.
+  if (
+    session &&
+    (session.ip !== ip ||
+      session.protocolVersion !== protocolVersion ||
+      session.localKey !== localKey)
+  ) {
     await this.closeLocalSession(deviceId);
     session = null;
   }
@@ -101,6 +155,7 @@ export async function ensureLocalSession({ deviceId, ip, localKey, protocolVersi
     session = {
       deviceId,
       ip,
+      localKey,
       protocolVersion,
       api,
       connected: false,
@@ -151,11 +206,7 @@ export async function ensureLocalSession({ deviceId, ip, localKey, protocolVersi
       })
       .catch(async (e) => {
         // Never leave a half-open socket: the device would refuse the retry.
-        try {
-          await session.api.disconnect();
-        } catch {
-          // ignore
-        }
+        await forceCloseApi(session.api);
         throw e;
       })
       .finally(() => {
@@ -195,11 +246,7 @@ export async function localRead(payload) {
     // A failed read over a live socket usually means the socket is gone:
     // drop the session so the next attempt reconnects from scratch.
     session.connected = false;
-    try {
-      await session.api.disconnect();
-    } catch {
-      // ignore
-    }
+    await forceCloseApi(session.api);
     throw e;
   }
 }
@@ -231,11 +278,7 @@ export async function localSessionSet(deviceId, dpsKey, value) {
   } catch (e) {
     logger.warn(`[Tuya][localSession] set failed for device=${deviceId}: ${e.message}`);
     session.connected = false;
-    try {
-      await session.api.disconnect();
-    } catch {
-      // ignore
-    }
+    await forceCloseApi(session.api);
     // The session was supposed to own the local slot and failed: let the
     // caller fall back to the cloud rather than fight for the socket.
     throw e;
@@ -287,11 +330,7 @@ export async function closeLocalSession(deviceId) {
   }
   this.localSessions.delete(deviceId);
   session.connected = false;
-  try {
-    await session.api.disconnect();
-  } catch {
-    // ignore
-  }
+  await forceCloseApi(session.api);
   logger.debug(`[Tuya][localSession] device=${deviceId} closed`);
 }
 

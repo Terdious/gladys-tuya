@@ -4,9 +4,9 @@
 // - external ids are built with the SDK external-ids factory
 //   (`gladys.externalIds`), with a constant type segment so ids stay stable;
 // - selector generation and service_id assignment are left to the core;
-// - poll_frequency follows the external-integration convention (seconds)
-//   instead of the core millisecond constants (EVERY_10_SECONDS /
-//   EVERY_30_SECONDS);
+// - poll_frequency is expressed in milliseconds, matching the core
+//   DEVICE_POLL_FREQUENCIES constants the discovered-device validator checks
+//   against (see POLL_FREQUENCY_LOCAL / POLL_FREQUENCY_CLOUD below);
 // - the tuya_report / tuya_mapping debug payloads consumed by the custom UI
 //   of the core are not ported.
 
@@ -155,6 +155,12 @@ export function convertDevice(gladys, tuyaDevice) {
   }
   if (cloudReadStrategy) {
     params.push({ name: DEVICE_PARAM_NAME.CLOUD_READ_STRATEGY, value: cloudReadStrategy });
+  }
+  if (deviceType && deviceType !== DEVICE_TYPES.UNKNOWN) {
+    // The inferred type is re-read at poll/setValue time (scale restore,
+    // variant mappings): persist it so a renamed device or an unlisted
+    // product id cannot break the re-inference after a DB reload.
+    params.push({ name: DEVICE_PARAM_NAME.DEVICE_TYPE, value: deviceType });
   }
   const safeDeviceLog = {
     id,

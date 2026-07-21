@@ -257,6 +257,18 @@ export const getDeviceType = (device) => {
     return DEVICE_TYPES.UNKNOWN;
   }
 
+  // A device created in Gladys carries its inferred type as the DEVICE_TYPE
+  // param: trust it before re-running the heuristics (the stored name may
+  // have been changed by the user, and the category is not persisted).
+  const params = Array.isArray(device.params) ? device.params : [];
+  const storedTypeParam = params.find(
+    (param) => param && param.name === DEVICE_PARAM_NAME.DEVICE_TYPE,
+  );
+  const storedType = storedTypeParam ? normalizeCode(storedTypeParam.value) : null;
+  if (storedType && Object.values(DEVICE_TYPES).includes(storedType)) {
+    return storedType;
+  }
+
   const specifications = device.specifications || {};
   const codes = new Set([
     ...extractCodesFromSpecifications(specifications),

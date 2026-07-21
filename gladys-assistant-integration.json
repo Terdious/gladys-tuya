@@ -3,8 +3,8 @@
   "type": "device",
   "name": "Tuya",
   "description": {
-    "en": "Tuya / Smart Life smart sockets and energy meters over the cloud, with optional local control.",
-    "fr": "Prises et compteurs d'énergie Tuya / Smart Life via le cloud, avec contrôle local optionnel."
+    "en": "Tuya / Smart Life devices over the cloud with optional local (LAN) control: smart sockets, energy meters, air conditioners and pilot-wire thermostats.",
+    "fr": "Appareils Tuya / Smart Life via le cloud avec contrôle local (LAN) optionnel : prises, compteurs d'énergie, climatiseurs et thermostats fil pilote."
   },
   "version": "1.3.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.3.0",
@@ -151,19 +151,6 @@
         "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
       },
       "required": true
-    },
-    {
-      "key": "app_username",
-      "type": "string",
-      "label": {
-        "en": "Smart Life username (optional)",
-        "fr": "Identifiant Smart Life (optionnel)"
-      },
-      "description": {
-        "en": "Smart Life account email or phone.",
-        "fr": "Email ou téléphone du compte Smart Life."
-      },
-      "required": false
     }
   ]
 }

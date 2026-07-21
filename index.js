@@ -154,6 +154,11 @@ gladys.onAction('detect_protocol', async (fields) => {
   if (!deviceRef || !ip) {
     throw new Error('device and ip are required');
   }
+  // A discovery in flight would race this action (it rebuilds the shared
+  // discovered list): join it first — it also proves the cloud is healthy.
+  if (discoveryInFlight) {
+    await discoveryInFlight;
+  }
   if (tuya.status !== STATUS.CONNECTED) {
     throw new Error('Tuya cloud is not connected yet');
   }
@@ -207,6 +212,15 @@ gladys.onAction('detect_protocol', async (fields) => {
   };
 });
 
+// --- Device lifecycle: release per-device state ------------------------------
+// Without this, deleting a locally-polled device leaks its persistent LAN
+// session forever (socket open, single local slot occupied) plus the
+// per-device caches. On update, the next poll recreates what it needs.
+gladys.onDeviceDeleted(async (device) => {
+  logger.info(`onDeviceDeleted <- ${device && device.external_id}`);
+  await tuya.cleanupDevice(device);
+});
+
 // --- Command: the user acts on a controllable feature ------------------------
 gladys.onSetValue(async (device, feature, value) => {
   logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
@@ -219,37 +233,50 @@ gladys.onPoll(async (device) => {
 });
 
 // --- Configuration updated by the user ---------------------------------------
-gladys.onConfigUpdated(async (newConfig) => {
-  logger.info('onConfigUpdated -> new configuration received');
-  const previousConfig = config;
-  const previousHash = buildConfigHash(config);
-  config = normalizeConfig(newConfig);
-  // Keep the handler config live so poll()'s local-vs-cloud decision follows
-  // the toggle immediately, even when no reconnect is needed.
-  tuya.config = config;
+// Config updates are serialized: the SDK dispatches WebSocket messages
+// concurrently, and two overlapping saves would run two overlapping
+// reconnects (competing connectors, duplicated discoveries).
+let configUpdateChain = Promise.resolve();
+gladys.onConfigUpdated((newConfig) => {
+  configUpdateChain = configUpdateChain.then(async () => {
+    logger.info('onConfigUpdated -> new configuration received');
+    const previousConfig = config;
+    const previousHash = buildConfigHash(config);
+    config = normalizeConfig(newConfig);
+    // Keep the handler config live so poll()'s local-vs-cloud decision follows
+    // the toggle immediately, even when no reconnect is needed.
+    tuya.config = config;
 
-  const credentialsChanged = buildConfigHash(config) !== previousHash;
-  const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+    const credentialsChanged = buildConfigHash(config) !== previousHash;
+    const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+    // A discovery in flight means the cloud connection is healthy: saving an
+    // unchanged config during it must not tear everything down.
+    const effectivelyConnected =
+      tuya.status === STATUS.CONNECTED || tuya.status === STATUS.DISCOVERING_DEVICES;
 
-  if (credentialsChanged || tuya.status !== STATUS.CONNECTED) {
-    // Cloud credentials changed (or we are not connected): full reconnect.
-    tuya.disconnect();
-    await connectTuya();
-    tuya.startReconnect();
-    await discoverAndPublish();
-    return;
-  }
-  if (localModeChanged) {
-    if (config.localMode !== true) {
-      // Local preference turned off: release every persistent local session
-      // (the polls switch to the cloud on their own).
-      await tuya.closeAllLocalSessions();
+    if (credentialsChanged || !effectivelyConnected) {
+      // Cloud credentials changed (or we are not connected): full reconnect.
+      // Await the teardown so the fresh sessions cannot race the old sockets
+      // for the devices' single local slot.
+      await tuya.disconnect();
+      await connectTuya();
+      tuya.startReconnect();
+      await discoverAndPublish();
+      return;
     }
-    // Only the "Prefer local" toggle changed: no reconnect, just re-run a
-    // background discovery so the LAN scan is (re)applied per the new
-    // preference (ON = cloud + UDP scan, OFF = cloud only).
-    await discoverAndPublish();
-  }
+    if (localModeChanged) {
+      if (config.localMode !== true) {
+        // Local preference turned off: release every persistent local session
+        // (the polls switch to the cloud on their own).
+        await tuya.closeAllLocalSessions();
+      }
+      // Only the "Prefer local" toggle changed: no reconnect, just re-run a
+      // background discovery so the LAN scan is (re)applied per the new
+      // preference (ON = cloud + UDP scan, OFF = cloud only).
+      await discoverAndPublish();
+    }
+  });
+  return configUpdateChain;
 });
 
 // --- Connection lifecycle ----------------------------------------------------
