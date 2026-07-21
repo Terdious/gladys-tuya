@@ -1,7 +1,12 @@
 // Ported from server/services/tuya/lib/device/tuya.localMapping.js.
 
 import { convertFeature } from './tuya.convertFeature.js';
-import { getDeviceType, getLocalMapping, normalizeCode } from '../mappings/index.js';
+import {
+  getDeviceType,
+  getLocalMapping,
+  getProductIdFromDevice,
+  normalizeCode,
+} from '../mappings/index.js';
 
 export const getLocalDpsFromCode = (code, device) => {
   if (!code) {
@@ -10,7 +15,7 @@ export const getLocalDpsFromCode = (code, device) => {
 
   const normalized = normalizeCode(code);
   const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
-  const localMapping = getLocalMapping(deviceType);
+  const localMapping = getLocalMapping(deviceType, getProductIdFromDevice(device));
 
   if (localMapping.dps && localMapping.dps[normalized] !== undefined) {
     return localMapping.dps[normalized];

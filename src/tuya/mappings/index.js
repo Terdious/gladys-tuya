@@ -10,9 +10,11 @@ import {
   globalCloudMapping,
   globalLocalMapping,
 } from '../../devices/index.js';
+import { DEVICE_PARAM_NAME } from '../constants.js';
 
 export const DEVICE_TYPES = {
   AIR_CONDITIONER: 'air-conditioner',
+  PILOT_THERMOSTAT: 'pilot-thermostat',
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',
   UNKNOWN: 'unknown',
@@ -42,13 +44,51 @@ const DEVICE_TYPE_INDEX = DEVICE_TYPE_DEFINITIONS.reduce((acc, definition) => {
       ? definition.KEYWORDS.map((keyword) => String(keyword).toLowerCase())
       : [],
     REQUIRED_CODES: normalizeStringSet(definition.REQUIRED_CODES),
+    VARIANTS: (Array.isArray(definition.VARIANTS) ? definition.VARIANTS : []).map((variant) => ({
+      ...variant,
+      PRODUCT_IDS: normalizeStringSet(variant.PRODUCT_IDS),
+    })),
   };
   return acc;
 }, {});
 
+// A per-product variant of a device family (e.g. the Konyks eCosy pilot
+// thermostat): its mappings fully replace the family default ones.
+const getVariantDefinition = (deviceType, productId) => {
+  const normalizedProductId = normalizeCode(productId);
+  if (!normalizedProductId) {
+    return null;
+  }
+  const definition = DEVICE_TYPE_INDEX[normalizeCode(deviceType)];
+  if (!definition) {
+    return null;
+  }
+  return (
+    definition.VARIANTS.find((variant) => variant.PRODUCT_IDS.has(normalizedProductId)) || null
+  );
+};
+
+export const getProductIdFromDevice = (device) => {
+  if (!device || typeof device !== 'object') {
+    return null;
+  }
+  if (device.product_id) {
+    return device.product_id;
+  }
+  // Devices loaded from the Gladys DB only carry the product id as a param.
+  const params = Array.isArray(device.params) ? device.params : [];
+  const productIdParam = params.find(
+    (param) => param && param.name === DEVICE_PARAM_NAME.PRODUCT_ID,
+  );
+  return productIdParam && productIdParam.value ? productIdParam.value : null;
+};
+
 const matchDeviceType = (typeDefinition, context) => {
   const { category, productId, modelName, codes } = context;
   if (productId && typeDefinition.PRODUCT_IDS.has(productId)) {
+    return true;
+  }
+  if (productId && typeDefinition.VARIANTS.some((variant) => variant.PRODUCT_IDS.has(productId))) {
     return true;
   }
 
@@ -68,9 +108,13 @@ const matchDeviceType = (typeDefinition, context) => {
   return keywords.some((keyword) => modelName.includes(keyword));
 };
 
-export const getCloudMapping = (deviceType) => {
+export const getCloudMapping = (deviceType, productId) => {
   if (!deviceType || deviceType === DEVICE_TYPES.UNKNOWN) {
     return { ...globalCloudMapping };
+  }
+  const variant = getVariantDefinition(deviceType, productId);
+  if (variant && variant.CLOUD_MAPPINGS) {
+    return { ...variant.CLOUD_MAPPINGS };
   }
   const definition = DEVICE_TYPE_INDEX[normalizeCode(deviceType)];
   if (definition && definition.CLOUD_MAPPINGS) {
@@ -79,7 +123,7 @@ export const getCloudMapping = (deviceType) => {
   return { ...globalCloudMapping };
 };
 
-export const getLocalMapping = (deviceType) => {
+export const getLocalMapping = (deviceType, productId) => {
   const normalizeLocalMapping = (mapping) => {
     const current = mapping && typeof mapping === 'object' ? mapping : {};
     return {
@@ -99,6 +143,10 @@ export const getLocalMapping = (deviceType) => {
   if (!deviceType || deviceType === DEVICE_TYPES.UNKNOWN) {
     return normalizeLocalMapping(globalLocalMapping);
   }
+  const variant = getVariantDefinition(deviceType, productId);
+  if (variant && variant.LOCAL_MAPPINGS) {
+    return normalizeLocalMapping(variant.LOCAL_MAPPINGS);
+  }
   const definition = DEVICE_TYPE_INDEX[normalizeCode(deviceType)];
   if (definition && definition.LOCAL_MAPPINGS) {
     return normalizeLocalMapping(definition.LOCAL_MAPPINGS);
@@ -106,8 +154,8 @@ export const getLocalMapping = (deviceType) => {
   return normalizeLocalMapping(globalLocalMapping);
 };
 
-export const getIgnoredLocalDps = (deviceType) => {
-  const { ignoredDps } = getLocalMapping(deviceType);
+export const getIgnoredLocalDps = (deviceType, productId) => {
+  const { ignoredDps } = getLocalMapping(deviceType, productId);
   return Array.isArray(ignoredDps) ? ignoredDps : [];
 };
 
@@ -223,7 +271,9 @@ export const getDeviceType = (device) => {
     .join(' ')
     .toLowerCase();
   const category = normalizeCode(specifications.category || device.category);
-  const productId = normalizeCode(device.product_id);
+  // The product id may only live in the PRODUCT_ID param on a device loaded
+  // back from the Gladys DB.
+  const productId = normalizeCode(getProductIdFromDevice(device));
   const context = {
     codes,
     modelName,
@@ -241,12 +291,12 @@ export const getDeviceType = (device) => {
   return DEVICE_TYPES.UNKNOWN;
 };
 
-export const getFeatureMapping = (code, deviceType) => {
+export const getFeatureMapping = (code, deviceType, productId) => {
   const normalized = normalizeCode(code);
   if (!normalized) {
     return null;
   }
-  const mapping = getCloudMapping(deviceType);
+  const mapping = getCloudMapping(deviceType, productId);
   const candidate = mapping[normalized];
 
   if (!candidate || typeof candidate !== 'object') {
@@ -259,8 +309,8 @@ export const getFeatureMapping = (code, deviceType) => {
   return candidate;
 };
 
-export const getIgnoredCloudCodes = (deviceType) => {
-  const mapping = getCloudMapping(deviceType);
+export const getIgnoredCloudCodes = (deviceType, productId) => {
+  const mapping = getCloudMapping(deviceType, productId);
   const ignored = Array.isArray(mapping.ignoredCodes) ? mapping.ignoredCodes : [];
   const normalized = ignored
     .filter((value) => value !== null && value !== undefined)
