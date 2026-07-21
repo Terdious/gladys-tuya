@@ -14,10 +14,11 @@
 // The type inference and mapping lookups live in src/tuya/mappings/index.js.
 // -----------------------------------------------------------------------------
 
+import { airConditioner } from './airConditioner.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 
 export { globalCloudMapping, globalLocalMapping } from './global.js';
 
 // Same matching order as the core service.
-export const DEVICE_TYPE_DEFINITIONS = [smartSocket, smartMeter];
+export const DEVICE_TYPE_DEFINITIONS = [airConditioner, smartSocket, smartMeter];

@@ -4,7 +4,11 @@
 // of the hand-built `tuya:<id>:<code>` of the core; the core-side selector
 // generation (addSelector) is left to Gladys.
 
-import { createLogger } from '@gladysassistant/integration-sdk';
+import {
+  createLogger,
+  DEVICE_FEATURE_CATEGORIES,
+  DEVICE_FEATURE_TYPES,
+} from '@gladysassistant/integration-sdk';
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
 import { buildFeatureSelector } from '../utils/tuya.selector.js';
@@ -78,6 +82,19 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   }
   if ('scale' in valuesObject) {
     feature.scale = valuesObject.scale;
+  }
+
+  // Scaled target temperatures declare their bounds in device units (an AC
+  // spec with min 160 / max 880 and scale 1 means 16..88 degrees): bring the
+  // Gladys min/max back to real degrees, like the value transforms do.
+  if (
+    feature.scale !== undefined &&
+    feature.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
+    feature.type === DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE
+  ) {
+    const divider = 10 ** feature.scale;
+    feature.min /= divider;
+    feature.max /= divider;
   }
 
   return feature;

@@ -35,7 +35,9 @@ export async function setValue(device, deviceFeature, value) {
 
   const writeCategory = writeValues[deviceFeature.category];
   const writeFn = writeCategory ? writeCategory[deviceFeature.type] : null;
-  const transformedValue = writeFn ? writeFn(value) : value;
+  // The feature is passed along for scale-aware transforms (e.g. an AC target
+  // temperature with scale 1 stores 20.0 degrees as 200).
+  const transformedValue = writeFn ? writeFn(value, deviceFeature) : value;
   logger.debug(`Change value for devices ${topic}/${command} to value ${transformedValue}...`);
 
   const params = device.params || [];

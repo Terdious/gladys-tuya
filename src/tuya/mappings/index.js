@@ -12,6 +12,7 @@ import {
 } from '../../devices/index.js';
 
 export const DEVICE_TYPES = {
+  AIR_CONDITIONER: 'air-conditioner',
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',
   UNKNOWN: 'unknown',
