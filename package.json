@@ -1,6 +1,6 @@
 {
   "name": "gladys-tuya",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Tuya external integration for Gladys Assistant (smart sockets and smart meters, cloud + local modes).",
   "type": "module",
