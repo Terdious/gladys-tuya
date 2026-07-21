@@ -1,21 +1,27 @@
 // -----------------------------------------------------------------------------
 // Minimal in-memory stand-in for the Gladys SDK object, for unit tests.
 //
-// It reproduces the only surface the device modules rely on:
-//   - externalIds(type, platformId) -> { device, feature(key) }
+// It reproduces the only surface the Tuya modules rely on:
+//   - externalIds(type, platformId) -> { device, feature(key) } with the same
+//     `ext:<selector>:...` shape as the real SDK
 //   - publishState / publishStates   -> record calls so tests can assert them
+//   - publishDiscoveredDevices       -> record calls
 // This lets us test the pure "wiring" logic (discovery payloads, dispatch)
 // without a running Gladys server or a real WebSocket.
 // -----------------------------------------------------------------------------
 
+const SELECTOR = 'tuya';
+
 export function createFakeGladys() {
   const published = [];
+  const discovered = [];
 
   return {
     published,
+    discovered,
 
     externalIds(type, platformId) {
-      const device = `${type}:${platformId}`;
+      const device = `ext:${SELECTOR}:${type}:${platformId}`;
       return {
         device,
         feature: (key) => `${device}:${key}`,
@@ -30,6 +36,11 @@ export function createFakeGladys() {
       for (const s of states) {
         published.push({ featureExternalId: s.device_feature_external_id, state: s.state });
       }
+    },
+
+    async publishDiscoveredDevices(devices) {
+      discovered.push(devices);
+      return { success: true, count: devices.length };
     },
   };
 }

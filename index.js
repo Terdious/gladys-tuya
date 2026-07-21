@@ -19,8 +19,9 @@
 import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './src/config.js';
 import { TuyaHandler } from './src/tuya/handler.js';
-import { STATUS, DEVICE_EXTERNAL_ID_TYPE } from './src/tuya/constants.js';
+import { STATUS } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
+import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -28,20 +29,52 @@ const tuya = new TuyaHandler(gladys);
 // Current configuration (hot-reloaded via onConfigUpdated).
 let config = normalizeConfig();
 
-/**
- * Convert the discovered raw Tuya devices to minimal Gladys discovery
- * payloads. The full conversion (features, params...) is ported in the next
- * pull request; this already gives every device its final external_id.
- */
+/** Convert the discovered raw Tuya devices to Gladys discovery payloads. */
 function buildDiscoveredDevices(tuyaDevices) {
-  return tuyaDevices.map((tuyaDevice) => {
-    const ids = gladys.externalIds(DEVICE_EXTERNAL_ID_TYPE, tuyaDevice.id);
-    return {
-      name: tuyaDevice.name || `Tuya ${tuyaDevice.id}`,
-      external_id: ids.device,
-      features: [],
-    };
+  return tuyaDevices.map((tuyaDevice) => convertDevice(gladys, tuyaDevice));
+}
+
+/**
+ * Rebuild the full device for a poll/setValue command. The core sends only
+ * `{ external_id, selector, params }` over the WebSocket — NOT the features
+ * nor the device_type. Pull those from the user devices cached by the SDK
+ * (refreshed from GET /device on connect and on every device-* event), so
+ * poll knows which features to read and setValue can resolve the local DPS.
+ */
+function mergeParams(base, override) {
+  const byName = new Map();
+  (Array.isArray(base) ? base : []).forEach((param) => {
+    if (param && param.name) {
+      byName.set(param.name, param);
+    }
   });
+  (Array.isArray(override) ? override : []).forEach((param) => {
+    if (param && param.name) {
+      byName.set(param.name, param);
+    }
+  });
+  return [...byName.values()];
+}
+
+function resolveDevice(device) {
+  const known = (gladys.devices || []).find((d) => d.external_id === device.external_id);
+  if (!known) {
+    return device;
+  }
+  return {
+    ...known,
+    ...device,
+    // The core poll/setValue command carries only a minimal device ref: the
+    // Tuya id resolves from the external_id, but the LOCAL params (ip /
+    // local_key / protocol_version / local_override) live only on the stored
+    // device. Use the cached (GET /device) params as the authoritative base so
+    // a minimal command can never drop them, then let any command param win by
+    // name. Without this, `{ ...known, ...device }` lets an empty command
+    // params array erase the local config and every poll silently stays cloud.
+    params: mergeParams(known.params, device.params),
+    features: Array.isArray(known.features) ? known.features : [],
+    device_type: known.device_type,
+  };
 }
 
 /** Connect the handler to the Tuya cloud with the current configuration. */
@@ -68,6 +101,17 @@ async function discoverAndPublish() {
 gladys.onScanRequest(async () => {
   logger.info('onScanRequest -> discovering Tuya devices');
   await discoverAndPublish();
+});
+
+// --- Command: the user acts on a controllable feature ------------------------
+gladys.onSetValue(async (device, feature, value) => {
+  logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
+  await tuya.setValue(resolveDevice(device), feature, value);
+});
+
+// --- Polling: Gladys asks to refresh a device --------------------------------
+gladys.onPoll(async (device) => {
+  await tuya.poll(resolveDevice(device));
 });
 
 // --- Configuration updated by the user ---------------------------------------

@@ -19,6 +19,8 @@ import { getRefreshToken } from './cloud/tuya.getRefreshToken.js';
 import { discoverDevices } from './cloud/tuya.discoverDevices.js';
 import { loadDevices } from './cloud/tuya.loadDevices.js';
 import { loadDeviceDetails } from './cloud/tuya.loadDeviceDetails.js';
+import { poll } from './tuya.poll.js';
+import { setValue } from './tuya.setValue.js';
 
 export class TuyaHandler {
   /**
@@ -39,6 +41,11 @@ export class TuyaHandler {
     this.manualDisconnect = false;
     this.autoReconnectAllowed = false;
     this.lastConnectedConfigHash = null;
+
+    // Last emitted value per feature external_id (poll same-value throttling).
+    this.featureStates = new Map();
+    // In-flight publishState promises of the current poll cycle.
+    this.pendingStates = [];
   }
 }
 
@@ -49,3 +56,5 @@ TuyaHandler.prototype.getRefreshToken = getRefreshToken;
 TuyaHandler.prototype.discoverDevices = discoverDevices;
 TuyaHandler.prototype.loadDevices = loadDevices;
 TuyaHandler.prototype.loadDeviceDetails = loadDeviceDetails;
+TuyaHandler.prototype.poll = poll;
+TuyaHandler.prototype.setValue = setValue;
