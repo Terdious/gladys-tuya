@@ -59,6 +59,37 @@ export async function setValue(device, deviceFeature, value) {
 
   const localDps = getLocalDpsFromCode(command, device);
 
+  // A Tuya device accepts a SINGLE local session. When our persistent session
+  // (issue #9) holds it, the command MUST go through that session — a parallel
+  // one-shot connect would fight our own socket.
+  if (hasLocalConfig && localDps !== null && typeof this.localSessionSet === 'function') {
+    const session = this.localSessions && this.localSessions.get(topic);
+    if (session && session.connected) {
+      try {
+        const done = await this.localSessionSet(topic, localDps, transformedValue);
+        if (done) {
+          return;
+        }
+      } catch {
+        // Session set failed (socket dropped mid-command): fall through to the
+        // cloud below — do NOT open a competing one-shot local connection.
+        if (this.connector && typeof this.connector.request === 'function') {
+          const response = await this.connector.request({
+            method: 'POST',
+            path: `${API.VERSION_1_0}/devices/${topic}/commands`,
+            body: { commands: [{ code: command, value: transformedValue }] },
+          });
+          logger.debug(`[Tuya][setValue] ${JSON.stringify(response)}`);
+        } else {
+          logger.warn(
+            `[Tuya][setValue] session set failed for device=${topic} and no cloud fallback is available`,
+          );
+        }
+        return;
+      }
+    }
+  }
+
   if (hasLocalConfig && localDps !== null) {
     const isProtocol34 = protocolVersion === '3.4';
     const isProtocol35 = protocolVersion === '3.5';

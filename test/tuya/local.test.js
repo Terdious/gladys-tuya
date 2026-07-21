@@ -232,7 +232,7 @@ test('poll uses the local DPS map when the device opted into local mode', async 
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
   let localArgs = null;
-  handler.localPoll = async (payload) => {
+  handler.localRead = async (payload) => {
     localArgs = payload;
     return { dps: { 1: true } };
   };
@@ -256,7 +256,7 @@ test('poll falls back to the cloud for features missing from the local mapping',
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => ({ dps: { 1: true } });
+  handler.localRead = async () => ({ dps: { 1: true } });
   const cloudPaths = [];
   handler.connector = {
     request: async ({ path }) => {
@@ -285,7 +285,7 @@ test('poll falls back to the cloud when the local poll fails', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     throw new Error('unreachable');
   };
   handler.connector = {
@@ -302,7 +302,7 @@ test('poll skips the cloud fallback when local mode is on and the connector is m
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     throw new Error('unreachable');
   };
   handler.connector = null;
@@ -316,7 +316,7 @@ test('poll stops retrying local after repeated failures (circuit breaker)', asyn
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
   let localCalls = 0;
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     localCalls += 1;
     throw new Error('unreachable');
   };
@@ -341,7 +341,7 @@ test('poll stays on the cloud for a LAN-capable device when local mode is off (l
   // Toggle OFF: even though the device has ip/local_key/protocol, poll must
   // use the cloud and never open a local connection.
   handler.config = { localMode: false };
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     throw new Error('local must not be called when the toggle is off');
   };
   handler.connector = {
@@ -360,7 +360,7 @@ test('poll publishes the local transport badge once per state', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => ({ dps: { 1: true } });
+  handler.localRead = async () => ({ dps: { 1: true } });
 
   const device = createLocalDevice();
   await handler.poll(device);
@@ -376,7 +376,7 @@ test('poll publishes the cloud badge when the local poll fails', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     throw new Error('unreachable');
   };
   handler.connector = {
@@ -393,7 +393,7 @@ test('poll publishes the unreachable badge when local and cloud both fail', asyn
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     throw new Error('unreachable');
   };
   handler.connector = {
@@ -413,7 +413,7 @@ test('poll updates the badge when the transport changes back', async () => {
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
   let localUp = true;
-  handler.localPoll = async () => {
+  handler.localRead = async () => {
     if (!localUp) {
       throw new Error('unreachable');
     }
