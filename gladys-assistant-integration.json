@@ -6,8 +6,8 @@
     "en": "Tuya / Smart Life sockets, meters, ACs and pilot-wire heaters, cloud + optional local control.",
     "fr": "Prises, compteurs, clims et fil pilote Tuya / Smart Life, cloud + contrôle local optionnel."
   },
-  "version": "1.4.0",
-  "docker_image": "ghcr.io/terdious/gladys-tuya:1.4.0",
+  "version": "1.5.0",
+  "docker_image": "ghcr.io/terdious/gladys-tuya:1.5.0",
   "gladys_version": ">=4.62.0",
   "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/master/cover.png",
   "network_discovery": [
