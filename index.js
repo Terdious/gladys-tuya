@@ -104,6 +104,9 @@ async function connectTuya() {
   await tuya.connect(config);
   if (tuya.status === STATUS.CONNECTED) {
     reportConnectionStatus(true);
+    // Start the real-time cloud events listener (issue #10): a no-op unless
+    // the user enabled the toggle.
+    await tuya.startPulsar();
   } else {
     const reason = tuya.lastError || 'unknown error';
     reportConnectionStatus(false, {
@@ -312,6 +315,7 @@ gladys.onConfigUpdated((newConfig) => {
 
     const credentialsChanged = buildConfigHash(config) !== previousHash;
     const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+    const pulsarChanged = Boolean(previousConfig.pulsarEnabled) !== Boolean(config.pulsarEnabled);
     // A discovery in flight means the cloud connection is healthy: saving an
     // unchanged config during it must not tear everything down.
     const effectivelyConnected =
@@ -326,6 +330,15 @@ gladys.onConfigUpdated((newConfig) => {
       tuya.startReconnect();
       await discoverAndPublish();
       return;
+    }
+    if (pulsarChanged) {
+      // The "Real-time cloud events" toggle changed: (re)start or stop the
+      // Pulsar listener without touching the cloud/local connection.
+      if (config.pulsarEnabled === true) {
+        await tuya.startPulsar();
+      } else {
+        tuya.stopPulsar();
+      }
     }
     if (localModeChanged) {
       if (config.localMode !== true) {

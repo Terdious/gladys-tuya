@@ -25,6 +25,7 @@ import { getStatus } from './tuya.getStatus.js';
 import { disconnect } from './tuya.disconnect.js';
 import { manualDisconnect } from './tuya.manualDisconnect.js';
 import { cleanupDevice } from './tuya.cleanupDevice.js';
+import { startPulsar, stopPulsar, handlePulsarEvent } from './cloud/tuya.pulsar.js';
 import { localPoll } from './local/tuya.localPoll.js';
 import { localScan } from './local/tuya.localScan.js';
 import { detectProtocol } from './local/tuya.detectProtocol.js';
@@ -72,6 +73,8 @@ export class TuyaHandler {
     this.lastTransports = new Map();
     // Persistent local sessions per Tuya device id (issue #9).
     this.localSessions = new Map();
+    // Real-time cloud events listener state (issue #10, Pulsar).
+    this.pulsar = null;
     // In-flight publishState promises of the current poll cycle.
     this.pendingStates = [];
 
@@ -107,6 +110,9 @@ TuyaHandler.prototype.handleLocalPush = handleLocalPush;
 TuyaHandler.prototype.closeLocalSession = closeLocalSession;
 TuyaHandler.prototype.closeAllLocalSessions = closeAllLocalSessions;
 TuyaHandler.prototype.cleanupDevice = cleanupDevice;
+TuyaHandler.prototype.startPulsar = startPulsar;
+TuyaHandler.prototype.stopPulsar = stopPulsar;
+TuyaHandler.prototype.handlePulsarEvent = handlePulsarEvent;
 TuyaHandler.prototype.tryReconnect = tryReconnect;
 TuyaHandler.prototype.scheduleQuickReconnects = scheduleQuickReconnects;
 TuyaHandler.prototype.clearQuickReconnects = clearQuickReconnects;

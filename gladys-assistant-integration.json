@@ -164,6 +164,19 @@
         "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
       },
       "required": true
+    },
+    {
+      "key": "pulsar_enabled",
+      "type": "boolean",
+      "label": {
+        "en": "Real-time cloud events (Pulsar)",
+        "fr": "Événements cloud en temps réel (Pulsar)"
+      },
+      "description": {
+        "en": "Instant cloud state feedback via the Tuya Message Service. Requires 'Message Service' enabled on your Tuya IoT project.",
+        "fr": "Retour d'état cloud instantané via le Tuya Message Service. Nécessite 'Message Service' activé sur votre projet Tuya IoT."
+      },
+      "required": false
     }
   ]
 }

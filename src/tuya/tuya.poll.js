@@ -461,6 +461,66 @@ export function emitLocalDpsStates(self, device, dps, pending) {
 }
 
 /**
+ * @description Apply cloud CODE values (keyed by Tuya code, not DPS) to a
+ * device's features and emit their new states. Used by the Pulsar real-time
+ * reports (#10) with the exact reader/scale/event pipeline of the cloud poll,
+ * without the poll summaries — so a value pushed by Pulsar and the same value
+ * seen by the next poll share one state cache and never double-emit.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device (features + params).
+ * @param {object} values - Reported values keyed by Tuya code.
+ * @param {Array} [pending] - Sink for the in-flight publishState promises.
+ * @returns {object} { handled, changed } summary.
+ * @example
+ * const { changed } = emitCloudCodeStates(handler, device, { switch_1: true }, pending);
+ */
+export function emitCloudCodeStates(self, device, values, pending = []) {
+  let handled = 0;
+  let changed = 0;
+  if (!device || !values || typeof values !== 'object') {
+    return { handled, changed };
+  }
+  const deviceFeatures = Array.isArray(device.features) ? device.features : [];
+  deviceFeatures.forEach((deviceFeature) => {
+    const code = getFeatureCode(deviceFeature);
+    if (
+      !code ||
+      !Object.prototype.hasOwnProperty.call(values, code) ||
+      values[code] === undefined
+    ) {
+      return;
+    }
+    const reader = getFeatureReader(deviceFeature);
+    if (!reader) {
+      return;
+    }
+    const featureWithScale = getFeatureWithFallbackScale(device, deviceFeature, code);
+    const mappingEntry = resolveFeatureMappingEntry(device, code);
+    let transformedValue;
+    try {
+      transformedValue = reader(values[code], featureWithScale, mappingEntry);
+    } catch (e) {
+      logger.warn(`[Tuya][pulsar] reader failed for code=${code}`, e);
+      return;
+    }
+    const { lastValue, lastValueChanged } = getCurrentFeatureState(self, featureWithScale);
+    const emitResult = emitFeatureState(
+      self,
+      pending,
+      featureWithScale,
+      transformedValue,
+      lastValue,
+      lastValueChanged,
+    );
+    handled += 1;
+    if (emitResult.changed) {
+      changed += 1;
+    }
+  });
+  return { handled, changed };
+}
+
+/**
  * @description Poll values of a Tuya device (local mode first when the device
  * opted in through LOCAL_OVERRIDE, with cloud fallback).
  * @param {object} device - The device to poll.
