@@ -26,6 +26,10 @@ export async function disconnect(options = {}) {
   this.connector = null;
   this.status = STATUS.NOT_INITIALIZED;
   this.lastError = null;
+  // Stop the real-time cloud events listener (issue #10).
+  if (typeof this.stopPulsar === 'function') {
+    this.stopPulsar();
+  }
   // Release every persistent local session (a Tuya device only accepts one
   // local connection: never leave sockets behind).
   if (typeof this.closeAllLocalSessions === 'function') {

@@ -19,7 +19,8 @@
     "@demirdeniz/tuyapi-newgen": "^8.1.5",
     "@gladysassistant/integration-sdk": "^0.6.0",
     "@tuya/tuya-connector-nodejs": "^2.1.2",
-    "tuyapi": "^7.7.1"
+    "tuyapi": "^7.7.1",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

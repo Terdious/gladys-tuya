@@ -22,7 +22,12 @@ export const DEFAULT_CONFIG = {
   secretKey: '', // Tuya cloud project Access Secret / Client Secret
   appAccountId: '', // Smart Life / Tuya app account UID
   localMode: true, // "Prefer the local connection" (GLADYS_PREFER_LOCAL, default true)
+  pulsarEnabled: false, // Real-time cloud events via the Tuya Message Service (#10), opt-in
 };
+
+// Opt-in booleans default to false: only an explicit truthy value turns them on.
+const asBooleanDefaultFalse = (value) =>
+  value === true || value === 'true' || value === 1 || value === '1';
 
 const asTrimmedString = (value, fallback) => {
   if (value === undefined || value === null) {
@@ -55,6 +60,8 @@ export function normalizeConfig(raw = {}) {
     // the manifest declares both transports, and injects the reserved
     // GLADYS_PREFER_LOCAL config key (read-only for the integration).
     localMode: asBooleanDefaultTrue(raw.GLADYS_PREFER_LOCAL),
+    // Real-time cloud events through the Tuya Message Service (opt-in, #10).
+    pulsarEnabled: asBooleanDefaultFalse(raw.pulsar_enabled),
     // Same fallback as the core service: unknown region -> China endpoint.
     baseUrl: TUYA_ENDPOINTS[endpoint] || TUYA_ENDPOINTS.china,
   };
