@@ -16,6 +16,10 @@ import { buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
 
 const logger = createLogger({ name: 'tuya' });
 
+// Every discovery re-converts every device: warn once per unknown code per
+// process instead of re-printing the same 60-line wall on each scan.
+const warnedUnmanagedCodes = new Set();
+
 /**
  * @description Transforms Tuya feature as Gladys feature.
  * @param {object} tuyaFunctions - Functions from Tuya.
@@ -39,7 +43,12 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
 
   const mappingEntry = getFeatureMapping(code, deviceType, productId);
   if (!mappingEntry) {
-    logger.warn(`Tuya function with "${code}" code is not managed`);
+    if (!warnedUnmanagedCodes.has(codeLower)) {
+      warnedUnmanagedCodes.add(codeLower);
+      logger.warn(`Tuya function with "${code}" code is not managed`);
+    } else {
+      logger.debug(`Tuya function with "${code}" code is not managed`);
+    }
     return undefined;
   }
   // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by

@@ -156,9 +156,14 @@ async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion
       key: localKey,
       ip,
       version: protocolVersion,
-      // The session is long-lived: no get on connect (the first poll reads),
-      // and DP refresh on ping keeps push data flowing on 3.4/3.5 devices.
-      issueGetOnConnect: false,
+      // Ask for the full DPS state right at connect: the reply arrives as a
+      // 'data' event and flows through the push pipeline, so a device gets
+      // its initial states on every session (re)connect — crucial for
+      // cloud-blind devices whose active reads are unreliable and which
+      // otherwise only report on CHANGE (a freshly created device would show
+      // nothing until someone toggled it). DP refresh on ping keeps push
+      // data flowing on 3.4/3.5 devices.
+      issueGetOnConnect: true,
       issueRefreshOnConnect: false,
       issueRefreshOnPing: true,
     });
