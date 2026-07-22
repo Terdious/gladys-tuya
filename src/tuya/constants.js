@@ -26,9 +26,7 @@ export const STATUS = {
 export const API = {
   PUBLIC_VERSION_1_0: '/v1.0',
   VERSION_1_0: '/v1.0/iot-03',
-  VERSION_1_1: '/v1.1/iot-03',
   VERSION_1_2: '/v1.2/iot-03',
-  VERSION_1_3: '/v1.3/iot-03',
   VERSION_2_0: '/v2.0/cloud',
 };
 
@@ -43,6 +41,10 @@ export const DEVICE_PARAM_NAME = {
   LOCAL_OVERRIDE: 'LOCAL_OVERRIDE',
   PRODUCT_ID: 'PRODUCT_ID',
   PRODUCT_KEY: 'PRODUCT_KEY',
+  // Gladys persists neither the feature scale nor the inferred device type:
+  // storing the type as a param makes the runtime re-resolution (scale
+  // restore, variant mappings) independent of the name/category heuristics.
+  DEVICE_TYPE: 'DEVICE_TYPE',
 };
 
 // Type segment used to build every device external id:

@@ -17,7 +17,12 @@ WORKDIR /app
 
 # Install the PROD dependencies first (better build cache).
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
+RUN npm ci --omit=dev
+# tuyapi-newgen prints raw debug banners on stdout on every connection
+# ("******debug flag is false *****"): strip them from the image so the
+# container logs stay readable.
+RUN sed -i '/debug flag is false/d;/debug log is NOT enabled/d' \
+  node_modules/@demirdeniz/tuyapi-newgen/index.js
 
 # Then the integration code.
 COPY index.js ./

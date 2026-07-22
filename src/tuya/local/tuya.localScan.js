@@ -81,10 +81,14 @@ export function createScanCollector() {
     }
 
     const isNew = !devices[deviceId];
+    // A device can announce itself several times during the scan window with
+    // partial payloads: never let a later partial announce erase a field a
+    // previous one provided.
+    const previous = devices[deviceId] || {};
     devices[deviceId] = {
-      ip: resolvedIp,
-      version,
-      productKey,
+      ip: resolvedIp || previous.ip,
+      version: version || previous.version,
+      productKey: productKey || previous.productKey,
     };
     if (isNew) {
       logger.info(

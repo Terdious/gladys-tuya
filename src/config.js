@@ -21,7 +21,6 @@ export const DEFAULT_CONFIG = {
   accessKey: '', // Tuya cloud project Access ID / Client ID
   secretKey: '', // Tuya cloud project Access Secret / Client Secret
   appAccountId: '', // Smart Life / Tuya app account UID
-  appUsername: '', // Smart Life account email or phone (optional)
   localMode: true, // "Prefer the local connection" (GLADYS_PREFER_LOCAL, default true)
 };
 
@@ -52,7 +51,6 @@ export function normalizeConfig(raw = {}) {
     accessKey: asTrimmedString(raw.access_key, DEFAULT_CONFIG.accessKey),
     secretKey: asTrimmedString(raw.secret_key, DEFAULT_CONFIG.secretKey),
     appAccountId: asTrimmedString(raw.app_account_id, DEFAULT_CONFIG.appAccountId),
-    appUsername: asTrimmedString(raw.app_username, DEFAULT_CONFIG.appUsername),
     // Standard "Prefer the local connection" toggle: the core renders it when
     // the manifest declares both transports, and injects the reserved
     // GLADYS_PREFER_LOCAL config key (read-only for the integration).

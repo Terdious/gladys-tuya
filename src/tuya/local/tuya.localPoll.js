@@ -9,6 +9,8 @@ import TuyAPI from 'tuyapi';
 import TuyAPINewGen from '@demirdeniz/tuyapi-newgen';
 import { createLogger } from '@gladysassistant/integration-sdk';
 
+import { formatSocketError } from './tuya.socketError.js';
+
 const logger = createLogger({ name: 'tuya' });
 
 // Injection point for tests (stubbed local APIs).
@@ -69,7 +71,9 @@ export async function localPoll(payload) {
   let lastError = null;
   const onError = (err) => {
     lastError = err;
-    logger.info(`[Tuya][localPoll] socket error for device=${deviceId}: ${err.message}`);
+    logger.info(
+      `[Tuya][localPoll] socket error for device=${deviceId}: ${formatSocketError(err, ip)}`,
+    );
   };
   tuyaLocal.on('error', onError);
 
@@ -107,7 +111,7 @@ export async function localPoll(payload) {
         }),
         new Promise((_, reject) => {
           errorListener = (err) => {
-            reject(new Error(`Local poll socket error: ${err.message}`));
+            reject(new Error(formatSocketError(err, ip)));
           };
           tuyaLocal.once('error', errorListener);
         }),
@@ -153,7 +157,7 @@ export async function localPoll(payload) {
   } catch (e) {
     if (lastError && (!e || e.message !== lastError.message)) {
       logger.info(
-        `[Tuya][localPoll] last socket error for device=${deviceId}: ${lastError.message}`,
+        `[Tuya][localPoll] last socket error for device=${deviceId}: ${formatSocketError(lastError, ip)}`,
       );
     }
     logger.warn(`[Tuya][localPoll] failed for device=${deviceId}`, e);

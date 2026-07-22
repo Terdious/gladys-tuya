@@ -79,14 +79,38 @@ function resolveDevice(device) {
   };
 }
 
+/**
+ * Publish the application-level connection status (SDK contract C.3): the
+ * Configuration screen shows whether the integration is really talking to the
+ * Tuya cloud, with the failure reason when it is not. Fire-and-forget.
+ */
+function reportConnectionStatus(connected, message) {
+  gladys.setConnectionStatus(connected, message).catch(() => {});
+}
+
 /** Connect the handler to the Tuya cloud with the current configuration. */
 async function connectTuya() {
   if (!isConfigured(config)) {
     logger.warn('Tuya is not configured yet: fill in the integration settings in Gladys');
+    reportConnectionStatus(false, {
+      en: 'Not configured yet: fill in the Tuya cloud credentials.',
+      fr: 'Pas encore configuré : renseignez les identifiants du cloud Tuya.',
+    });
     return;
   }
   tuya.config = config;
+  // tuya.connect() never throws: it stores the failure in status/lastError
+  // (core parity) — report the REAL outcome, not the absence of an exception.
   await tuya.connect(config);
+  if (tuya.status === STATUS.CONNECTED) {
+    reportConnectionStatus(true);
+  } else {
+    const reason = tuya.lastError || 'unknown error';
+    reportConnectionStatus(false, {
+      en: `Tuya cloud connection failed: ${reason}`,
+      fr: `Connexion au cloud Tuya échouée : ${reason}`,
+    });
+  }
 }
 
 // In-flight discovery run: connection events and scan requests can overlap,
@@ -154,6 +178,11 @@ gladys.onAction('detect_protocol', async (fields) => {
   if (!deviceRef || !ip) {
     throw new Error('device and ip are required');
   }
+  // A discovery in flight would race this action (it rebuilds the shared
+  // discovered list): join it first — it also proves the cloud is healthy.
+  if (discoveryInFlight) {
+    await discoveryInFlight;
+  }
   if (tuya.status !== STATUS.CONNECTED) {
     throw new Error('Tuya cloud is not connected yet');
   }
@@ -207,6 +236,54 @@ gladys.onAction('detect_protocol', async (fields) => {
   };
 });
 
+// --- Device lifecycle: release per-device state ------------------------------
+// Without this, deleting a locally-polled device leaks its persistent LAN
+// session forever (socket open, single local slot occupied) plus the
+// per-device caches. On update, the next poll recreates what it needs.
+gladys.onDeviceDeleted(async (device) => {
+  logger.info(`onDeviceDeleted <- ${device && device.external_id}`);
+  await tuya.cleanupDevice(device);
+});
+
+// A freshly created device gets its first states immediately instead of
+// waiting for the first scheduled poll cycle. The first attempt can race the
+// LAN session handshake (and some devices are cloud-blind), so a second poll
+// runs a few seconds later to catch the states the first one missed.
+gladys.onDeviceCreated(async (device) => {
+  logger.info(`onDeviceCreated <- ${device && device.external_id}`);
+  const pollOnce = async (label) => {
+    try {
+      await tuya.poll(resolveDevice(device));
+    } catch (err) {
+      logger.warn(`${label} poll of freshly created device failed`, err);
+    }
+  };
+  const retry = setTimeout(() => {
+    pollOnce('Second');
+  }, 7000);
+  if (typeof retry.unref === 'function') {
+    retry.unref();
+  }
+  await pollOnce('First');
+});
+
+// --- Action: manual cloud disconnect ------------------------------------------
+// Same as the "Déconnecter" button of the core Tuya integration: stop talking
+// to the Tuya cloud (and release the LAN sessions) until the user saves the
+// configuration again.
+gladys.onAction('disconnect', async () => {
+  logger.info('onAction disconnect <- manual cloud disconnect requested');
+  await tuya.manualDisconnect();
+  reportConnectionStatus(false, {
+    en: 'Disconnected manually. Save the configuration to reconnect.',
+    fr: 'Déconnecté manuellement. Enregistrez la configuration pour vous reconnecter.',
+  });
+  return {
+    en: 'Disconnected from the Tuya cloud. Save the configuration to reconnect.',
+    fr: 'Déconnecté du cloud Tuya. Enregistrez la configuration pour vous reconnecter.',
+  };
+});
+
 // --- Command: the user acts on a controllable feature ------------------------
 gladys.onSetValue(async (device, feature, value) => {
   logger.info(`onSetValue <- ${feature.external_id} = ${value}`);
@@ -219,37 +296,50 @@ gladys.onPoll(async (device) => {
 });
 
 // --- Configuration updated by the user ---------------------------------------
-gladys.onConfigUpdated(async (newConfig) => {
-  logger.info('onConfigUpdated -> new configuration received');
-  const previousConfig = config;
-  const previousHash = buildConfigHash(config);
-  config = normalizeConfig(newConfig);
-  // Keep the handler config live so poll()'s local-vs-cloud decision follows
-  // the toggle immediately, even when no reconnect is needed.
-  tuya.config = config;
+// Config updates are serialized: the SDK dispatches WebSocket messages
+// concurrently, and two overlapping saves would run two overlapping
+// reconnects (competing connectors, duplicated discoveries).
+let configUpdateChain = Promise.resolve();
+gladys.onConfigUpdated((newConfig) => {
+  configUpdateChain = configUpdateChain.then(async () => {
+    logger.info('onConfigUpdated -> new configuration received');
+    const previousConfig = config;
+    const previousHash = buildConfigHash(config);
+    config = normalizeConfig(newConfig);
+    // Keep the handler config live so poll()'s local-vs-cloud decision follows
+    // the toggle immediately, even when no reconnect is needed.
+    tuya.config = config;
 
-  const credentialsChanged = buildConfigHash(config) !== previousHash;
-  const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+    const credentialsChanged = buildConfigHash(config) !== previousHash;
+    const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
+    // A discovery in flight means the cloud connection is healthy: saving an
+    // unchanged config during it must not tear everything down.
+    const effectivelyConnected =
+      tuya.status === STATUS.CONNECTED || tuya.status === STATUS.DISCOVERING_DEVICES;
 
-  if (credentialsChanged || tuya.status !== STATUS.CONNECTED) {
-    // Cloud credentials changed (or we are not connected): full reconnect.
-    tuya.disconnect();
-    await connectTuya();
-    tuya.startReconnect();
-    await discoverAndPublish();
-    return;
-  }
-  if (localModeChanged) {
-    if (config.localMode !== true) {
-      // Local preference turned off: release every persistent local session
-      // (the polls switch to the cloud on their own).
-      await tuya.closeAllLocalSessions();
+    if (credentialsChanged || !effectivelyConnected) {
+      // Cloud credentials changed (or we are not connected): full reconnect.
+      // Await the teardown so the fresh sessions cannot race the old sockets
+      // for the devices' single local slot.
+      await tuya.disconnect();
+      await connectTuya();
+      tuya.startReconnect();
+      await discoverAndPublish();
+      return;
     }
-    // Only the "Prefer local" toggle changed: no reconnect, just re-run a
-    // background discovery so the LAN scan is (re)applied per the new
-    // preference (ON = cloud + UDP scan, OFF = cloud only).
-    await discoverAndPublish();
-  }
+    if (localModeChanged) {
+      if (config.localMode !== true) {
+        // Local preference turned off: release every persistent local session
+        // (the polls switch to the cloud on their own).
+        await tuya.closeAllLocalSessions();
+      }
+      // Only the "Prefer local" toggle changed: no reconnect, just re-run a
+      // background discovery so the LAN scan is (re)applied per the new
+      // preference (ON = cloud + UDP scan, OFF = cloud only).
+      await discoverAndPublish();
+    }
+  });
+  return configUpdateChain;
 });
 
 // --- Connection lifecycle ----------------------------------------------------
@@ -278,6 +368,17 @@ gladys.on('disconnected', () => {
 gladys.handleShutdown((signal) => {
   logger.info(`Received ${signal} -> graceful shutdown`);
   tuya.disconnect();
+});
+
+// --- Last-resort error containment -------------------------------------------
+// In the external-integration model an unhandled error kills the whole
+// container (there is no core supervisor to catch it): log and keep running.
+// Anything reaching these guards is a bug to fix upstream of them.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection (bug: should be caught upstream)', reason);
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception (bug: should be caught upstream)', err);
 });
 
 // --- Startup -----------------------------------------------------------------

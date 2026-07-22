@@ -13,6 +13,8 @@ import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 import { isLocalInCooldown } from './local/tuya.localCircuit.js';
+import { formatSocketError } from './local/tuya.socketError.js';
+import { withTimeout, forceCloseApi } from './local/tuya.localSession.js';
 import { getFeatureWithFallbackScale, resolveFeatureMappingEntry } from './tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
@@ -99,40 +101,38 @@ export async function setValue(device, deviceFeature, value) {
   const localDps = getLocalDpsFromCode(command, device);
 
   // A Tuya device accepts a SINGLE local session. When our persistent session
-  // (issue #9) holds it, the command MUST go through that session — a parallel
-  // one-shot connect would fight our own socket.
-  if (hasLocalConfig && localDps !== null && typeof this.localSessionSet === 'function') {
-    const session = this.localSessions && this.localSessions.get(topic);
-    if (session && session.connected) {
-      try {
-        const done = await this.localSessionSet(topic, localDps, transformedValue);
-        if (done) {
-          // No feedback poll here: the persistent session pushes the DPS
-          // change (~1s) on its own.
-          return;
-        }
-      } catch {
-        // Session set failed (socket dropped mid-command): fall through to the
-        // cloud below — do NOT open a competing one-shot local connection.
-        if (this.connector && typeof this.connector.request === 'function') {
-          const response = await this.connector.request({
-            method: 'POST',
-            path: `${API.VERSION_1_0}/devices/${topic}/commands`,
-            body: { commands: [{ code: command, value: transformedValue }] },
-          });
-          logger.debug(`[Tuya][setValue] ${JSON.stringify(response)}`);
-          scheduleFeedbackPoll(this, device, 'cloud fallback command');
-        } else {
-          logger.warn(
-            `[Tuya][setValue] session set failed for device=${topic} and no cloud fallback is available`,
-          );
-        }
+  // (issue #9) exists — live OR mid-reconnect — the command MUST go through
+  // it: a parallel one-shot connect would fight our own socket. On any
+  // session failure the command falls through to the shared cloud block.
+  const hasSession = Boolean(
+    this.localSessions &&
+    this.localSessions.has(topic) &&
+    typeof this.localSessionSet === 'function',
+  );
+  if (hasLocalConfig && localDps !== null && hasSession) {
+    try {
+      if (typeof this.ensureLocalSession === 'function') {
+        // (Re)join the session first: a session that is reconnecting must not
+        // be raced with a competing connect (single local slot).
+        await this.ensureLocalSession({
+          deviceId: topic,
+          ip: ipAddress,
+          localKey,
+          protocolVersion,
+        });
+      }
+      const done = await this.localSessionSet(topic, localDps, transformedValue);
+      if (done) {
+        // No feedback poll here: the persistent session pushes the DPS
+        // change (~1s) on its own.
         return;
       }
+    } catch (e) {
+      logger.info(
+        `[Tuya][setValue] session command failed for device=${topic} (${e.message}); falling back to cloud`,
+      );
     }
-  }
-
-  if (hasLocalConfig && localDps !== null) {
+  } else if (hasLocalConfig && localDps !== null) {
     const isProtocol34 = protocolVersion === '3.4';
     const isProtocol35 = protocolVersion === '3.5';
     const isNewGenProtocol = isProtocol34 || isProtocol35;
@@ -158,13 +158,19 @@ export async function setValue(device, deviceFeature, value) {
       if (typeof tuyaLocal.on === 'function') {
         tuyaLocal.on('error', (err) => {
           logger.info(
-            `[Tuya][setValue][local] socket error for device=${topic}: ${err && err.message ? err.message : err}`,
+            `[Tuya][setValue][local] socket error for device=${topic}: ${formatSocketError(err, ipAddress)}`,
           );
         });
       }
       try {
-        await tuyaLocal.connect();
-        await tuyaLocal.set({ dps: localDps, set: transformedValue });
+        // Bound both steps: a stalled handshake (device slot held by another
+        // controller) must fall back to the cloud, not hang the command.
+        await withTimeout(tuyaLocal.connect(), 5000, 'Local set connect timeout');
+        await withTimeout(
+          tuyaLocal.set({ dps: localDps, set: transformedValue }),
+          3000,
+          'Local set timeout',
+        );
         logger.debug(
           `[Tuya][setValue][local] device=${topic} dps=${localDps} value=${transformedValue}`,
         );
@@ -173,13 +179,10 @@ export async function setValue(device, deviceFeature, value) {
         logger.warn(`[Tuya][setValue][local] failed, fallback to cloud`, e);
         return false;
       } finally {
-        // Always close the socket — even if connect() failed — so the device
-        // does not refuse subsequent local connections (cascading ECONNRESET).
-        try {
-          await tuyaLocal.disconnect();
-        } catch (disconnectError) {
-          logger.warn('[Tuya][setValue][local] disconnect failed', disconnectError);
-        }
+        // Always close the socket for real — even when connect() stalled (a
+        // plain disconnect() no-ops while a connect is pending) — so the
+        // device does not refuse subsequent local connections.
+        await forceCloseApi(tuyaLocal);
       }
     };
 

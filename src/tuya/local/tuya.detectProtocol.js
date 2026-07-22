@@ -35,6 +35,12 @@ export async function detectProtocol({ deviceId, ip, localKey }) {
   if (!deviceId || !ip || !localKey) {
     throw new Error('detectProtocol requires deviceId, ip and localKey');
   }
+  // The device accepts a single local session: a live persistent session
+  // (e.g. re-running detection after a DHCP change) would fight the probes —
+  // release it first, the next poll reopens it with the fresh parameters.
+  if (typeof this.closeLocalSession === 'function') {
+    await this.closeLocalSession(deviceId);
+  }
   const failures = [];
   for (const version of PROTOCOL_CANDIDATES) {
     try {

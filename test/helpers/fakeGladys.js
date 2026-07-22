@@ -21,6 +21,9 @@ export function createFakeGladys() {
     published,
     discovered,
     transports,
+    // User devices cache (refreshed by the real SDK on connect and on
+    // device-* events); tests push devices in as needed.
+    devices: [],
 
     externalIds(type, platformId) {
       const device = `ext:${SELECTOR}:${type}:${platformId}`;

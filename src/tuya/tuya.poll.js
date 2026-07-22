@@ -29,6 +29,27 @@ const logger = createLogger({ name: 'tuya' });
 
 export const SAME_VALUE_EMIT_INTERVAL_MS = 3 * 60 * 1000;
 
+// During a cloud outage every device fails every cycle: keep one warn per
+// device per window (the rest at debug) so 20 devices at a 10s cadence do not
+// flood hundreds of stacktraces per minute into the logs.
+const CLOUD_WARN_INTERVAL_MS = 5 * 60 * 1000;
+
+const logCloudReadFailure = (self, topic, label, error) => {
+  if (!self.cloudWarnAt) {
+    self.cloudWarnAt = new Map();
+  }
+  const now = Date.now();
+  const lastWarnAt = self.cloudWarnAt.get(topic) || 0;
+  if (now - lastWarnAt >= CLOUD_WARN_INTERVAL_MS) {
+    self.cloudWarnAt.set(topic, now);
+    logger.warn(`[Tuya][poll][cloud] ${label} for device=${topic}`, error);
+  } else {
+    logger.debug(
+      `[Tuya][poll][cloud] ${label} for device=${topic}: ${error && error.message ? error.message : error}`,
+    );
+  }
+};
+
 const getFeatureReader = (deviceFeature) => {
   if (!deviceFeature || !deviceFeature.category || !deviceFeature.type) {
     return null;
@@ -119,6 +140,15 @@ const emitFeatureState = (
   previousValueChangedAt,
 ) => {
   if (transformedValue === null || transformedValue === undefined) {
+    return { emitted: false, changed: false };
+  }
+  // A device can emit a non-numeric value (empty string on a power code):
+  // scaleValue then returns NaN, which `!==` always flags as changed — skip
+  // the sample instead of publishing garbage every cycle.
+  if (typeof transformedValue === 'number' && !Number.isFinite(transformedValue)) {
+    logger.debug(
+      `[Tuya][poll] skipping non-finite value for ${deviceFeature && deviceFeature.external_id}`,
+    );
     return { emitted: false, changed: false };
   }
 
@@ -294,10 +324,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
     values = await readCloudValues(self, primaryStrategy, topic);
     anyReadOk = true;
   } catch (e) {
-    logger.warn(
-      `[Tuya][poll][cloud] read failed for device=${topic} strategy=${primaryStrategy}`,
-      e,
-    );
+    logCloudReadFailure(self, topic, `read failed strategy=${primaryStrategy}`, e);
     values = {};
   }
 
@@ -313,10 +340,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
         );
       }
     } catch (e) {
-      logger.warn(
-        `[Tuya][poll][cloud] alternate read failed for device=${topic} strategy=${alternateStrategy}`,
-        e,
-      );
+      logCloudReadFailure(self, topic, `alternate read failed strategy=${alternateStrategy}`, e);
     }
   }
   summary.strategy = strategyUsed;
@@ -446,6 +470,27 @@ export function emitLocalDpsStates(self, device, dps, pending) {
  */
 export async function poll(device) {
   const topic = getTuyaDeviceId(device);
+
+  // One poll at a time per device: a slow failing cycle (local timeouts) must
+  // not overlap the next one — two concurrent get() calls interleave on the
+  // single session socket and each overlapped failure double-counts on the
+  // circuit breaker.
+  if (!this.pollsInFlight) {
+    this.pollsInFlight = new Set();
+  }
+  if (this.pollsInFlight.has(topic)) {
+    logger.debug(`[Tuya][poll] device=${topic} previous poll still running, skipping this cycle`);
+    return;
+  }
+  this.pollsInFlight.add(topic);
+  try {
+    await pollDevice.call(this, device, topic);
+  } finally {
+    this.pollsInFlight.delete(topic);
+  }
+}
+
+async function pollDevice(device, topic) {
   const deviceFeatures = Array.isArray(device.features) ? device.features : [];
 
   const params = device.params || [];
@@ -644,14 +689,21 @@ export async function poll(device) {
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
   // Badge: the cloud answered (even codes-missing counts as reachable) ->
-  // cloud; the cloud API itself could not be read -> unreachable.
-  publishTransport(
-    this,
-    device,
-    fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false
-      ? TRANSPORT.UNREACHABLE
-      : TRANSPORT.CLOUD,
+  // cloud; the cloud API itself could not be read -> unreachable. Exception:
+  // when the device's persistent session pushed recently, the states ARE
+  // flowing over the LAN — keep the Local badge instead of flapping to Cloud
+  // because one active read failed.
+  const session = this.localSessions && this.localSessions.get(topic);
+  const hasFreshLocalPush = Boolean(
+    session && session.lastDpsAt && Date.now() - session.lastDpsAt < 60 * 1000,
   );
+  let transport = TRANSPORT.CLOUD;
+  if (hasFreshLocalPush) {
+    transport = TRANSPORT.LOCAL;
+  } else if (fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false) {
+    transport = TRANSPORT.UNREACHABLE;
+  }
+  publishTransport(this, device, transport);
   await finish();
   const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'

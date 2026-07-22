@@ -3,8 +3,8 @@
   "type": "device",
   "name": "Tuya",
   "description": {
-    "en": "Tuya / Smart Life smart sockets and energy meters over the cloud, with optional local control.",
-    "fr": "Prises et compteurs d'énergie Tuya / Smart Life via le cloud, avec contrôle local optionnel."
+    "en": "Tuya / Smart Life sockets, meters, ACs and pilot-wire heaters, cloud + optional local control.",
+    "fr": "Prises, compteurs, clims et fil pilote Tuya / Smart Life, cloud + contrôle local optionnel."
   },
   "version": "1.3.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.3.0",
@@ -53,6 +53,19 @@
           "required": true
         }
       ]
+    },
+    {
+      "key": "disconnect",
+      "label": {
+        "en": "Disconnect from the Tuya cloud",
+        "fr": "Se déconnecter du cloud Tuya"
+      },
+      "description": {
+        "en": "Stop talking to the Tuya cloud (local sessions are released too). Save the configuration to reconnect.",
+        "fr": "Coupe la connexion au cloud Tuya (les sessions locales sont aussi libérées). Enregistrez la configuration pour vous reconnecter."
+      },
+      "timeout_seconds": 30,
+      "fields": []
     }
   ],
   "config_schema": [
@@ -151,19 +164,6 @@
         "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
       },
       "required": true
-    },
-    {
-      "key": "app_username",
-      "type": "string",
-      "label": {
-        "en": "Smart Life username (optional)",
-        "fr": "Identifiant Smart Life (optionnel)"
-      },
-      "description": {
-        "en": "Smart Life account email or phone.",
-        "fr": "Email ou téléphone du compte Smart Life."
-      },
-      "required": false
     }
   ]
 }
