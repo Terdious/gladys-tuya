@@ -170,3 +170,71 @@ test('a command joins a reconnecting session instead of opening a one-shot conne
   assert.equal(oneShotCreated, false, 'no competing one-shot connect while a session exists');
   assert.equal(setCalls, 1, 'the command went through the reconnected session');
 });
+
+test('localRead serves the pushed cache when an active read fails on a live session', async () => {
+  const { handler } = createHandler();
+  const session = {
+    deviceId: DEVICE_ID,
+    ip: '10.0.0.5',
+    localKey: 'lk',
+    protocolVersion: '3.5',
+    connected: true,
+    connecting: null,
+    // Pushed 10s ago: stale for the fresh-cache path, fresh enough to prove
+    // the LAN link is alive.
+    lastDps: { 1: true, 2: 240 },
+    lastDpsAt: Date.now() - 10 * 1000,
+    api: {
+      get: async () => {
+        throw new Error('Local poll timeout');
+      },
+      disconnect: async () => {},
+    },
+  };
+  handler.localSessions.set(DEVICE_ID, session);
+
+  const { dps } = await handler.localRead({
+    deviceId: DEVICE_ID,
+    ip: '10.0.0.5',
+    localKey: 'lk',
+    protocolVersion: '3.5',
+  });
+  assert.deepEqual(dps, { 1: true, 2: 240 });
+  // The session survives: the socket demonstrably pushes.
+  assert.equal(handler.localSessions.has(DEVICE_ID), true);
+});
+
+test('continuous-sensor pushes are throttled to one emission per interval', async () => {
+  const { fake, handler } = createHandler();
+  const device = {
+    external_id: EXTERNAL_ID,
+    device_type: DEVICE_TYPES.AIR_CONDITIONER,
+    features: [
+      {
+        external_id: `${EXTERNAL_ID}:temp_current`,
+        category: 'temperature-sensor',
+        type: 'decimal',
+        scale: 1,
+      },
+      { external_id: `${EXTERNAL_ID}:Power`, category: 'air-conditioning', type: 'binary' },
+    ],
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: DEVICE_ID }],
+  };
+  fake.devices.push(device);
+  handler.localSessions.set(DEVICE_ID, { deviceId: DEVICE_ID, connected: true, api: {} });
+
+  // A sensor flapping several times in a burst: only the first value passes.
+  await handler.handleLocalPush(DEVICE_ID, { 3: 231 });
+  await handler.handleLocalPush(DEVICE_ID, { 3: 232 });
+  await handler.handleLocalPush(DEVICE_ID, { 3: 233 });
+  // Event-like DPS stay instantaneous even inside the throttle window.
+  await handler.handleLocalPush(DEVICE_ID, { 1: true });
+
+  const tempStates = fake.published.filter(
+    (p) => p.featureExternalId === `${EXTERNAL_ID}:temp_current`,
+  );
+  const powerStates = fake.published.filter((p) => p.featureExternalId === `${EXTERNAL_ID}:Power`);
+  assert.equal(tempStates.length, 1, 'continuous sensor throttled to one emission');
+  assert.equal(tempStates[0].state, 23.1);
+  assert.equal(powerStates.length, 1, 'event-like feature passed through');
+});

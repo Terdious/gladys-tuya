@@ -99,16 +99,17 @@ async function connectTuya() {
     return;
   }
   tuya.config = config;
-  try {
-    await tuya.connect(config);
+  // tuya.connect() never throws: it stores the failure in status/lastError
+  // (core parity) — report the REAL outcome, not the absence of an exception.
+  await tuya.connect(config);
+  if (tuya.status === STATUS.CONNECTED) {
     reportConnectionStatus(true);
-  } catch (err) {
-    const reason = err && err.message ? err.message : 'unknown error';
+  } else {
+    const reason = tuya.lastError || 'unknown error';
     reportConnectionStatus(false, {
       en: `Tuya cloud connection failed: ${reason}`,
       fr: `Connexion au cloud Tuya échouée : ${reason}`,
     });
-    throw err;
   }
 }
 
@@ -245,14 +246,42 @@ gladys.onDeviceDeleted(async (device) => {
 });
 
 // A freshly created device gets its first states immediately instead of
-// waiting for the first scheduled poll cycle.
+// waiting for the first scheduled poll cycle. The first attempt can race the
+// LAN session handshake (and some devices are cloud-blind), so a second poll
+// runs a few seconds later to catch the states the first one missed.
 gladys.onDeviceCreated(async (device) => {
   logger.info(`onDeviceCreated <- ${device && device.external_id}`);
-  try {
-    await tuya.poll(resolveDevice(device));
-  } catch (err) {
-    logger.warn(`First poll of freshly created device failed`, err);
+  const pollOnce = async (label) => {
+    try {
+      await tuya.poll(resolveDevice(device));
+    } catch (err) {
+      logger.warn(`${label} poll of freshly created device failed`, err);
+    }
+  };
+  const retry = setTimeout(() => {
+    pollOnce('Second');
+  }, 7000);
+  if (typeof retry.unref === 'function') {
+    retry.unref();
   }
+  await pollOnce('First');
+});
+
+// --- Action: manual cloud disconnect ------------------------------------------
+// Same as the "Déconnecter" button of the core Tuya integration: stop talking
+// to the Tuya cloud (and release the LAN sessions) until the user saves the
+// configuration again.
+gladys.onAction('disconnect', async () => {
+  logger.info('onAction disconnect <- manual cloud disconnect requested');
+  await tuya.manualDisconnect();
+  reportConnectionStatus(false, {
+    en: 'Disconnected manually. Save the configuration to reconnect.',
+    fr: 'Déconnecté manuellement. Enregistrez la configuration pour vous reconnecter.',
+  });
+  return {
+    en: 'Disconnected from the Tuya cloud. Save the configuration to reconnect.',
+    fr: 'Déconnecté du cloud Tuya. Enregistrez la configuration pour vous reconnecter.',
+  };
 });
 
 // --- Command: the user acts on a controllable feature ------------------------

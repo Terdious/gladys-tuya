@@ -53,6 +53,19 @@
           "required": true
         }
       ]
+    },
+    {
+      "key": "disconnect",
+      "label": {
+        "en": "Disconnect from the Tuya cloud",
+        "fr": "Se déconnecter du cloud Tuya"
+      },
+      "description": {
+        "en": "Stop talking to the Tuya cloud (local sessions are released too). Save the configuration to reconnect.",
+        "fr": "Coupe la connexion au cloud Tuya (les sessions locales sont aussi libérées). Enregistrez la configuration pour vous reconnecter."
+      },
+      "timeout_seconds": 30,
+      "fields": []
     }
   ],
   "config_schema": [

@@ -689,14 +689,21 @@ async function pollDevice(device, topic) {
       fallbackReason === 'none' ? 'cloud_poll_failed' : `${fallbackReason}+cloud_poll_failed`;
   }
   // Badge: the cloud answered (even codes-missing counts as reachable) ->
-  // cloud; the cloud API itself could not be read -> unreachable.
-  publishTransport(
-    this,
-    device,
-    fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false
-      ? TRANSPORT.UNREACHABLE
-      : TRANSPORT.CLOUD,
+  // cloud; the cloud API itself could not be read -> unreachable. Exception:
+  // when the device's persistent session pushed recently, the states ARE
+  // flowing over the LAN — keep the Local badge instead of flapping to Cloud
+  // because one active read failed.
+  const session = this.localSessions && this.localSessions.get(topic);
+  const hasFreshLocalPush = Boolean(
+    session && session.lastDpsAt && Date.now() - session.lastDpsAt < 60 * 1000,
   );
+  let transport = TRANSPORT.CLOUD;
+  if (hasFreshLocalPush) {
+    transport = TRANSPORT.LOCAL;
+  } else if (fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false) {
+    transport = TRANSPORT.UNREACHABLE;
+  }
+  publishTransport(this, device, transport);
   await finish();
   const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'
