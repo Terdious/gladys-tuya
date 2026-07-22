@@ -3,8 +3,8 @@
   "type": "device",
   "name": "Tuya",
   "description": {
-    "en": "Tuya / Smart Life devices over the cloud with optional local (LAN) control: smart sockets, energy meters, air conditioners and pilot-wire thermostats.",
-    "fr": "Appareils Tuya / Smart Life via le cloud avec contrôle local (LAN) optionnel : prises, compteurs d'énergie, climatiseurs et thermostats fil pilote."
+    "en": "Tuya / Smart Life sockets, meters, ACs and pilot-wire heaters, cloud + optional local control.",
+    "fr": "Prises, compteurs, clims et fil pilote Tuya / Smart Life, cloud + contrôle local optionnel."
   },
   "version": "1.3.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.3.0",
