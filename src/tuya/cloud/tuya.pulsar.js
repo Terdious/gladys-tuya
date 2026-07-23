@@ -18,7 +18,13 @@ import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { DEVICE_PARAM_NAME } from '../constants.js';
 import { getParamValue } from '../utils/tuya.deviceParams.js';
-import { emitCloudCodeStates, publishTransport, TRANSPORT } from '../tuya.poll.js';
+import {
+  emitCloudCodeStates,
+  publishTransport,
+  deviceHasLocalConfig,
+  degradedMessageFor,
+  TRANSPORT,
+} from '../tuya.poll.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -133,7 +139,19 @@ const routePulsarValues = (self, devId, values) => {
       self.localSessions.get(topic).connected,
     );
     if (!hasLiveLocalSession) {
-      publishTransport(self, device, TRANSPORT.CLOUD);
+      // Same degraded rule as the poll (issue #15): a local-capable device
+      // whose state comes over the cloud (local preference on but no live LAN
+      // session) shows the orange dot, so a Pulsar report keeps the badge
+      // consistent with the poll instead of clearing the degraded state.
+      const degraded =
+        Boolean(self.config && self.config.localMode === true) && deviceHasLocalConfig(device);
+      publishTransport(
+        self,
+        device,
+        TRANSPORT.CLOUD,
+        degraded,
+        degraded ? degradedMessageFor('local_poll_failed') : null,
+      );
     }
     logger.info(`[Tuya][pulsar] device=${devId} real-time report published ${changed} change(s)`);
   }
