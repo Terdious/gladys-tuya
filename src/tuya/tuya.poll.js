@@ -185,18 +185,79 @@ export const TRANSPORT = {
   UNREACHABLE: 'unreachable',
 };
 
+// Multi-language messages shown in the degraded-badge tooltip, keyed by the
+// poll fallback reason (why a local-capable device ended up on the cloud).
+const DEGRADED_MESSAGES = {
+  local_cooldown: {
+    en: 'Local unreachable: parked on the cloud after repeated failures. It will retry automatically.',
+    fr: 'Local injoignable : basculé sur le cloud après des échecs répétés. Nouvelle tentative automatique.',
+  },
+  local_poll_failed: {
+    en: 'Local session failed, falling back to the cloud.',
+    fr: 'La session locale a échoué, repli sur le cloud.',
+  },
+  invalid_local_payload: {
+    en: 'The device returned an invalid local response, falling back to the cloud.',
+    fr: 'L’appareil a renvoyé une réponse locale invalide, repli sur le cloud.',
+  },
+  incomplete_local_config: {
+    en: 'Local mode is on but this device has no usable LAN info — using the cloud. Set its IP with the "Detect local protocol" action.',
+    fr: 'Le mode local est activé mais cet appareil n’a pas d’info réseau exploitable — cloud utilisé. Renseignez son IP via l’action « Détecter le protocole local ».',
+  },
+};
+const DEGRADED_DEFAULT_MESSAGE = {
+  en: 'Local mode is on but this device is running over the cloud.',
+  fr: 'Le mode local est activé mais cet appareil fonctionne via le cloud.',
+};
+
+/**
+ * @description Resolve the degraded-badge message for a cloud fallback reason.
+ * @param {string} fallbackReason - The poll fallback reason.
+ * @returns {object} A multi-language message.
+ * @example
+ * degradedMessageFor('local_cooldown');
+ */
+export const degradedMessageFor = (fallbackReason) => {
+  const key = Object.keys(DEGRADED_MESSAGES).find((reason) =>
+    String(fallbackReason || '').includes(reason),
+  );
+  return key ? DEGRADED_MESSAGES[key] : DEGRADED_DEFAULT_MESSAGE;
+};
+
+/**
+ * @description Whether a device carries the full LAN info needed to be polled
+ * locally (ip + local_key + protocol_version).
+ * @param {object} device - The Gladys device.
+ * @returns {boolean} True when the device is locally addressable.
+ * @example
+ * deviceHasLocalConfig(device);
+ */
+export const deviceHasLocalConfig = (device) => {
+  const params = (device && device.params) || [];
+  return Boolean(
+    getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS) &&
+    getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY) &&
+    getParamValue(params, DEVICE_PARAM_NAME.PROTOCOL_VERSION),
+  );
+};
+
 /**
  * @description Publish the effective transport of a device (Gladys renders it
- * as a badge on the device card). Only published on change, fire-and-forget:
- * a badge failure must never break a poll cycle.
+ * as a badge on the device card). Only published on change (transport +
+ * degraded flag), fire-and-forget: a badge failure must never break a poll
+ * cycle. `degraded: true` adds an orange dot on the badge with `message` as
+ * tooltip (SDK 0.9) — orthogonal to the transport; publishing without it
+ * clears a previously degraded state.
  * @param {object} self - The TuyaHandler instance.
  * @param {object} device - The polled Gladys device.
  * @param {string} transport - TRANSPORT.LOCAL | CLOUD | UNREACHABLE.
+ * @param {boolean} [degraded] - "Works, but not in the nominal mode".
+ * @param {object} [message] - Multi-language tooltip (only used when degraded).
  * @returns {void}
  * @example
- * publishTransport(this, device, TRANSPORT.LOCAL);
+ * publishTransport(this, device, TRANSPORT.CLOUD, true, degradedMessageFor(reason));
  */
-export const publishTransport = (self, device, transport) => {
+export const publishTransport = (self, device, transport, degraded = false, message = null) => {
   const externalId = device && device.external_id;
   if (!externalId || typeof self.gladys.publishTransports !== 'function') {
     return;
@@ -204,11 +265,19 @@ export const publishTransport = (self, device, transport) => {
   if (!self.lastTransports) {
     self.lastTransports = new Map();
   }
-  if (self.lastTransports.get(externalId) === transport) {
+  const stateKey = `${transport}|${degraded ? 1 : 0}`;
+  if (self.lastTransports.get(externalId) === stateKey) {
     return;
   }
-  self.lastTransports.set(externalId, transport);
-  self.gladys.publishTransports([{ external_id: externalId, transport }]).catch((e) => {
+  self.lastTransports.set(externalId, stateKey);
+  const entry = { external_id: externalId, transport };
+  if (degraded === true) {
+    entry.degraded = true;
+    if (message) {
+      entry.message = message;
+    }
+  }
+  self.gladys.publishTransports([entry]).catch((e) => {
     // Roll back so the next poll retries the publication.
     self.lastTransports.delete(externalId);
     logger.debug(`[Tuya][poll] failed to publish transport for ${externalId}: ${e.message}`);
@@ -763,7 +832,23 @@ async function pollDevice(device, topic) {
   } else if (fallbackReason.includes('cloud_poll_failed') || cloudSummary.reachable === false) {
     transport = TRANSPORT.UNREACHABLE;
   }
-  publishTransport(this, device, transport);
+  // Degraded (issue #15): the device COULD run locally (LAN info known and the
+  // "prefer local" toggle on) but ended up on the cloud — the badge stays blue
+  // with an orange dot and a tooltip explaining why. A genuine cloud-only
+  // device (no LAN info) or a user who turned the local preference off are
+  // nominal, not degraded. Unreachable is already its own alarming state.
+  let degraded = false;
+  let degradedMessage = null;
+  if (transport === TRANSPORT.CLOUD && localModeEnabled) {
+    if (hasLocalCapability) {
+      degraded = true;
+      degradedMessage = degradedMessageFor(fallbackReason);
+    } else if (fallbackReason === 'incomplete_local_config') {
+      degraded = true;
+      degradedMessage = degradedMessageFor(fallbackReason);
+    }
+  }
+  publishTransport(this, device, transport, degraded, degradedMessage);
   await finish();
   const summaryLine = `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} mode=${modeUsed} strategy=${
     cloudSummary.strategy || 'n/a'

@@ -373,7 +373,7 @@ test('poll publishes the local transport badge once per state', async () => {
   ]);
 });
 
-test('poll publishes the cloud badge when the local poll fails', async () => {
+test('poll publishes the DEGRADED cloud badge when a local-capable device falls back', async () => {
   const gladys = createFakeGladys();
   const handler = new TuyaHandler(gladys);
   handler.config = { localMode: true };
@@ -384,6 +384,50 @@ test('poll publishes the cloud badge when the local poll fails', async () => {
     request: async () => ({ success: true, result: [{ code: 'switch', value: false }] }),
   };
 
+  await handler.poll(createLocalDevice());
+  // Local configured + preference on, but the device ran over the cloud:
+  // cloud badge with the orange "degraded" dot and an explanatory tooltip.
+  assert.equal(gladys.transports.length, 1);
+  assert.equal(gladys.transports[0].transport, 'cloud');
+  assert.equal(gladys.transports[0].degraded, true);
+  assert.ok(gladys.transports[0].message && gladys.transports[0].message.fr);
+});
+
+test('poll publishes a plain cloud badge (not degraded) for a cloud-only device', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: true };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: false }] }),
+  };
+  // A device with NO LAN info is legitimately on the cloud: nominal, no dot.
+  const cloudOnly = {
+    external_id: 'ext:tuya:device:cloudonly',
+    device_type: DEVICE_TYPES.SMART_SOCKET,
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'cloudonly' }],
+    features: [
+      {
+        external_id: 'ext:tuya:device:cloudonly:switch',
+        category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+        type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+      },
+    ],
+  };
+  await handler.poll(cloudOnly);
+  assert.deepEqual(gladys.transports, [
+    { external_id: 'ext:tuya:device:cloudonly', transport: 'cloud' },
+  ]);
+});
+
+test('poll does not degrade a cloud fallback when the local preference is off', async () => {
+  const gladys = createFakeGladys();
+  const handler = new TuyaHandler(gladys);
+  handler.config = { localMode: false };
+  handler.connector = {
+    request: async () => ({ success: true, result: [{ code: 'switch', value: false }] }),
+  };
+  // Even a LAN-capable device is nominal on the cloud when the user turned
+  // the local preference off.
   await handler.poll(createLocalDevice());
   assert.deepEqual(gladys.transports, [
     { external_id: 'ext:tuya:device:dev1', transport: 'cloud' },

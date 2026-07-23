@@ -60,6 +60,7 @@ Le contrôle local est plus rapide et continue de fonctionner sans internet. Il 
 
 - Quand il est activé, Gladys essaie d'atteindre chaque appareil sur votre réseau ; si elle y parvient, l'appareil affiche un macaron **Local** et son état se met à jour **instantanément**. Sinon, l'appareil bascule automatiquement sur le **Cloud**.
 - Le contrôle local nécessite que Gladys connaisse l'adresse IP et le protocole de chaque appareil. La plupart sont trouvés automatiquement par le scan réseau lors de la découverte.
+- Un appareil qui _pourrait_ fonctionner en local (son IP est connue et la préférence activée) mais qui tourne actuellement via le cloud garde un macaron **Cloud** avec un **point orange** — survolez-le pour savoir pourquoi (appareil basculé après des échecs, info réseau incomplète…). Un vrai appareil cloud-only garde un macaron Cloud bleu simple.
 
 ### Un appareil reste en Cloud alors qu'il est sur votre réseau
 
