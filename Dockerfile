@@ -28,6 +28,9 @@ RUN sed -i '/debug flag is false/d;/debug log is NOT enabled/d' \
 COPY index.js ./
 COPY src ./src
 COPY gladys-assistant-integration.json ./
+# User documentation (docs/en.md + docs/fr.md): the core re-hosts it behind the
+# "Documentation" link of the Configuration screen.
+COPY docs ./docs
 
 # The only writable location allowed at runtime.
 ENV NODE_ENV=production

@@ -70,6 +70,27 @@
   ],
   "config_schema": [
     {
+      "key": "cloud_intro",
+      "type": "section",
+      "label": {
+        "en": "Getting started",
+        "fr": "Pour commencer"
+      },
+      "description": {
+        "en": "This integration talks to your devices through a Tuya IoT Cloud project. Create one (free) on the Tuya IoT Platform, subscribe the \"IoT Core\" service, link your Smart Life / Tuya app account, then copy the four values below. The full step-by-step is in the Documentation link above.",
+        "fr": "Cette intégration communique avec vos appareils via un projet Tuya IoT Cloud. Créez-en un (gratuit) sur la Tuya IoT Platform, souscrivez au service \"IoT Core\", liez votre compte de l'application Smart Life / Tuya, puis reportez les quatre valeurs ci-dessous. Le pas à pas complet est dans le lien Documentation ci-dessus."
+      },
+      "links": [
+        {
+          "url": "https://iot.tuya.com/",
+          "label": {
+            "en": "Tuya IoT Platform",
+            "fr": "Tuya IoT Platform"
+          }
+        }
+      ]
+    },
+    {
       "key": "endpoint",
       "type": "select",
       "label": {
@@ -164,6 +185,27 @@
         "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
       },
       "required": true
+    },
+    {
+      "key": "pulsar_intro",
+      "type": "section",
+      "label": {
+        "en": "Real-time cloud events (optional)",
+        "fr": "Événements cloud en temps réel (optionnel)"
+      },
+      "description": {
+        "en": "For devices used over the cloud, Gladys can receive their state changes instantly instead of waiting for the next poll. This needs the \"Message Service\" subscribed on your Tuya IoT project, then the toggle below turned on. Devices already controlled locally already get instant feedback and do not need this.",
+        "fr": "Pour les appareils utilisés via le cloud, Gladys peut recevoir leurs changements d'état instantanément au lieu d'attendre le prochain relevé. Cela nécessite d'avoir souscrit au \"Message Service\" sur votre projet Tuya IoT, puis d'activer l'option ci-dessous. Les appareils déjà pilotés en local ont déjà un retour instantané et n'en ont pas besoin."
+      },
+      "links": [
+        {
+          "url": "https://iot.tuya.com/",
+          "label": {
+            "en": "Tuya IoT Platform",
+            "fr": "Tuya IoT Platform"
+          }
+        }
+      ]
     },
     {
       "key": "pulsar_enabled",
