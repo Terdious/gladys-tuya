@@ -15,6 +15,7 @@
 // -----------------------------------------------------------------------------
 
 import { airConditioner } from './airConditioner.js';
+import { camera } from './camera.js';
 import { pilotThermostat } from './pilotThermostat.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
@@ -22,4 +23,10 @@ import { smartMeter } from './smartMeter.js';
 export { globalCloudMapping, globalLocalMapping } from './global.js';
 
 // Same matching order as the core service.
-export const DEVICE_TYPE_DEFINITIONS = [airConditioner, pilotThermostat, smartSocket, smartMeter];
+export const DEVICE_TYPE_DEFINITIONS = [
+  airConditioner,
+  camera,
+  pilotThermostat,
+  smartSocket,
+  smartMeter,
+];

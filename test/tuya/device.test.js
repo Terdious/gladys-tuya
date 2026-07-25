@@ -56,6 +56,17 @@ test('getDeviceType falls back to unknown', () => {
   assert.equal(getDeviceType(null), DEVICE_TYPES.UNKNOWN);
 });
 
+test('getDeviceType matches a camera by category + camera code', () => {
+  const device = {
+    specifications: { category: 'sp', status: [{ code: 'basic_private' }] },
+  };
+  assert.equal(getDeviceType(device), DEVICE_TYPES.CAMERA);
+});
+
+test('getDeviceType matches a camera by product id', () => {
+  assert.equal(getDeviceType({ product_id: 'rogprwflblumx2co' }), DEVICE_TYPES.CAMERA);
+});
+
 // --- feature mapping ---------------------------------------------------------
 
 test('getFeatureMapping resolves per device type, with global fallback', () => {
@@ -76,6 +87,21 @@ test('getIgnoredCloudCodes returns the per-type ignore list', () => {
   assert.ok(socketIgnored.includes('relay_status'), 'the LSC configuration codes are ignored');
   assert.ok(getIgnoredCloudCodes(DEVICE_TYPES.SMART_METER).includes('freq'));
   assert.deepEqual(getIgnoredCloudCodes(DEVICE_TYPES.UNKNOWN), []);
+});
+
+test('camera maps the control-plane toggles and ignores enum/PTZ/raw codes', () => {
+  const privacy = getFeatureMapping('basic_private', DEVICE_TYPES.CAMERA);
+  assert.equal(privacy.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
+  assert.equal(privacy.type, DEVICE_FEATURE_TYPES.SWITCH.BINARY);
+
+  const siren = getFeatureMapping('siren_switch', DEVICE_TYPES.CAMERA);
+  assert.equal(siren.category, DEVICE_FEATURE_CATEGORIES.SIREN);
+  assert.equal(siren.type, DEVICE_FEATURE_TYPES.SIREN.BINARY);
+
+  const cameraIgnored = getIgnoredCloudCodes(DEVICE_TYPES.CAMERA);
+  assert.ok(cameraIgnored.includes('basic_nightvision'), 'enum settings are deferred');
+  assert.ok(cameraIgnored.includes('ptz_control'), 'PTZ commands are deferred');
+  assert.ok(cameraIgnored.includes('movement_detect_pic'), 'the snapshot reference is deferred');
 });
 
 // --- convertFeature ----------------------------------------------------------
