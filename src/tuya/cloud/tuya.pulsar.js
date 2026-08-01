@@ -18,6 +18,7 @@ import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { DEVICE_PARAM_NAME } from '../constants.js';
 import { getParamValue } from '../utils/tuya.deviceParams.js';
+import { processMediaCodes } from '../media/tuya.media.js';
 import {
   emitCloudCodeStates,
   publishTransport,
@@ -125,6 +126,9 @@ const routePulsarValues = (self, devId, values) => {
     logger.debug(`[Tuya][pulsar] report for a device not in Gladys (${devId})`);
     return;
   }
+  // Doorbell ring + snapshot: the real-time path carries the fresh presigned
+  // image URL (~60s). Handled out of the normal read pipeline.
+  processMediaCodes(self, device, values);
   const pending = [];
   const { changed } = emitCloudCodeStates(self, device, values, pending);
   Promise.all(pending).catch(() => {});

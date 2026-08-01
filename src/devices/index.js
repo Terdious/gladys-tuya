@@ -15,6 +15,7 @@
 // -----------------------------------------------------------------------------
 
 import { airConditioner } from './airConditioner.js';
+import { videoDoorbell } from './videoDoorbell.js';
 import { camera } from './camera.js';
 import { pilotThermostat } from './pilotThermostat.js';
 import { smartSocket } from './smartSocket.js';
@@ -22,9 +23,12 @@ import { smartMeter } from './smartMeter.js';
 
 export { globalCloudMapping, globalLocalMapping } from './global.js';
 
-// Same matching order as the core service.
+// Matching order matters: the video doorbell shares the `sp` camera category,
+// so it must be tried BEFORE `camera` (it requires the `doorbell_active` code a
+// plain camera never exposes).
 export const DEVICE_TYPE_DEFINITIONS = [
   airConditioner,
+  videoDoorbell,
   camera,
   pilotThermostat,
   smartSocket,
