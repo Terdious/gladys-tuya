@@ -151,6 +151,16 @@ test('convertFeature converts a mapped writable feature', () => {
   assert.equal(feature.name, 'Switch');
 });
 
+test('convertFeature attaches supported_options for a doorbell button', () => {
+  const feature = convertFeature({ code: 'doorbell_active', values: '{}', readOnly: true }, ids, {
+    deviceType: DEVICE_TYPES.VIDEO_DOORBELL,
+  });
+  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
+  assert.deepEqual(feature.supported_options, [{ value: 1, label: 'Ring', sort_order: 0 }]);
+  // The camelCase mapping field must not leak onto the persisted feature.
+  assert.equal(feature.supportedOptions, undefined);
+});
+
 test('convertFeature applies min/max/scale from the Tuya values', () => {
   const feature = convertFeature(
     { code: 'cur_power', values: JSON.stringify({ min: 0, max: 50000, scale: 1 }), readOnly: true },

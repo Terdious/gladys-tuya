@@ -53,6 +53,10 @@ const cloudMapping = {
     name: 'Doorbell',
     category: DEVICE_FEATURE_CATEGORIES.BUTTON,
     type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
+    // The button only ever reports the ring (BUTTON_STATUS.CLICK = 1): expose
+    // that single option so the scene value selector shows "Ring", not the full
+    // generic button-state list.
+    supportedOptions: [{ value: 1, label: 'Ring' }],
   },
   doorbell_pic: {
     name: 'Snapshot',
@@ -67,6 +71,7 @@ const cloudMapping = {
     name: 'Motion',
     category: DEVICE_FEATURE_CATEGORIES.BUTTON,
     type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
+    supportedOptions: [{ value: 1, label: 'Motion detected' }],
   },
   motion_switch: {
     name: 'Motion detection',
