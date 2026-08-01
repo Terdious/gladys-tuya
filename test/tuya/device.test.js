@@ -87,6 +87,11 @@ test('video doorbell maps the ring (button) and the snapshot (camera image)', ()
   const snapshot = getFeatureMapping('doorbell_pic', DEVICE_TYPES.VIDEO_DOORBELL);
   assert.equal(snapshot.category, DEVICE_FEATURE_CATEGORIES.CAMERA);
   assert.equal(snapshot.type, DEVICE_FEATURE_TYPES.CAMERA.IMAGE);
+
+  // Motion is surfaced as a BUTTON event (no motion-sensor type published yet).
+  const motion = getFeatureMapping('movement_detect_pic', DEVICE_TYPES.VIDEO_DOORBELL);
+  assert.equal(motion.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
+  assert.equal(motion.type, DEVICE_FEATURE_TYPES.BUTTON.CLICK);
 });
 
 // --- feature mapping ---------------------------------------------------------
@@ -123,7 +128,11 @@ test('camera maps the control-plane toggles and ignores enum/PTZ/raw codes', () 
   const cameraIgnored = getIgnoredCloudCodes(DEVICE_TYPES.CAMERA);
   assert.ok(cameraIgnored.includes('basic_nightvision'), 'enum settings are deferred');
   assert.ok(cameraIgnored.includes('ptz_control'), 'PTZ commands are deferred');
-  assert.ok(cameraIgnored.includes('movement_detect_pic'), 'the snapshot reference is deferred');
+
+  // Motion is surfaced as a BUTTON event on cameras too.
+  const motion = getFeatureMapping('movement_detect_pic', DEVICE_TYPES.CAMERA);
+  assert.equal(motion.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
+  assert.equal(motion.type, DEVICE_FEATURE_TYPES.BUTTON.CLICK);
 });
 
 // --- convertFeature ----------------------------------------------------------

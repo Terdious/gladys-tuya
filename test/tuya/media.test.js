@@ -8,6 +8,7 @@ import {
   extractMediaValuesFromCodes,
   extractMediaValuesFromDps,
   processMediaCodes,
+  getLastCameraImage,
   MEDIA_CODES,
 } from '../../src/tuya/media/tuya.media.js';
 
@@ -152,4 +153,28 @@ test('processMediaCodes is a no-op for a device without camera nor doorbell feat
   };
   processMediaCodes(self, plainDevice, { doorbell_pic: b64('https://host/a/1.jpeg?sig=1') });
   assert.equal(calls.length, 0);
+});
+
+test('processMediaCodes fires the motion event on a NEW movement_detect_pic', () => {
+  const calls = [];
+  const self = makeDoorbell(calls);
+  const cameraDevice = {
+    external_id: 'ext:tuya:device:cam1',
+    // Motion button but no camera-image feature → no download path (no network).
+    features: [{ external_id: 'ext:tuya:device:cam1:movement_detect_pic', category: 'button' }],
+  };
+  const enc = (path) =>
+    b64(JSON.stringify({ bucket: 'b', files: [[`${path}?param=z`, 'aeskey']], v: '3.0' }));
+  processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/1.jpeg') });
+  processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/2.jpeg') });
+  assert.deepEqual(calls, [['ext:tuya:device:cam1:movement_detect_pic', 1]]);
+});
+
+// --- getLastCameraImage -------------------------------------------------------
+
+test('getLastCameraImage returns the stored image or null', () => {
+  assert.equal(getLastCameraImage({}, 'ext:tuya:device:d1'), null);
+  const self = { lastCameraImage: { 'ext:tuya:device:d1': 'image/jpg;base64,AAAA' } };
+  assert.equal(getLastCameraImage(self, 'ext:tuya:device:d1'), 'image/jpg;base64,AAAA');
+  assert.equal(getLastCameraImage(self, 'ext:tuya:device:other'), null);
 });
