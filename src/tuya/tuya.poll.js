@@ -10,6 +10,7 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { readValues } from './device/tuya.deviceMapping.js';
+import { processMediaCodes, extractMediaValuesFromDps } from './media/tuya.media.js';
 import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
@@ -415,6 +416,10 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
   summary.strategy = strategyUsed;
   summary.reachable = anyReadOk;
 
+  // Doorbell/camera snapshot + ring: handled out of the normal read pipeline
+  // (a camera/button feature has no reader), gated on a genuinely new image.
+  processMediaCodes(self, device, values);
+
   deviceFeatures.forEach((deviceFeature) => {
     const code = getFeatureCode(deviceFeature);
     if (!code) {
@@ -480,6 +485,10 @@ export function emitLocalDpsStates(self, device, dps, pending) {
   const pendingCloudFeatures = [];
   let localHandled = 0;
   let localChanged = 0;
+
+  // Doorbell/camera media DPs (115/154) are handled out of the normal DPS
+  // pipeline (a camera/button feature has no reader), gated on a new image.
+  processMediaCodes(self, device, extractMediaValuesFromDps(dps));
 
   deviceFeatures.forEach((deviceFeature) => {
     const code = getFeatureCode(deviceFeature);

@@ -67,6 +67,28 @@ test('getDeviceType matches a camera by product id', () => {
   assert.equal(getDeviceType({ product_id: 'rogprwflblumx2co' }), DEVICE_TYPES.CAMERA);
 });
 
+test('getDeviceType matches a video doorbell before a camera (doorbell_active wins)', () => {
+  const device = {
+    // Shares the camera `sp` category and camera codes, but exposes doorbell_active.
+    specifications: {
+      category: 'sp',
+      status: [{ code: 'basic_private' }, { code: 'doorbell_active' }],
+    },
+  };
+  assert.equal(getDeviceType(device), DEVICE_TYPES.VIDEO_DOORBELL);
+  assert.equal(getDeviceType({ product_id: 'i5e3a4qxcsthszin' }), DEVICE_TYPES.VIDEO_DOORBELL);
+});
+
+test('video doorbell maps the ring (button) and the snapshot (camera image)', () => {
+  const ring = getFeatureMapping('doorbell_active', DEVICE_TYPES.VIDEO_DOORBELL);
+  assert.equal(ring.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
+  assert.equal(ring.type, DEVICE_FEATURE_TYPES.BUTTON.CLICK);
+
+  const snapshot = getFeatureMapping('doorbell_pic', DEVICE_TYPES.VIDEO_DOORBELL);
+  assert.equal(snapshot.category, DEVICE_FEATURE_CATEGORIES.CAMERA);
+  assert.equal(snapshot.type, DEVICE_FEATURE_TYPES.CAMERA.IMAGE);
+});
+
 // --- feature mapping ---------------------------------------------------------
 
 test('getFeatureMapping resolves per device type, with global fallback', () => {
