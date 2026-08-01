@@ -51,9 +51,8 @@ const cloudMapping = {
     'ptz_control',
     'ptz_stop',
     'ptz_calibration',
-    // Raw cloud references — future CAMERA.IMAGE (publishCameraImage) and
-    // MOTION_SENSOR (motion events).
-    'movement_detect_pic',
+    // Raw cloud reference — the motion snapshot is encrypted (movement_detect_pic
+    // is mapped below to the Motion event; the image itself is a later increment).
     'alarm_message',
     // Strings / integers / one-shot commands with no clean feature type.
     'basic_osd',
@@ -99,6 +98,15 @@ const cloudMapping = {
     name: 'Image flip',
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+  },
+  // Motion detection event: a new movement_detect_pic IS the detection. Exposed
+  // as a BUTTON because the Gladys constants publish no motion-sensor feature
+  // type yet. The media handler fires it; on these PTZ cameras the picture
+  // itself is encrypted (skipped until decryption lands).
+  movement_detect_pic: {
+    name: 'Motion',
+    category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+    type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
   },
 };
 

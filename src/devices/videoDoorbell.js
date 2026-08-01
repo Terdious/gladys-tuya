@@ -25,8 +25,6 @@ const DOORBELL_CODES = new Set(['doorbell_active']);
 
 const cloudMapping = {
   ignoredCodes: [
-    // Handled by the media handler → the camera image; not a raw feature.
-    'movement_detect_pic',
     // Enum settings — no published selector feature type yet.
     'basic_nightvision',
     'motion_sensitivity',
@@ -60,6 +58,15 @@ const cloudMapping = {
     name: 'Snapshot',
     category: DEVICE_FEATURE_CATEGORIES.CAMERA,
     type: DEVICE_FEATURE_TYPES.CAMERA.IMAGE,
+  },
+  // Motion detection event: a new movement_detect_pic IS the detection. Exposed
+  // as a BUTTON because the Gladys constants publish no motion-sensor feature
+  // type yet (same upstream gap as the AC fan-speed, tracked separately). The
+  // media handler fires it; the image itself stays encrypted for now.
+  movement_detect_pic: {
+    name: 'Motion',
+    category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+    type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
   },
   motion_switch: {
     name: 'Motion detection',

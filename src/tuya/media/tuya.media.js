@@ -146,12 +146,18 @@ const deviceHasCameraFeature = (device) =>
   Array.isArray(device.features) &&
   device.features.some((feature) => feature && feature.category === 'camera');
 
-const findDoorbellFeature = (device) =>
+// Media code -> the event feature it fires. A new snapshot IS the event: the
+// underlying ring / motion DP never reports a value on the observed devices, so
+// a genuinely new picture is what triggers the doorbell ring / the motion event.
+const EVENT_FEATURE_SUFFIX = {
+  doorbell_pic: ':doorbell_active',
+  movement_detect_pic: ':movement_detect_pic',
+};
+
+const findFeatureBySuffix = (device, suffix) =>
   (Array.isArray(device.features) ? device.features : []).find(
     (feature) =>
-      feature &&
-      typeof feature.external_id === 'string' &&
-      feature.external_id.endsWith(':doorbell_active'),
+      feature && typeof feature.external_id === 'string' && feature.external_id.endsWith(suffix),
   ) || null;
 
 /**
@@ -202,6 +208,9 @@ export const handleMediaValue = async (self, device, code, rawValue) => {
   if (!self.gladys || typeof self.gladys.publishCameraImage !== 'function') {
     return false;
   }
+  // Keep the last snapshot so onGetImage (live-view widget) can re-serve it.
+  self.lastCameraImage = self.lastCameraImage || {};
+  self.lastCameraImage[device.external_id] = image;
   try {
     await self.gladys.publishCameraImage(device.external_id, image);
     logger.info(`[Tuya][media] ${code} snapshot published (device=${device.external_id})`);
@@ -295,11 +304,10 @@ export const processMediaCodes = (self, device, valuesByCode) => {
   if (!self || !device || !valuesByCode || typeof valuesByCode !== 'object') {
     return;
   }
-  const hasCamera = deviceHasCameraFeature(device);
-  const doorbellFeature = findDoorbellFeature(device);
-  if (!hasCamera && !doorbellFeature) {
+  if (!Array.isArray(device.features) || device.features.length === 0) {
     return;
   }
+  const hasCamera = deviceHasCameraFeature(device);
   self.eventDpMemory = self.eventDpMemory || {};
 
   MEDIA_CODES.forEach((code) => {
@@ -318,14 +326,18 @@ export const processMediaCodes = (self, device, valuesByCode) => {
       return;
     }
 
-    // A new ring snapshot IS the ring (the ring DP never reports a value).
-    if (code === 'doorbell_pic' && doorbellFeature) {
+    // A new snapshot IS the event: fire the doorbell ring / the motion event on
+    // the mapped button feature when the device carries it.
+    const suffix = EVENT_FEATURE_SUFFIX[code];
+    const eventFeature = suffix ? findFeatureBySuffix(device, suffix) : null;
+    if (eventFeature) {
       self.gladys
-        .publishState(doorbellFeature.external_id, BUTTON_CLICK_STATE)
-        .then(() => logger.info(`[Tuya][media] doorbell ring (device=${device.external_id})`))
-        .catch((e) => logger.warn(`[Tuya][media] doorbell ring publish failed: ${e.message}`));
+        .publishState(eventFeature.external_id, BUTTON_CLICK_STATE)
+        .then(() => logger.info(`[Tuya][media] ${code} event fired (device=${device.external_id})`))
+        .catch((e) => logger.warn(`[Tuya][media] ${code} event publish failed: ${e.message}`));
     }
 
+    // The image itself goes to the camera widget when the device carries one.
     if (hasCamera) {
       handleMediaValue(self, device, code, rawValue).catch((e) =>
         logger.warn(`[Tuya][media] unexpected media handling error for ${code}: ${e.message}`),
@@ -333,3 +345,15 @@ export const processMediaCodes = (self, device, valuesByCode) => {
     }
   });
 };
+
+/**
+ * @description Return the last snapshot published for a device, so the
+ * onGetImage live-view handler can re-serve it (Tuya has no on-demand capture).
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} externalId - The device external id.
+ * @returns {string|null} The last `image/jpg;base64,...` string, or null.
+ * @example
+ * const image = getLastCameraImage(handler, device.external_id);
+ */
+export const getLastCameraImage = (self, externalId) =>
+  (self && self.lastCameraImage && self.lastCameraImage[externalId]) || null;
