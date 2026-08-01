@@ -18,6 +18,8 @@
 // documents the IV layout.
 // -----------------------------------------------------------------------------
 
+import { createDecipheriv } from 'node:crypto';
+
 import jpeg from 'jpeg-js';
 import { createLogger } from '@gladysassistant/integration-sdk';
 
@@ -44,14 +46,6 @@ export const MAX_RAW_JPEG_SIZE = Math.floor(
   ((MAX_IMAGE_STRING_SIZE - IMAGE_PREFIX.length) * 3) / 4,
 );
 const REENCODE_QUALITIES = [70, 50, 30, 15];
-
-// The object-storage host is undocumented for the EU datacenter (the CN docs
-// show `{bucket}.cos.tuyacn.com`): try the known domains in order.
-const buildMediaUrlCandidates = (bucket, filePath) => [
-  `https://${bucket}.oss-eu-central-1.aliyuncs.com${filePath}`,
-  `https://${bucket}.s3.eu-central-1.amazonaws.com${filePath}`,
-  `https://${bucket}.cos.tuyacn.com${filePath}`,
-];
 
 /**
  * @description Decode a doorbell media payload (base64 of a presigned https URL
@@ -160,53 +154,82 @@ const findFeatureBySuffix = (device, suffix) =>
       feature && typeof feature.external_id === 'string' && feature.external_id.endsWith(suffix),
   ) || null;
 
-/**
- * @description Download a snapshot and publish it on the device camera image
- * feature. Never throws (runs behind the poll/push pipeline).
- * @param {object} self - The TuyaHandler instance.
- * @param {object} device - The Gladys device.
- * @param {string} code - The media code (doorbell_pic / movement_detect_pic).
- * @param {string} rawValue - The raw DP payload.
- * @returns {Promise<boolean>} True when an image was published.
- * @example
- * await handleMediaValue(handler, device, 'doorbell_pic', raw);
- */
-export const handleMediaValue = async (self, device, code, rawValue) => {
-  const media = decodeMediaPayload(rawValue);
-  if (!media) {
-    return false;
-  }
-  if (!media.directUrl && media.encryptionKey !== '') {
-    logger.warn(
-      `[Tuya][media] encrypted ${code} image not supported yet (device=${device.external_id})`,
-    );
-    return false;
-  }
-  const candidates = media.directUrl
-    ? [media.directUrl]
-    : buildMediaUrlCandidates(media.bucket, media.filePath);
+// --- Snapshot image resolution (download + optional decryption) --------------
+//
+// The doorbell ring picture (`doorbell_pic`) arrives as a full presigned https
+// URL and is unencrypted → downloaded and published directly. The motion
+// picture (`movement_detect_pic`) is pushed in TWO shapes for the same event:
+// one carrying the SIGNED download path (`?param=…`, empty key), the other a
+// 16-char AES key (unsigned path). They share the same fingerprint, so we
+// buffer both and, once we hold the bytes + the key, attempt an AES-128
+// decryption (ECB, then CBC with a zero IV). Heavy diagnostics on purpose: this
+// is validated on a real bench, so the logs must say exactly where it fails.
 
-  let buffer = null;
-  for (let i = 0; i < candidates.length && buffer === null; i += 1) {
+const JPEG_MAGIC = (buf) =>
+  Buffer.isBuffer(buf) && buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8;
+
+const MEDIA_BUFFER_TTL_MS = 10 * 60 * 1000;
+const MEDIA_BUFFER_MAX = 50;
+
+const pruneMediaBuffer = (buffer, now) => {
+  buffer.forEach((entry, key) => {
+    if (now - entry.ts > MEDIA_BUFFER_TTL_MS) {
+      buffer.delete(key);
+    }
+  });
+  while (buffer.size > MEDIA_BUFFER_MAX) {
+    buffer.delete(buffer.keys().next().value);
+  }
+};
+
+/**
+ * @description Attempt to decrypt an encrypted snapshot with the 16-char AES
+ * key (used as raw UTF-8 bytes), trying AES-128-ECB then CBC (zero IV).
+ * @param {Buffer} bytes - The encrypted image bytes.
+ * @param {string} key - The 16-character key from the media payload.
+ * @param {string} code - The media code (for logs).
+ * @param {string} deviceId - The device external id (for logs).
+ * @returns {Buffer|null} The decrypted JPEG bytes, or null.
+ * @example
+ * const jpg = decryptImage(bytes, 'f9bf4643af4ad44a', 'movement_detect_pic', id);
+ */
+export const decryptImage = (bytes, key, code, deviceId) => {
+  const keyBuf = Buffer.from(String(key), 'utf8');
+  if (keyBuf.length !== 16) {
+    logger.warn(
+      `[Tuya][media] ${code} unexpected AES key length ${keyBuf.length} (expected 16) — cannot decrypt (device=${deviceId})`,
+    );
+    return null;
+  }
+  const attempts = [
+    ['aes-128-ecb', null],
+    ['aes-128-cbc', Buffer.alloc(16, 0)],
+  ];
+  for (let i = 0; i < attempts.length; i += 1) {
+    const [algo, iv] = attempts[i];
     try {
-      buffer = await downloadImageBuffer(candidates[i]);
+      const decipher = createDecipheriv(algo, keyBuf, iv);
+      decipher.setAutoPadding(false);
+      const usable = bytes.length - (bytes.length % 16);
+      const out = Buffer.concat([decipher.update(bytes.subarray(0, usable)), decipher.final()]);
+      if (JPEG_MAGIC(out)) {
+        logger.info(`[Tuya][media] ${code} decrypted with ${algo} (device=${deviceId})`);
+        return out;
+      }
     } catch (e) {
-      logger.debug(`[Tuya][media] ${code} download failed on candidate ${i + 1}: ${e.message}`);
+      logger.debug(`[Tuya][media] ${code} ${algo} decrypt error: ${e.message}`);
     }
   }
-  if (buffer === null) {
-    logger.warn(
-      `[Tuya][media] no candidate host served the ${code} snapshot (device=${device.external_id})`,
-    );
-    return false;
-  }
+  logger.warn(
+    `[Tuya][media] ${code} decryption did not yield a JPEG (tried aes-128 ecb/cbc) (device=${deviceId})`,
+  );
+  return null;
+};
 
-  const image = encodeUnderLimit(buffer);
-  if (image === null) {
-    return false;
-  }
-  if (!self.gladys || typeof self.gladys.publishCameraImage !== 'function') {
-    return false;
+const publishImage = async (self, device, code, bytes) => {
+  const image = encodeUnderLimit(bytes);
+  if (image === null || !self.gladys || typeof self.gladys.publishCameraImage !== 'function') {
+    return;
   }
   // Keep the last snapshot so onGetImage (live-view widget) can re-serve it.
   self.lastCameraImage = self.lastCameraImage || {};
@@ -214,13 +237,109 @@ export const handleMediaValue = async (self, device, code, rawValue) => {
   try {
     await self.gladys.publishCameraImage(device.external_id, image);
     logger.info(`[Tuya][media] ${code} snapshot published (device=${device.external_id})`);
-    return true;
   } catch (e) {
     logger.warn(
       `[Tuya][media] publishCameraImage failed for device=${device.external_id}: ${e.message}`,
     );
-    return false;
   }
+};
+
+const tryResolveImage = async (self, device, code, entry) => {
+  if (entry.done || !Array.isArray(entry.urls) || entry.urls.length === 0) {
+    return;
+  }
+  if (entry.bytes === null && !entry.downloadAttempted) {
+    entry.downloadAttempted = true;
+    for (let i = 0; i < entry.urls.length && entry.bytes === null; i += 1) {
+      try {
+        entry.bytes = await downloadImageBuffer(entry.urls[i]);
+        logger.info(
+          `[Tuya][media] ${code} downloaded ${entry.bytes.length} bytes (device=${device.external_id})`,
+        );
+      } catch (e) {
+        logger.debug(`[Tuya][media] ${code} download failed on candidate ${i + 1}: ${e.message}`);
+      }
+    }
+    if (entry.bytes === null) {
+      logger.warn(
+        `[Tuya][media] no candidate host served the ${code} snapshot (device=${device.external_id})`,
+      );
+      return;
+    }
+  }
+  if (entry.bytes === null) {
+    return;
+  }
+  // Already a plain JPEG (doorbell ring picture) → publish as-is.
+  if (JPEG_MAGIC(entry.bytes)) {
+    entry.done = true;
+    await publishImage(self, device, code, entry.bytes);
+    return;
+  }
+  // Encrypted → we need the AES key of the twin payload shape.
+  if (!entry.key) {
+    logger.debug(`[Tuya][media] ${code} downloaded a non-JPEG payload; waiting for the AES key`);
+    return;
+  }
+  const decrypted = decryptImage(entry.bytes, entry.key, code, device.external_id);
+  entry.done = true;
+  if (decrypted) {
+    await publishImage(self, device, code, decrypted);
+  }
+};
+
+/**
+ * @description Feed the per-event image buffer with one media payload shape
+ * (signed URL and/or AES key), then attempt to resolve and publish the image.
+ * Never throws (runs behind the poll/push pipeline).
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device.
+ * @param {string} code - The media code.
+ * @param {string} rawValue - The raw DP payload.
+ * @param {string} fingerprint - The event fingerprint (shared by both shapes).
+ * @returns {void}
+ * @example
+ * bufferMediaShape(handler, device, 'doorbell_pic', raw, fp);
+ */
+export const bufferMediaShape = (self, device, code, rawValue, fingerprint) => {
+  const media = decodeMediaPayload(rawValue);
+  if (!media || !fingerprint) {
+    return;
+  }
+  const now = Date.now();
+  self.mediaImageBuffer = self.mediaImageBuffer || new Map();
+  const bufKey = `${device.external_id}:${code}:${fingerprint}`;
+  const entry = self.mediaImageBuffer.get(bufKey) || {
+    urls: null,
+    key: '',
+    bytes: null,
+    downloadAttempted: false,
+    done: false,
+    ts: now,
+  };
+  entry.ts = now;
+
+  if (media.directUrl) {
+    // Full presigned URL (`?X-Amz-Signature=…`) — the doorbell ring picture.
+    // This is the ONLY shape we can download today: keep the first one (its
+    // signature is fresh ~60s) and never reset, so a re-poll does not re-fetch.
+    if (!entry.urls) {
+      entry.urls = [media.directUrl];
+    }
+  } else if (media.encryptionKey) {
+    // bucket/files motion reference: capture the 16-char AES key for the day we
+    // can resolve its download URL. The `?param=` is a Tuya signature, NOT an S3
+    // one, so the candidate hosts 403 — do NOT attempt a download (it only
+    // floods the logs every poll). Resolving that URL is a separate research
+    // task; decryptImage() is ready for when it lands.
+    entry.key = media.encryptionKey;
+  }
+  self.mediaImageBuffer.set(bufKey, entry);
+  pruneMediaBuffer(self.mediaImageBuffer, now);
+
+  tryResolveImage(self, device, code, entry).catch((e) =>
+    logger.warn(`[Tuya][media] unexpected media handling error for ${code}: ${e.message}`),
+  );
 };
 
 /**
@@ -316,18 +435,25 @@ export const processMediaCodes = (self, device, valuesByCode) => {
     }
     const rawValue = valuesByCode[code];
     const fingerprint = getMediaFingerprint(rawValue);
+
+    // Image: feed the buffer with BOTH payload shapes of the event (the signed
+    // URL and the AES key share this fingerprint), BEFORE the event dedup drops
+    // the twin. The buffer resolves + publishes the picture on its own.
+    if (hasCamera) {
+      bufferMediaShape(self, device, code, rawValue, fingerprint);
+    }
+
+    // Event: fire the doorbell ring / the motion event exactly once per
+    // genuinely new image. The first observation only seeds the memory (a
+    // payload seen at startup has an expired signed URL anyway).
     const memoryKey = `${device.external_id}:media:${code}`;
     const hadPrevious = Object.prototype.hasOwnProperty.call(self.eventDpMemory, memoryKey);
     const previousFingerprint = self.eventDpMemory[memoryKey];
     self.eventDpMemory[memoryKey] = fingerprint;
-    // The first observation only seeds the memory (a payload seen at startup has
-    // an expired signed URL anyway); re-firing needs a genuinely new image.
     if (!hadPrevious || previousFingerprint === fingerprint || !fingerprint) {
       return;
     }
 
-    // A new snapshot IS the event: fire the doorbell ring / the motion event on
-    // the mapped button feature when the device carries it.
     const suffix = EVENT_FEATURE_SUFFIX[code];
     const eventFeature = suffix ? findFeatureBySuffix(device, suffix) : null;
     if (eventFeature) {
@@ -335,13 +461,6 @@ export const processMediaCodes = (self, device, valuesByCode) => {
         .publishState(eventFeature.external_id, BUTTON_CLICK_STATE)
         .then(() => logger.info(`[Tuya][media] ${code} event fired (device=${device.external_id})`))
         .catch((e) => logger.warn(`[Tuya][media] ${code} event publish failed: ${e.message}`));
-    }
-
-    // The image itself goes to the camera widget when the device carries one.
-    if (hasCamera) {
-      handleMediaValue(self, device, code, rawValue).catch((e) =>
-        logger.warn(`[Tuya][media] unexpected media handling error for ${code}: ${e.message}`),
-      );
     }
   });
 };

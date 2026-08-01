@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createCipheriv } from 'node:crypto';
 
 import {
   decodeMediaPayload,
@@ -9,6 +10,7 @@ import {
   extractMediaValuesFromDps,
   processMediaCodes,
   getLastCameraImage,
+  decryptImage,
   MEDIA_CODES,
 } from '../../src/tuya/media/tuya.media.js';
 
@@ -168,6 +170,27 @@ test('processMediaCodes fires the motion event on a NEW movement_detect_pic', ()
   processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/1.jpeg') });
   processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/2.jpeg') });
   assert.deepEqual(calls, [['ext:tuya:device:cam1:movement_detect_pic', 1]]);
+});
+
+// --- decryptImage -------------------------------------------------------------
+
+test('decryptImage recovers a JPEG encrypted with AES-128-ECB (16-char key)', () => {
+  const key = '0123456789abcdef'; // 16 chars -> 16-byte AES-128 key
+  const jpegBytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(28, 7)]);
+  const cipher = createCipheriv('aes-128-ecb', Buffer.from(key, 'utf8'), null);
+  cipher.setAutoPadding(false);
+  const encrypted = Buffer.concat([cipher.update(jpegBytes), cipher.final()]);
+
+  const out = decryptImage(encrypted, key, 'movement_detect_pic', 'ext:tuya:device:d1');
+  assert.ok(out && out[0] === 0xff && out[1] === 0xd8, 'decrypted bytes start with the JPEG magic');
+});
+
+test('decryptImage returns null for a non 16-char key or non-JPEG plaintext', () => {
+  assert.equal(decryptImage(Buffer.alloc(16), 'short', 'movement_detect_pic', 'd'), null);
+  assert.equal(
+    decryptImage(Buffer.alloc(32, 1), '0123456789abcdef', 'movement_detect_pic', 'd'),
+    null,
+  );
 });
 
 // --- getLastCameraImage -------------------------------------------------------
