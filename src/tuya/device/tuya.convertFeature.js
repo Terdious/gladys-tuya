@@ -53,7 +53,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   }
   // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by
   // the read/write pipeline); it must not leak onto the persisted feature.
-  const { tuyaEnum: _tuyaEnum, ...featuresCategoryAndType } = mappingEntry;
+  const {
+    tuyaEnum: _tuyaEnum,
+    supportedOptions: staticSupportedOptions,
+    ...featuresCategoryAndType
+  } = mappingEntry;
 
   let valuesObject = {};
   if (values && typeof values === 'object') {
@@ -131,6 +135,18 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // enum range intersected with the device vocabulary (variants may lack
     // Off/Thermostat — writing them is rejected anyway).
     feature.supported_options = buildPilotWireSupportedOptions(mappingEntry, valuesObject.range);
+  }
+
+  // A mapping may declare a static supported_options list — e.g. a doorbell /
+  // motion BUTTON that only ever reports one meaningful state. Surfacing it lets
+  // the scene value selector show just that option ("Ring", "Motion detected")
+  // instead of the full generic button-state list.
+  if (Array.isArray(staticSupportedOptions)) {
+    feature.supported_options = staticSupportedOptions.map((option, index) => ({
+      value: option.value,
+      label: option.label,
+      sort_order: option.sort_order != null ? option.sort_order : index,
+    }));
   }
 
   return feature;

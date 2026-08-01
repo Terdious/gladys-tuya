@@ -107,6 +107,9 @@ const cloudMapping = {
     name: 'Motion',
     category: DEVICE_FEATURE_CATEGORIES.BUTTON,
     type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
+    // Single meaningful state (BUTTON_STATUS.CLICK = 1): the scene selector then
+    // shows "Motion detected" instead of the full generic button-state list.
+    supportedOptions: [{ value: 1, label: 'Motion detected' }],
   },
 };
 
