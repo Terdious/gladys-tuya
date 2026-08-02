@@ -7,8 +7,9 @@
 // A doorbell shares the `sp` camera category, so this type is matched BEFORE
 // `camera` (it requires `doorbell_active`, which a plain camera never exposes).
 // It carries the doorbell essentials:
-//   - the RING (BUTTON, fired from a new ring snapshot by the media handler —
-//     the ring DP itself never reports a value on the observed device);
+//   - the RING (DOORBELL/RING, fired as a 1 -> 0 pulse from a new ring snapshot
+//     by the media handler — the ring DP itself never reports a value on the
+//     observed device; requires Gladys core >= 4.84.2 / SDK >= 0.10.0);
 //   - the SNAPSHOT (CAMERA/IMAGE, fed by the media handler through
 //     publishCameraImage from `doorbell_pic`);
 //   - motion detection, recording, status LED, image flip, on-screen display.
@@ -49,14 +50,13 @@ const cloudMapping = {
     'ptz_stop',
     'ptz_calibration',
   ],
+  // First-class doorbell ring (core 4.84.2+): the media handler pulses it
+  // 1 -> 0 so every ring is a fresh edge (dedicated scene trigger + dashboard
+  // "Ringing" badge in the core).
   doorbell_active: {
     name: 'Doorbell',
-    category: DEVICE_FEATURE_CATEGORIES.BUTTON,
-    type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
-    // The button only ever reports the ring (BUTTON_STATUS.CLICK = 1): expose
-    // that single option so the scene value selector shows "Ring", not the full
-    // generic button-state list.
-    supportedOptions: [{ value: 1, label: 'Ring' }],
+    category: DEVICE_FEATURE_CATEGORIES.DOORBELL,
+    type: DEVICE_FEATURE_TYPES.DOORBELL.RING,
   },
   doorbell_pic: {
     name: 'Snapshot',

@@ -7,7 +7,13 @@ import { TuyaHandler } from '../../src/tuya/handler.js';
 import { convertDevice } from '../../src/tuya/device/tuya.convertDevice.js';
 import { getLocalDpsFromCode } from '../../src/tuya/device/tuya.localMapping.js';
 import { getDeviceType, DEVICE_TYPES } from '../../src/tuya/mappings/index.js';
-import { AC_MODE } from '../../src/devices/airConditioner.js';
+import {
+  AC_MODE,
+  AC_FAN_SPEED,
+  AC_SWING_HORIZONTAL,
+  AC_SWING_VERTICAL,
+} from '../../src/devices/airConditioner.js';
+import { readValues, writeValues } from '../../src/tuya/device/tuya.deviceMapping.js';
 import { DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 
@@ -74,7 +80,7 @@ test('an air conditioner is detected from its kt category and codes', () => {
   assert.equal(getDeviceType(AC_DEVICE), DEVICE_TYPES.AIR_CONDITIONER);
 });
 
-test('convertDevice maps the supported AC features (power, mode, setpoint, ambient)', () => {
+test('convertDevice maps the supported AC features (power, mode, setpoint, ambient, fan)', () => {
   const device = convertDevice(gladys, AC_DEVICE);
 
   assert.equal(device.device_type, DEVICE_TYPES.AIR_CONDITIONER);
@@ -82,7 +88,7 @@ test('convertDevice maps the supported AC features (power, mode, setpoint, ambie
     device.features.map((f) => [f.external_id.split(':').pop(), f]),
   );
 
-  // The four supported features are exposed...
+  // The five supported features are exposed...
   assert.equal(byCode.Power.category, DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING);
   assert.equal(byCode.Power.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY);
   assert.equal(byCode.mode.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE);
@@ -90,15 +96,40 @@ test('convertDevice maps the supported AC features (power, mode, setpoint, ambie
   assert.equal(byCode.mode.max, AC_MODE.FAN);
   assert.equal(byCode.temp_set.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE);
   assert.equal(byCode.temp_current.category, DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR);
+  assert.equal(byCode.windspeed.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED);
+  assert.equal(byCode.windspeed.min, AC_FAN_SPEED.AUTO);
+  assert.equal(byCode.windspeed.max, AC_FAN_SPEED.TURBO);
 
-  // ...and nothing else: windspeed/switch/temp_unit_convert are ignored until
-  // the core ships the fan-speed/swing feature types.
-  assert.deepEqual(Object.keys(byCode).sort(), ['Power', 'mode', 'temp_current', 'temp_set']);
+  // ...and nothing else: switch/temp_unit_convert/fan_speed_enum stay ignored
+  // (fan_speed_enum is the specifications alias of the mapped windspeed).
+  assert.deepEqual(Object.keys(byCode).sort(), [
+    'Power',
+    'mode',
+    'temp_current',
+    'temp_set',
+    'windspeed',
+  ]);
 
   // The scaled spec bounds (160..880, scale 1) become real degrees.
   assert.equal(byCode.temp_set.min, 16);
   assert.equal(byCode.temp_set.max, 88);
   assert.equal(byCode.temp_set.scale, 1);
+
+  // The mode options come from the spec enum range (auto/cold/wet/heat/fan).
+  assert.deepEqual(
+    byCode.mode.supported_options.map((o) => o.value),
+    [AC_MODE.AUTO, AC_MODE.COOLING, AC_MODE.HEATING, AC_MODE.DRYING, AC_MODE.FAN],
+  );
+  // The windspeed shadow property carries no enum range: the full fan-speed
+  // vocabulary is assumed (narrowed later if a spec range shows up).
+  assert.deepEqual(
+    byCode.windspeed.supported_options.map((o) => o.value),
+    [0, 1, 2, 3, 4, 5, 6, 7],
+  );
+  assert.equal(
+    byCode.windspeed.supported_options.find((o) => o.value === AC_FAN_SPEED.QUIET).label,
+    'Quiet',
+  );
 });
 
 function createHandlerWithFeatures() {
@@ -114,7 +145,7 @@ function createHandlerWithFeatures() {
   return { fake, handler, device };
 }
 
-test('poll reads the AC states from the cloud (mode enum, scaled temperatures)', async () => {
+test('poll reads the AC states from the cloud (mode/fan enums, scaled temperatures)', async () => {
   const { fake, handler, device } = createHandlerWithFeatures();
   handler.connector = {
     request: async () => ({
@@ -124,6 +155,7 @@ test('poll reads the AC states from the cloud (mode enum, scaled temperatures)',
         { code: 'temp_set', value: 200 },
         { code: 'temp_current', value: 230 },
         { code: 'mode', value: 'heat' },
+        { code: 'windspeed', value: 'low' },
       ],
     }),
   };
@@ -135,6 +167,7 @@ test('poll reads the AC states from the cloud (mode enum, scaled temperatures)',
   assert.equal(states['ext:tuya:device:ac1:temp_set'], 20);
   assert.equal(states['ext:tuya:device:ac1:temp_current'], 23);
   assert.equal(states['ext:tuya:device:ac1:mode'], AC_MODE.HEATING);
+  assert.equal(states['ext:tuya:device:ac1:windspeed'], AC_FAN_SPEED.LOW);
 });
 
 test('setValue writes the AC mode and the scaled setpoint to the cloud', async () => {
@@ -151,12 +184,38 @@ test('setValue writes the AC mode and the scaled setpoint to the cloud', async (
   await handler.setValue(device, feature('mode'), AC_MODE.COOLING);
   await handler.setValue(device, feature('temp_set'), 21.5);
   await handler.setValue(device, feature('Power'), 0);
+  await handler.setValue(device, feature('windspeed'), AC_FAN_SPEED.HIGH);
+  await handler.setValue(device, feature('windspeed'), AC_FAN_SPEED.QUIET);
 
   assert.deepEqual(commands, [
     { code: 'mode', value: 'cold' },
     { code: 'temp_set', value: 215 },
     { code: 'Power', value: false },
+    { code: 'windspeed', value: 'high' },
+    { code: 'windspeed', value: 'mute' },
   ]);
+});
+
+test('the swing transforms map the observed kt vocabularies both ways', () => {
+  const read = (type, value) => readValues[DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING][type](value);
+  const write = (type, value) =>
+    writeValues[DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING][type](value);
+  const { SWING_HORIZONTAL, SWING_VERTICAL } = DEVICE_FEATURE_TYPES.AIR_CONDITIONING;
+
+  // Horizontal: off/same/opposite.
+  assert.equal(read(SWING_HORIZONTAL, 'off'), AC_SWING_HORIZONTAL.OFF);
+  assert.equal(read(SWING_HORIZONTAL, 'same'), AC_SWING_HORIZONTAL.SWING);
+  assert.equal(read(SWING_HORIZONTAL, 'opposite'), AC_SWING_HORIZONTAL.SWING_OPPOSITE);
+  assert.equal(read(SWING_HORIZONTAL, 'weird'), null);
+  assert.equal(write(SWING_HORIZONTAL, AC_SWING_HORIZONTAL.SWING), 'same');
+  // The Gladys positions have no Tuya string on this vocabulary: rejected.
+  assert.equal(write(SWING_HORIZONTAL, AC_SWING_HORIZONTAL.POSITION_1), undefined);
+
+  // Vertical: off / 15 (full sweep) / 1..5 (fixed positions).
+  assert.equal(read(SWING_VERTICAL, '15'), AC_SWING_VERTICAL.SWING);
+  assert.equal(read(SWING_VERTICAL, '3'), AC_SWING_VERTICAL.POSITION_3);
+  assert.equal(write(SWING_VERTICAL, AC_SWING_VERTICAL.SWING), '15');
+  assert.equal(write(SWING_VERTICAL, AC_SWING_VERTICAL.POSITION_5), '5');
 });
 
 test('the AC local DPS mapping resolves the supported codes (strict)', () => {
@@ -166,8 +225,12 @@ test('the AC local DPS mapping resolves the supported codes (strict)', () => {
   assert.equal(getLocalDpsFromCode('temp_set', device), 2);
   assert.equal(getLocalDpsFromCode('temp_current', device), 3);
   assert.equal(getLocalDpsFromCode('mode', device), 4);
+  assert.equal(getLocalDpsFromCode('windspeed', device), 5);
+  assert.equal(getLocalDpsFromCode('fan_speed_enum', device), 5);
+  assert.equal(getLocalDpsFromCode('horizontal', device), 106);
+  assert.equal(getLocalDpsFromCode('vertical', device), 107);
   // Strict mapping: unsupported codes never fall back to switch_N inference.
-  assert.equal(getLocalDpsFromCode('windspeed', device), null);
+  assert.equal(getLocalDpsFromCode('eco', device), null);
 });
 
 // Gladys does not persist the feature `scale`: a device read back from the
@@ -246,7 +309,7 @@ test('a local DPS poll publishes the AC states (persistent session read)', async
     { name: DEVICE_PARAM_NAME.LOCAL_KEY, value: 'lk' },
     { name: DEVICE_PARAM_NAME.PROTOCOL_VERSION, value: '3.3' },
   );
-  handler.localRead = async () => ({ dps: { 1: true, 2: 200, 3: 230, 4: 'heat' } });
+  handler.localRead = async () => ({ dps: { 1: true, 2: 200, 3: 230, 4: 'heat', 5: 'mute' } });
 
   await handler.poll(device);
 
@@ -255,4 +318,5 @@ test('a local DPS poll publishes the AC states (persistent session read)', async
   assert.equal(states['ext:tuya:device:ac1:temp_set'], 20);
   assert.equal(states['ext:tuya:device:ac1:temp_current'], 23);
   assert.equal(states['ext:tuya:device:ac1:mode'], AC_MODE.HEATING);
+  assert.equal(states['ext:tuya:device:ac1:windspeed'], AC_FAN_SPEED.QUIET);
 });

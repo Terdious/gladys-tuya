@@ -12,7 +12,7 @@ import {
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
 import { buildFeatureSelector } from '../utils/tuya.selector.js';
-import { buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
+import { buildAcSupportedOptions, buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -53,11 +53,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   }
   // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by
   // the read/write pipeline); it must not leak onto the persisted feature.
-  const {
-    tuyaEnum: _tuyaEnum,
-    supportedOptions: staticSupportedOptions,
-    ...featuresCategoryAndType
-  } = mappingEntry;
+  const { tuyaEnum: _tuyaEnum, ...featuresCategoryAndType } = mappingEntry;
 
   let valuesObject = {};
   if (values && typeof values === 'object') {
@@ -136,17 +132,14 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // Off/Thermostat — writing them is rejected anyway).
     feature.supported_options = buildPilotWireSupportedOptions(mappingEntry, valuesObject.range);
   }
-
-  // A mapping may declare a static supported_options list — e.g. a doorbell
-  // ring BUTTON that only ever reports one meaningful state. Surfacing it lets
-  // the scene value selector show just that option ("Ring") instead of the full
-  // generic button-state list.
-  if (Array.isArray(staticSupportedOptions)) {
-    feature.supported_options = staticSupportedOptions.map((option, index) => ({
-      value: option.value,
-      label: option.label,
-      sort_order: option.sort_order != null ? option.sort_order : index,
-    }));
+  if (feature.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING) {
+    // Same restriction for the AC enums (mode / fan speed / swings): models
+    // vary a lot (cold-only units, no quiet/turbo...), the spec range is the
+    // per-device truth. Null for non-enum types (binary, target temperature).
+    const acSupportedOptions = buildAcSupportedOptions(feature.type, valuesObject.range);
+    if (acSupportedOptions) {
+      feature.supported_options = acSupportedOptions;
+    }
   }
 
   return feature;

@@ -7,8 +7,13 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 
 import { intToRgb, rgbToHsb, rgbToInt, hsbToRgb } from '../utils/colors.js';
 import { normalizeBoolean } from '../utils/tuya.normalize.js';
-// Mirror of the core AC_MODE constant (server/utils/constants.js).
-import { AC_MODE } from '../../devices/airConditioner.js';
+// Mirrors of the core AC_* constants (server/utils/constants.js).
+import {
+  AC_MODE,
+  AC_FAN_SPEED,
+  AC_SWING_HORIZONTAL,
+  AC_SWING_VERTICAL,
+} from '../../devices/airConditioner.js';
 // Mirror of the core PILOT_WIRE_MODE constant (server/utils/constants.js).
 import { PILOT_WIRE_MODE } from '../../devices/pilotThermostat.js';
 
@@ -59,6 +64,21 @@ const PILOT_WIRE_MODE_LABELS = {
   [PILOT_WIRE_MODE.THERMOSTAT]: 'Thermostat',
 };
 
+// Turn a list of tuya enum strings into sorted Gladys supported_options
+// (aliases like cold/cool dedupe through the Set; unknown strings are skipped).
+const buildSupportedOptionsFromVocabulary = (vocabulary, tuyaValues, labels) => {
+  const supportedValues = [
+    ...new Set(
+      tuyaValues.map((tuyaValue) => vocabulary[tuyaValue]).filter((value) => value !== undefined),
+    ),
+  ].sort((a, b) => a - b);
+  return supportedValues.map((value, index) => ({
+    value,
+    label: labels[value] || String(value),
+    sort_order: index,
+  }));
+};
+
 // Build the supported_options of a pilot-wire-mode feature: the Gladys modes
 // actually reachable on this device. A curated variant vocabulary (explicit
 // `tuyaEnum`, e.g. the eCosy) is the COMPLETE truth — it exists precisely
@@ -74,16 +94,7 @@ export const buildPilotWireSupportedOptions = (mappingEntry, range) => {
   const tuyaEnum = getPilotWireTuyaEnum(mappingEntry);
   const tuyaValues =
     !hasCuratedEnum && Array.isArray(range) && range.length > 0 ? range : Object.keys(tuyaEnum);
-  const supportedValues = [
-    ...new Set(
-      tuyaValues.map((tuyaValue) => tuyaEnum[tuyaValue]).filter((value) => value !== undefined),
-    ),
-  ].sort((a, b) => a - b);
-  return supportedValues.map((value, index) => ({
-    value,
-    label: PILOT_WIRE_MODE_LABELS[value] || String(value),
-    sort_order: index,
-  }));
+  return buildSupportedOptionsFromVocabulary(tuyaEnum, tuyaValues, PILOT_WIRE_MODE_LABELS);
 };
 
 const OPEN = 'open';
@@ -137,6 +148,136 @@ const GLADYS_AC_MODE_TO_TUYA = {
   [AC_MODE.HEATING]: 'heat',
   [AC_MODE.DRYING]: 'wet',
   [AC_MODE.FAN]: 'fan',
+};
+
+// Tuya AC fan-speed vocabulary -> Gladys AC_FAN_SPEED values (aliases come
+// from the many Tuya AC firmwares; `mute` is the Tuya string for QUIET).
+const TUYA_AC_FAN_SPEED_TO_GLADYS = {
+  auto: AC_FAN_SPEED.AUTO,
+  low: AC_FAN_SPEED.LOW,
+  low_mid: AC_FAN_SPEED.LOW_MID,
+  level_2: AC_FAN_SPEED.LOW_MID,
+  mid: AC_FAN_SPEED.MID,
+  middle: AC_FAN_SPEED.MID,
+  mid_high: AC_FAN_SPEED.MID_HIGH,
+  level_4: AC_FAN_SPEED.MID_HIGH,
+  high: AC_FAN_SPEED.HIGH,
+  mute: AC_FAN_SPEED.QUIET,
+  quiet: AC_FAN_SPEED.QUIET,
+  turbo: AC_FAN_SPEED.TURBO,
+  strong: AC_FAN_SPEED.TURBO,
+};
+
+const GLADYS_AC_FAN_SPEED_TO_TUYA = {
+  [AC_FAN_SPEED.AUTO]: 'auto',
+  [AC_FAN_SPEED.LOW]: 'low',
+  [AC_FAN_SPEED.LOW_MID]: 'low_mid',
+  [AC_FAN_SPEED.MID]: 'mid',
+  [AC_FAN_SPEED.MID_HIGH]: 'mid_high',
+  [AC_FAN_SPEED.HIGH]: 'high',
+  [AC_FAN_SPEED.QUIET]: 'mute',
+  [AC_FAN_SPEED.TURBO]: 'turbo',
+};
+
+// The observed kt vocabulary is off/same/opposite: `same` is the standard
+// sweep (SWING), `opposite` the counter-phase sweep (SWING_OPPOSITE). The
+// Gladys POSITION_1..5 values have no Tuya string on this vocabulary — they
+// stay unreachable (writing them is rejected) until a device documents them.
+const TUYA_AC_SWING_HORIZONTAL_TO_GLADYS = {
+  off: AC_SWING_HORIZONTAL.OFF,
+  same: AC_SWING_HORIZONTAL.SWING,
+  opposite: AC_SWING_HORIZONTAL.SWING_OPPOSITE,
+};
+
+const GLADYS_AC_SWING_HORIZONTAL_TO_TUYA = {
+  [AC_SWING_HORIZONTAL.OFF]: 'off',
+  [AC_SWING_HORIZONTAL.SWING]: 'same',
+  [AC_SWING_HORIZONTAL.SWING_OPPOSITE]: 'opposite',
+};
+
+// The observed kt vertical vocabulary is angles: `15` is the full sweep
+// (SWING), `1`..`5` the fixed positions.
+const TUYA_AC_SWING_VERTICAL_TO_GLADYS = {
+  off: AC_SWING_VERTICAL.OFF,
+  15: AC_SWING_VERTICAL.SWING,
+  1: AC_SWING_VERTICAL.POSITION_1,
+  2: AC_SWING_VERTICAL.POSITION_2,
+  3: AC_SWING_VERTICAL.POSITION_3,
+  4: AC_SWING_VERTICAL.POSITION_4,
+  5: AC_SWING_VERTICAL.POSITION_5,
+};
+
+const GLADYS_AC_SWING_VERTICAL_TO_TUYA = {
+  [AC_SWING_VERTICAL.OFF]: 'off',
+  [AC_SWING_VERTICAL.SWING]: '15',
+  [AC_SWING_VERTICAL.POSITION_1]: '1',
+  [AC_SWING_VERTICAL.POSITION_2]: '2',
+  [AC_SWING_VERTICAL.POSITION_3]: '3',
+  [AC_SWING_VERTICAL.POSITION_4]: '4',
+  [AC_SWING_VERTICAL.POSITION_5]: '5',
+};
+
+// English fallback labels + vocabulary per AC enum feature type. AC models
+// vary a lot (a cold-only unit has no heat, many lack quiet/turbo): the spec
+// enum range is the per-device truth here — there is no curated per-variant
+// vocabulary like the pilot wire, the maps above cover every known alias.
+const AC_SUPPORTED_OPTION_SOURCES = {
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: {
+    vocabulary: TUYA_AC_MODE_TO_GLADYS,
+    labels: {
+      [AC_MODE.AUTO]: 'Auto',
+      [AC_MODE.COOLING]: 'Cooling',
+      [AC_MODE.HEATING]: 'Heating',
+      [AC_MODE.DRYING]: 'Drying',
+      [AC_MODE.FAN]: 'Fan',
+    },
+  },
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: {
+    vocabulary: TUYA_AC_FAN_SPEED_TO_GLADYS,
+    labels: {
+      [AC_FAN_SPEED.AUTO]: 'Auto',
+      [AC_FAN_SPEED.LOW]: 'Low',
+      [AC_FAN_SPEED.LOW_MID]: 'Low-mid',
+      [AC_FAN_SPEED.MID]: 'Mid',
+      [AC_FAN_SPEED.MID_HIGH]: 'Mid-high',
+      [AC_FAN_SPEED.HIGH]: 'High',
+      [AC_FAN_SPEED.QUIET]: 'Quiet',
+      [AC_FAN_SPEED.TURBO]: 'Turbo',
+    },
+  },
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: {
+    vocabulary: TUYA_AC_SWING_HORIZONTAL_TO_GLADYS,
+    labels: {
+      [AC_SWING_HORIZONTAL.OFF]: 'Off',
+      [AC_SWING_HORIZONTAL.SWING]: 'Swing',
+      [AC_SWING_HORIZONTAL.SWING_OPPOSITE]: 'Swing (opposite)',
+    },
+  },
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: {
+    vocabulary: TUYA_AC_SWING_VERTICAL_TO_GLADYS,
+    labels: {
+      [AC_SWING_VERTICAL.OFF]: 'Off',
+      [AC_SWING_VERTICAL.SWING]: 'Swing',
+      [AC_SWING_VERTICAL.POSITION_1]: 'Position 1',
+      [AC_SWING_VERTICAL.POSITION_2]: 'Position 2',
+      [AC_SWING_VERTICAL.POSITION_3]: 'Position 3',
+      [AC_SWING_VERTICAL.POSITION_4]: 'Position 4',
+      [AC_SWING_VERTICAL.POSITION_5]: 'Position 5',
+    },
+  },
+};
+
+// Build the supported_options of an AC enum feature from the spec range (full
+// vocabulary without one); returns null for non-enum AC feature types (binary,
+// target temperature...).
+export const buildAcSupportedOptions = (featureType, range) => {
+  const source = AC_SUPPORTED_OPTION_SOURCES[featureType];
+  if (!source) {
+    return null;
+  }
+  const tuyaValues =
+    Array.isArray(range) && range.length > 0 ? range : Object.keys(source.vocabulary);
+  return buildSupportedOptionsFromVocabulary(source.vocabulary, tuyaValues, source.labels);
 };
 
 export const writeValues = {
@@ -202,6 +343,18 @@ export const writeValues = {
       const parsedValue = parseInt(valueFromGladys, 10);
       return GLADYS_AC_MODE_TO_TUYA[parsedValue];
     },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_AC_FAN_SPEED_TO_TUYA[parsedValue];
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_AC_SWING_HORIZONTAL_TO_TUYA[parsedValue];
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_AC_SWING_VERTICAL_TO_TUYA[parsedValue];
+    },
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (
       valueFromGladys,
       deviceFeature,
@@ -253,6 +406,24 @@ export const readValues = {
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromDevice) => {
       return Object.prototype.hasOwnProperty.call(TUYA_AC_MODE_TO_GLADYS, valueFromDevice)
         ? TUYA_AC_MODE_TO_GLADYS[valueFromDevice]
+        : null;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromDevice) => {
+      return Object.prototype.hasOwnProperty.call(TUYA_AC_FAN_SPEED_TO_GLADYS, valueFromDevice)
+        ? TUYA_AC_FAN_SPEED_TO_GLADYS[valueFromDevice]
+        : null;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromDevice) => {
+      return Object.prototype.hasOwnProperty.call(
+        TUYA_AC_SWING_HORIZONTAL_TO_GLADYS,
+        valueFromDevice,
+      )
+        ? TUYA_AC_SWING_HORIZONTAL_TO_GLADYS[valueFromDevice]
+        : null;
+    },
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromDevice) => {
+      return Object.prototype.hasOwnProperty.call(TUYA_AC_SWING_VERTICAL_TO_GLADYS, valueFromDevice)
+        ? TUYA_AC_SWING_VERTICAL_TO_GLADYS[valueFromDevice]
         : null;
     },
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (

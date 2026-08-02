@@ -5,8 +5,9 @@
 // (tuya-diagnostics-doorbell-ring), adapted to the external-integration model:
 //   - the image is published through the SDK `gladys.publishCameraImage`
 //     (dedicated camera channel) instead of the core `device.camera.setImage`;
-//   - the doorbell ring is published through `gladys.publishState` on the
-//     BUTTON feature instead of emitting a core NEW_STATE event;
+//   - the doorbell ring / motion event is published through
+//     `gladys.publishState` on the DOORBELL / MOTION_SENSOR feature (a 1 -> 0
+//     pulse) instead of emitting a core NEW_STATE event;
 //   - oversized snapshots are re-encoded with jpeg-js (pure JS) — the core uses
 //     ffmpeg, unavailable on the read-only rootfs — exactly like gladys-netatmo
 //     (src/netatmo/camera.js), with the same ~96 KB camera-store budget.
@@ -32,13 +33,21 @@ export const MEDIA_CODES = Object.values(MEDIA_CODES_BY_DPS);
 
 // Gladys single-click button state (server-side BUTTON_STATUS.CLICK).
 const BUTTON_CLICK_STATE = 1;
-// Motion sensor (binary) states: a detection is a level, not a one-shot, so it
-// is pulsed 1 -> 0. Auto-clearing after a short window makes every detection a
-// fresh 0 -> 1 edge (a scene trigger on "motion detected" fires on that edge)
-// and lets a motion widget fall back to "no motion".
-const MOTION_DETECTED_STATE = 1;
-const MOTION_CLEARED_STATE = 0;
-const MOTION_AUTO_CLEAR_MS = 30 * 1000;
+// Momentary event states (motion sensor, doorbell ring): a detection/ring is a
+// level, not a one-shot, so it is pulsed 1 -> 0. Auto-clearing after a short
+// window makes every event a fresh 0 -> 1 edge (a scene trigger fires on that
+// edge) and lets the widget fall back to "no motion" / the last-ring time.
+const EVENT_ACTIVE_STATE = 1;
+const EVENT_CLEARED_STATE = 0;
+const EVENT_AUTO_CLEAR_MS = 30 * 1000;
+
+// Categories whose media event is a 1 -> 0 pulse; anything else (the legacy
+// BUTTON mapping of devices discovered before the first-class categories) gets
+// the single click.
+const PULSED_EVENT_CATEGORIES = new Set([
+  DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.DOORBELL,
+]);
 
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 10 * 1000;
 
@@ -168,9 +177,9 @@ const findFeatureBySuffix = (device, suffix) =>
   ) || null;
 
 /**
- * @description Fire the event feature a new snapshot stands for: a single click
- * for a doorbell BUTTON, or a 1 -> 0 pulse for a MOTION_SENSOR (binary) so the
- * next detection is a fresh edge. Never throws.
+ * @description Fire the event feature a new snapshot stands for: a 1 -> 0 pulse
+ * for a MOTION_SENSOR / DOORBELL feature (so the next event is a fresh edge),
+ * or a single click for a legacy BUTTON mapping. Never throws.
  * @param {object} self - The TuyaHandler instance.
  * @param {object} device - The Gladys device.
  * @param {string} code - The media code (doorbell_pic / movement_detect_pic).
@@ -180,29 +189,29 @@ const findFeatureBySuffix = (device, suffix) =>
  * fireEventFeature(handler, device, 'movement_detect_pic', motionFeature);
  */
 const fireEventFeature = (self, device, code, feature) => {
-  const isMotion = feature.category === DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR;
+  const isPulsed = PULSED_EVENT_CATEGORIES.has(feature.category);
   self.gladys
-    .publishState(feature.external_id, isMotion ? MOTION_DETECTED_STATE : BUTTON_CLICK_STATE)
+    .publishState(feature.external_id, isPulsed ? EVENT_ACTIVE_STATE : BUTTON_CLICK_STATE)
     .then(() => logger.info(`[Tuya][media] ${code} event fired (device=${device.external_id})`))
     .catch((e) => logger.warn(`[Tuya][media] ${code} event publish failed: ${e.message}`));
 
-  if (!isMotion) {
+  if (!isPulsed) {
     return;
   }
-  // Re-arm the motion sensor: clear any pending timer, then schedule the 0 edge.
-  self.motionClearTimers = self.motionClearTimers || {};
-  clearTimeout(self.motionClearTimers[feature.external_id]);
+  // Re-arm the event: clear any pending timer, then schedule the 0 edge.
+  self.eventClearTimers = self.eventClearTimers || {};
+  clearTimeout(self.eventClearTimers[feature.external_id]);
   const timer = setTimeout(() => {
-    delete self.motionClearTimers[feature.external_id];
+    delete self.eventClearTimers[feature.external_id];
     self.gladys
-      .publishState(feature.external_id, MOTION_CLEARED_STATE)
+      .publishState(feature.external_id, EVENT_CLEARED_STATE)
       .catch((e) => logger.warn(`[Tuya][media] ${code} auto-clear failed: ${e.message}`));
-  }, MOTION_AUTO_CLEAR_MS);
+  }, EVENT_AUTO_CLEAR_MS);
   // Never keep the process alive just for a pending auto-clear.
   if (typeof timer.unref === 'function') {
     timer.unref();
   }
-  self.motionClearTimers[feature.external_id] = timer;
+  self.eventClearTimers[feature.external_id] = timer;
 };
 
 /**
