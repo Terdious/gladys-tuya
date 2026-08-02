@@ -25,6 +25,7 @@ import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 import { enrichFromCreatedDevices } from './src/tuya/device/tuya.enrichDiscovery.js';
 import { getLastCameraImage } from './src/tuya/media/tuya.media.js';
+import { coreSupportsFirstClassFeatureTypes } from './src/tuya/utils/tuya.coreVersion.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -32,9 +33,45 @@ const tuya = new TuyaHandler(gladys);
 // Current configuration (hot-reloaded via onConfigUpdated).
 let config = normalizeConfig();
 
+// Whether the running Gladys core (>= 4.84.2) accepts the first-class DOORBELL
+// category and the AC fan-speed / swing feature types. Default false (safe): on
+// an older core those types would make the discovery validator reject the WHOLE
+// Tuya device list. Refreshed from gladys.getStatus() before each publish, so a
+// core upgrade is picked up on the next scan.
+let coreSupportsFirstClassTypes = false;
+
+/**
+ * Refresh the core-capability flag from the running Gladys version. Best-effort:
+ * on any failure we keep the safe default (downgraded features), never breaking
+ * discovery on a core that cannot report its version.
+ */
+async function refreshCoreCapabilities() {
+  try {
+    const status = await gladys.getStatus();
+    const version = status && status.gladys_version;
+    coreSupportsFirstClassTypes = coreSupportsFirstClassFeatureTypes(version);
+    logger.debug(
+      `Gladys core version ${version || 'unknown'} -> first-class doorbell/AC types ${
+        coreSupportsFirstClassTypes ? 'enabled' : 'disabled (downgraded)'
+      }`,
+    );
+  } catch (e) {
+    coreSupportsFirstClassTypes = false;
+    logger.warn(`Unable to read the Gladys core version (using downgraded features): ${e.message}`);
+  }
+}
+
 /** Convert the discovered raw Tuya devices to Gladys discovery payloads. */
 function buildDiscoveredDevices(tuyaDevices) {
-  return tuyaDevices.map((tuyaDevice) => convertDevice(gladys, tuyaDevice));
+  return tuyaDevices.map((tuyaDevice) =>
+    convertDevice(gladys, tuyaDevice, { coreSupportsFirstClassTypes }),
+  );
+}
+
+/** Refresh the core capabilities, then publish the discovered devices. */
+async function publishDiscoveredDevices(tuyaDevices) {
+  await refreshCoreCapabilities();
+  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
 }
 
 /**
@@ -157,7 +194,7 @@ function discoverAndPublish() {
     // "Update" from the Discovery screen cannot wipe a manually-detected IP.
     tuyaDevices = enrichFromCreatedDevices(tuyaDevices, gladys.devices, config.localMode);
     tuya.discoveredDevices = tuyaDevices;
-    await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+    await publishDiscoveredDevices(tuyaDevices);
   })().finally(() => {
     discoveryInFlight = null;
   });
@@ -232,7 +269,7 @@ gladys.onAction('detect_protocol', async (fields) => {
     gladys.devices,
     config.localMode,
   );
-  await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuya.discoveredDevices));
+  await publishDiscoveredDevices(tuya.discoveredDevices);
 
   return {
     en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,

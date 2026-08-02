@@ -85,11 +85,15 @@ const mergeFeatureValues = (currentValues, nextValues) => {
  * @description Transform Tuya device to Gladys device.
  * @param {object} gladys - GladysIntegration SDK instance.
  * @param {object} tuyaDevice - Tuya device.
+ * @param {object} [options] - Conversion options.
+ * @param {boolean} [options.coreSupportsFirstClassTypes] - Whether the running
+ * Gladys core (>= 4.84.2) accepts the DOORBELL / AC fan-speed / swing types.
  * @returns {object} Gladys device.
  * @example
  * convertDevice(gladys, { id: 'tuyaId', name: 'My socket', specifications: {} });
  */
-export function convertDevice(gladys, tuyaDevice) {
+export function convertDevice(gladys, tuyaDevice, options = {}) {
+  const { coreSupportsFirstClassTypes = true } = options;
   const {
     name,
     product_name: productName,
@@ -261,6 +265,7 @@ export function convertDevice(gladys, tuyaDevice) {
       deviceSelector,
       temperatureUnit,
       productId,
+      coreSupportsFirstClassTypes,
     }),
   );
   const filteredFeatures = features.filter((feature) => feature);
