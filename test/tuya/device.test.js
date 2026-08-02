@@ -163,6 +163,37 @@ test('convertFeature maps the doorbell ring to the first-class DOORBELL feature'
   assert.equal(feature.max, 1);
 });
 
+test('convertFeature downgrades the doorbell ring to a BUTTON on an older core', () => {
+  const feature = convertFeature({ code: 'doorbell_active', values: '{}', readOnly: true }, ids, {
+    deviceType: DEVICE_TYPES.VIDEO_DOORBELL,
+    coreSupportsFirstClassTypes: false,
+  });
+  // Old core (< 4.84.2): fall back to the BUTTON mapping so discovery is not
+  // rejected wholesale; the "Ring" option keeps the scene selector clean.
+  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
+  assert.equal(feature.type, DEVICE_FEATURE_TYPES.BUTTON.CLICK);
+  assert.deepEqual(feature.supported_options, [{ value: 1, label: 'Ring', sort_order: 0 }]);
+});
+
+test('convertFeature skips the AC fan-speed/swing features on an older core', () => {
+  const opts = { deviceType: DEVICE_TYPES.AIR_CONDITIONER, coreSupportsFirstClassTypes: false };
+  assert.equal(
+    convertFeature({ code: 'windspeed', values: '{}', readOnly: false }, ids, opts),
+    undefined,
+  );
+  assert.equal(
+    convertFeature({ code: 'horizontal', values: '{}', readOnly: false }, ids, opts),
+    undefined,
+  );
+  assert.equal(
+    convertFeature({ code: 'vertical', values: '{}', readOnly: false }, ids, opts),
+    undefined,
+  );
+  // The plain AC controls (mode/setpoint) are unaffected: they exist on every core.
+  const mode = convertFeature({ code: 'mode', values: '{}', readOnly: false }, ids, opts);
+  assert.equal(mode.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE);
+});
+
 test('convertFeature attaches supported_options for an AC enum from its spec range', () => {
   const feature = convertFeature(
     {

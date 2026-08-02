@@ -16,6 +16,13 @@ import { buildAcSupportedOptions, buildPilotWireSupportedOptions } from './tuya.
 
 const logger = createLogger({ name: 'tuya' });
 
+// AC feature types introduced in Gladys core 4.84.2 (older cores reject them).
+const AC_FIRST_CLASS_TYPES = [
+  DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED,
+  DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL,
+  DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL,
+];
+
 // Every discovery re-converts every device: warn once per unknown code per
 // process instead of re-printing the same 60-line wall on each scan.
 const warnedUnmanagedCodes = new Set();
@@ -31,7 +38,18 @@ const warnedUnmanagedCodes = new Set();
  */
 export function convertFeature(tuyaFunctions, ids, options = {}) {
   const { code, values, readOnly } = tuyaFunctions;
-  const { deviceType, ignoredCloudCodes, deviceSelector, temperatureUnit, productId } = options;
+  const {
+    deviceType,
+    ignoredCloudCodes,
+    deviceSelector,
+    temperatureUnit,
+    productId,
+    // Whether the running Gladys core (>= 4.84.2) accepts the DOORBELL category
+    // and the AC fan-speed / swing types. Defaults to true (the current core);
+    // index.js passes the value it detects from gladys.getStatus() so an older
+    // core gets the downgraded mapping below instead of a rejected discovery.
+    coreSupportsFirstClassTypes = true,
+  } = options;
 
   const codeLower = normalizeCode(code);
   const ignoredCodes = Array.isArray(ignoredCloudCodes)
@@ -54,6 +72,28 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by
   // the read/write pipeline); it must not leak onto the persisted feature.
   const { tuyaEnum: _tuyaEnum, ...featuresCategoryAndType } = mappingEntry;
+
+  // Graceful degradation for a Gladys core older than 4.84.2, which knows
+  // neither the DOORBELL category nor the AC fan-speed / swing types. The core
+  // discovery validator rejects the WHOLE device list on a single unknown
+  // category/type, so we must not publish them there: downgrade the doorbell
+  // ring to a BUTTON click (its pre-4.84.2 mapping) and skip the AC fan/swing
+  // features entirely. On a supported core, nothing changes.
+  let downgradeSupportedOptions = null;
+  if (!coreSupportsFirstClassTypes) {
+    if (featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.DOORBELL) {
+      featuresCategoryAndType.category = DEVICE_FEATURE_CATEGORIES.BUTTON;
+      featuresCategoryAndType.type = DEVICE_FEATURE_TYPES.BUTTON.CLICK;
+      // The button only ever reports the ring: expose that single option so the
+      // scene value selector shows "Ring", not the full generic button list.
+      downgradeSupportedOptions = [{ value: 1, label: 'Ring', sort_order: 0 }];
+    } else if (
+      featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
+      AC_FIRST_CLASS_TYPES.includes(featuresCategoryAndType.type)
+    ) {
+      return undefined;
+    }
+  }
 
   let valuesObject = {};
   if (values && typeof values === 'object') {
@@ -140,6 +180,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     if (acSupportedOptions) {
       feature.supported_options = acSupportedOptions;
     }
+  }
+  // A doorbell downgraded to a BUTTON (old core) carries its single "Ring"
+  // option so the scene selector stays clean.
+  if (downgradeSupportedOptions) {
+    feature.supported_options = downgradeSupportedOptions;
   }
 
   return feature;

@@ -132,6 +132,13 @@ test('convertDevice maps the supported AC features (power, mode, setpoint, ambie
   );
 });
 
+test('convertDevice drops the fan-speed feature on a core older than 4.84.2', () => {
+  const device = convertDevice(gladys, AC_DEVICE, { coreSupportsFirstClassTypes: false });
+  const codes = device.features.map((f) => f.external_id.split(':').pop()).sort();
+  // windspeed is skipped; the plain controls stay.
+  assert.deepEqual(codes, ['Power', 'mode', 'temp_current', 'temp_set']);
+});
+
 function createHandlerWithFeatures() {
   const fake = createFakeGladys();
   const handler = new TuyaHandler(fake);
