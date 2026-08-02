@@ -137,10 +137,10 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     feature.supported_options = buildPilotWireSupportedOptions(mappingEntry, valuesObject.range);
   }
 
-  // A mapping may declare a static supported_options list — e.g. a doorbell /
-  // motion BUTTON that only ever reports one meaningful state. Surfacing it lets
-  // the scene value selector show just that option ("Ring", "Motion detected")
-  // instead of the full generic button-state list.
+  // A mapping may declare a static supported_options list — e.g. a doorbell
+  // ring BUTTON that only ever reports one meaningful state. Surfacing it lets
+  // the scene value selector show just that option ("Ring") instead of the full
+  // generic button-state list.
   if (Array.isArray(staticSupportedOptions)) {
     feature.supported_options = staticSupportedOptions.map((option, index) => ({
       value: option.value,
