@@ -115,7 +115,7 @@ const makeDoorbell = (calls) => ({
 const doorbellDevice = {
   external_id: 'ext:tuya:device:d1',
   // No camera feature here → the media download path is not exercised (no network).
-  features: [{ external_id: 'ext:tuya:device:d1:doorbell_active', category: 'button' }],
+  features: [{ external_id: 'ext:tuya:device:d1:doorbell_active', category: 'doorbell' }],
 };
 
 test('processMediaCodes seeds memory on the first snapshot, no ring', () => {
@@ -125,12 +125,35 @@ test('processMediaCodes seeds memory on the first snapshot, no ring', () => {
   assert.equal(calls.length, 0);
 });
 
-test('processMediaCodes fires the doorbell ring on a NEW snapshot', () => {
+test('processMediaCodes pulses the doorbell ring (1 -> 0) on a NEW snapshot', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const calls = [];
   const self = makeDoorbell(calls);
   processMediaCodes(self, doorbellDevice, { doorbell_pic: b64('https://host/a/1.jpeg?sig=1') });
   processMediaCodes(self, doorbellDevice, { doorbell_pic: b64('https://host/a/2.jpeg?sig=2') });
   assert.deepEqual(calls, [['ext:tuya:device:d1:doorbell_active', 1]]);
+  // Auto-clear re-arms the ring for the next press.
+  t.mock.timers.tick(30 * 1000);
+  assert.deepEqual(calls, [
+    ['ext:tuya:device:d1:doorbell_active', 1],
+    ['ext:tuya:device:d1:doorbell_active', 0],
+  ]);
+});
+
+test('processMediaCodes keeps the single click for a legacy BUTTON doorbell', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const calls = [];
+  const self = makeDoorbell(calls);
+  // Device discovered before the first-class DOORBELL category shipped.
+  const legacyDevice = {
+    external_id: 'ext:tuya:device:old1',
+    features: [{ external_id: 'ext:tuya:device:old1:doorbell_active', category: 'button' }],
+  };
+  processMediaCodes(self, legacyDevice, { doorbell_pic: b64('https://host/a/1.jpeg?sig=1') });
+  processMediaCodes(self, legacyDevice, { doorbell_pic: b64('https://host/a/2.jpeg?sig=2') });
+  t.mock.timers.tick(60 * 1000);
+  // One click, never auto-cleared (a button click is already a one-shot).
+  assert.deepEqual(calls, [['ext:tuya:device:old1:doorbell_active', 1]]);
 });
 
 test('processMediaCodes does not ring twice for the same image', () => {

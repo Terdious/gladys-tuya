@@ -79,10 +79,10 @@ test('getDeviceType matches a video doorbell before a camera (doorbell_active wi
   assert.equal(getDeviceType({ product_id: 'i5e3a4qxcsthszin' }), DEVICE_TYPES.VIDEO_DOORBELL);
 });
 
-test('video doorbell maps the ring (button) and the snapshot (camera image)', () => {
+test('video doorbell maps the ring (doorbell) and the snapshot (camera image)', () => {
   const ring = getFeatureMapping('doorbell_active', DEVICE_TYPES.VIDEO_DOORBELL);
-  assert.equal(ring.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
-  assert.equal(ring.type, DEVICE_FEATURE_TYPES.BUTTON.CLICK);
+  assert.equal(ring.category, DEVICE_FEATURE_CATEGORIES.DOORBELL);
+  assert.equal(ring.type, DEVICE_FEATURE_TYPES.DOORBELL.RING);
 
   const snapshot = getFeatureMapping('doorbell_pic', DEVICE_TYPES.VIDEO_DOORBELL);
   assert.equal(snapshot.category, DEVICE_FEATURE_CATEGORIES.CAMERA);
@@ -151,14 +151,37 @@ test('convertFeature converts a mapped writable feature', () => {
   assert.equal(feature.name, 'Switch');
 });
 
-test('convertFeature attaches supported_options for a doorbell button', () => {
+test('convertFeature maps the doorbell ring to the first-class DOORBELL feature', () => {
   const feature = convertFeature({ code: 'doorbell_active', values: '{}', readOnly: true }, ids, {
     deviceType: DEVICE_TYPES.VIDEO_DOORBELL,
   });
-  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.BUTTON);
-  assert.deepEqual(feature.supported_options, [{ value: 1, label: 'Ring', sort_order: 0 }]);
-  // The camelCase mapping field must not leak onto the persisted feature.
-  assert.equal(feature.supportedOptions, undefined);
+  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.DOORBELL);
+  assert.equal(feature.type, DEVICE_FEATURE_TYPES.DOORBELL.RING);
+  // A momentary 0/1 event: the core scene trigger / widget need no options.
+  assert.equal(feature.supported_options, undefined);
+  assert.equal(feature.min, 0);
+  assert.equal(feature.max, 1);
+});
+
+test('convertFeature attaches supported_options for an AC enum from its spec range', () => {
+  const feature = convertFeature(
+    {
+      code: 'windspeed',
+      values: JSON.stringify({ range: ['auto', 'low', 'mid', 'high'] }),
+      readOnly: false,
+    },
+    ids,
+    { deviceType: DEVICE_TYPES.AIR_CONDITIONER },
+  );
+  assert.equal(feature.type, DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED);
+  assert.deepEqual(
+    feature.supported_options.map((o) => o.value),
+    [0, 1, 3, 5],
+  );
+  assert.deepEqual(
+    feature.supported_options.map((o) => o.label),
+    ['Auto', 'Low', 'Mid', 'High'],
+  );
 });
 
 test('convertFeature applies min/max/scale from the Tuya values', () => {
