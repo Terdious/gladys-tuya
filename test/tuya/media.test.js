@@ -155,19 +155,29 @@ test('processMediaCodes is a no-op for a device without camera nor doorbell feat
   assert.equal(calls.length, 0);
 });
 
-test('processMediaCodes fires the motion event on a NEW movement_detect_pic', () => {
+test('processMediaCodes pulses the motion sensor (1 -> 0) on a NEW movement_detect_pic', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const calls = [];
   const self = makeDoorbell(calls);
   const cameraDevice = {
     external_id: 'ext:tuya:device:cam1',
-    // Motion button but no camera-image feature → no download path (no network).
-    features: [{ external_id: 'ext:tuya:device:cam1:movement_detect_pic', category: 'button' }],
+    // Motion sensor but no camera-image feature → no download path (no network).
+    features: [
+      { external_id: 'ext:tuya:device:cam1:movement_detect_pic', category: 'motion-sensor' },
+    ],
   };
   const enc = (path) =>
     b64(JSON.stringify({ bucket: 'b', files: [[`${path}?param=z`, 'aeskey']], v: '3.0' }));
   processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/1.jpeg') });
   processMediaCodes(self, cameraDevice, { movement_detect_pic: enc('/detect/2.jpeg') });
+  // Immediate detection edge.
   assert.deepEqual(calls, [['ext:tuya:device:cam1:movement_detect_pic', 1]]);
+  // Auto-clear a short while later, re-arming the sensor for the next detection.
+  t.mock.timers.tick(30 * 1000);
+  assert.deepEqual(calls, [
+    ['ext:tuya:device:cam1:movement_detect_pic', 1],
+    ['ext:tuya:device:cam1:movement_detect_pic', 0],
+  ]);
 });
 
 // --- getLastCameraImage -------------------------------------------------------

@@ -64,14 +64,13 @@ const cloudMapping = {
     type: DEVICE_FEATURE_TYPES.CAMERA.IMAGE,
   },
   // Motion detection event: a new movement_detect_pic IS the detection. Exposed
-  // as a BUTTON because the Gladys constants publish no motion-sensor feature
-  // type yet (same upstream gap as the AC fan-speed, tracked separately). The
-  // media handler fires it; the image itself stays encrypted for now.
+  // as a MOTION_SENSOR (binary): the media handler pulses it 1 -> 0 so every
+  // detection is a fresh edge a scene can trigger on, and a motion widget reads
+  // it natively. The image itself stays encrypted for now.
   movement_detect_pic: {
     name: 'Motion',
-    category: DEVICE_FEATURE_CATEGORIES.BUTTON,
-    type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
-    supportedOptions: [{ value: 1, label: 'Motion detected' }],
+    category: DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR,
+    type: DEVICE_FEATURE_TYPES.SENSOR.BINARY,
   },
   motion_switch: {
     name: 'Motion detection',

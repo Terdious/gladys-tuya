@@ -19,7 +19,7 @@
 // -----------------------------------------------------------------------------
 
 import jpeg from 'jpeg-js';
-import { createLogger } from '@gladysassistant/integration-sdk';
+import { createLogger, DEVICE_FEATURE_CATEGORIES } from '@gladysassistant/integration-sdk';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -32,6 +32,13 @@ export const MEDIA_CODES = Object.values(MEDIA_CODES_BY_DPS);
 
 // Gladys single-click button state (server-side BUTTON_STATUS.CLICK).
 const BUTTON_CLICK_STATE = 1;
+// Motion sensor (binary) states: a detection is a level, not a one-shot, so it
+// is pulsed 1 -> 0. Auto-clearing after a short window makes every detection a
+// fresh 0 -> 1 edge (a scene trigger on "motion detected" fires on that edge)
+// and lets a motion widget fall back to "no motion".
+const MOTION_DETECTED_STATE = 1;
+const MOTION_CLEARED_STATE = 0;
+const MOTION_AUTO_CLEAR_MS = 30 * 1000;
 
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 10 * 1000;
 
@@ -159,6 +166,44 @@ const findFeatureBySuffix = (device, suffix) =>
     (feature) =>
       feature && typeof feature.external_id === 'string' && feature.external_id.endsWith(suffix),
   ) || null;
+
+/**
+ * @description Fire the event feature a new snapshot stands for: a single click
+ * for a doorbell BUTTON, or a 1 -> 0 pulse for a MOTION_SENSOR (binary) so the
+ * next detection is a fresh edge. Never throws.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device.
+ * @param {string} code - The media code (doorbell_pic / movement_detect_pic).
+ * @param {object} feature - The event feature to fire.
+ * @returns {void}
+ * @example
+ * fireEventFeature(handler, device, 'movement_detect_pic', motionFeature);
+ */
+const fireEventFeature = (self, device, code, feature) => {
+  const isMotion = feature.category === DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR;
+  self.gladys
+    .publishState(feature.external_id, isMotion ? MOTION_DETECTED_STATE : BUTTON_CLICK_STATE)
+    .then(() => logger.info(`[Tuya][media] ${code} event fired (device=${device.external_id})`))
+    .catch((e) => logger.warn(`[Tuya][media] ${code} event publish failed: ${e.message}`));
+
+  if (!isMotion) {
+    return;
+  }
+  // Re-arm the motion sensor: clear any pending timer, then schedule the 0 edge.
+  self.motionClearTimers = self.motionClearTimers || {};
+  clearTimeout(self.motionClearTimers[feature.external_id]);
+  const timer = setTimeout(() => {
+    delete self.motionClearTimers[feature.external_id];
+    self.gladys
+      .publishState(feature.external_id, MOTION_CLEARED_STATE)
+      .catch((e) => logger.warn(`[Tuya][media] ${code} auto-clear failed: ${e.message}`));
+  }, MOTION_AUTO_CLEAR_MS);
+  // Never keep the process alive just for a pending auto-clear.
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+  self.motionClearTimers[feature.external_id] = timer;
+};
 
 /**
  * @description Download a snapshot and publish it on the device camera image
@@ -327,14 +372,11 @@ export const processMediaCodes = (self, device, valuesByCode) => {
     }
 
     // A new snapshot IS the event: fire the doorbell ring / the motion event on
-    // the mapped button feature when the device carries it.
+    // the mapped feature when the device carries it.
     const suffix = EVENT_FEATURE_SUFFIX[code];
     const eventFeature = suffix ? findFeatureBySuffix(device, suffix) : null;
     if (eventFeature) {
-      self.gladys
-        .publishState(eventFeature.external_id, BUTTON_CLICK_STATE)
-        .then(() => logger.info(`[Tuya][media] ${code} event fired (device=${device.external_id})`))
-        .catch((e) => logger.warn(`[Tuya][media] ${code} event publish failed: ${e.message}`));
+      fireEventFeature(self, device, code, eventFeature);
     }
 
     // The image itself goes to the camera widget when the device carries one.

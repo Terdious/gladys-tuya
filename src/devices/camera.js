@@ -26,7 +26,8 @@
 //   - PTZ commands (`ptz_control`, `ptz_stop`, `ptz_calibration`): write-only,
 //     a better fit for manifest actions than for features.
 //   - Motion-detected events (`alarm_message`): arrive as encrypted cloud
-//     events (Pulsar), decoded separately — future MOTION_SENSOR feature.
+//     events (Pulsar), decoded separately — the MOTION_SENSOR feature is fed
+//     from the `movement_detect_pic` snapshot event instead (see below).
 // -----------------------------------------------------------------------------
 
 import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistant/integration-sdk';
@@ -100,16 +101,14 @@ const cloudMapping = {
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
   },
   // Motion detection event: a new movement_detect_pic IS the detection. Exposed
-  // as a BUTTON because the Gladys constants publish no motion-sensor feature
-  // type yet. The media handler fires it; on these PTZ cameras the picture
-  // itself is encrypted (skipped until decryption lands).
+  // as a MOTION_SENSOR (binary): the media handler pulses it 1 -> 0 so every
+  // detection is a fresh edge a scene can trigger on, and a motion widget reads
+  // it natively. On these PTZ cameras the picture itself is encrypted (skipped
+  // until decryption lands).
   movement_detect_pic: {
     name: 'Motion',
-    category: DEVICE_FEATURE_CATEGORIES.BUTTON,
-    type: DEVICE_FEATURE_TYPES.BUTTON.CLICK,
-    // Single meaningful state (BUTTON_STATUS.CLICK = 1): the scene selector then
-    // shows "Motion detected" instead of the full generic button-state list.
-    supportedOptions: [{ value: 1, label: 'Motion detected' }],
+    category: DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR,
+    type: DEVICE_FEATURE_TYPES.SENSOR.BINARY,
   },
 };
 
