@@ -146,10 +146,15 @@ async function connectTuya() {
     // the user enabled the toggle.
     await tuya.startPulsar();
   } else {
-    const reason = tuya.lastError || 'unknown error';
+    // A mapped error carries a readable, actionable multi-language reason
+    // (e.g. the expired IoT Core trial); otherwise fall back to the raw message.
+    const reason = tuya.lastErrorMessage || {
+      en: tuya.lastError || 'unknown error',
+      fr: tuya.lastError || 'erreur inconnue',
+    };
     reportConnectionStatus(false, {
-      en: `Tuya cloud connection failed: ${reason}`,
-      fr: `Connexion au cloud Tuya échouée : ${reason}`,
+      en: `Tuya cloud connection failed: ${reason.en}`,
+      fr: `Connexion au cloud Tuya échouée : ${reason.fr}`,
     });
   }
 }

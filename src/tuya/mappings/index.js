@@ -16,6 +16,7 @@ export const DEVICE_TYPES = {
   AIR_CONDITIONER: 'air-conditioner',
   CAMERA: 'camera',
   VIDEO_DOORBELL: 'video-doorbell',
+  PET_FEEDER: 'pet-feeder',
   PILOT_THERMOSTAT: 'pilot-thermostat',
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',

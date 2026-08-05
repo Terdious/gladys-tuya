@@ -15,6 +15,11 @@ const logger = createLogger({ name: 'tuya' });
 
 /**
  * @description Map Tuya errors to user-facing error keys and retry policy.
+ *
+ * `key` is the core i18n key (kept for parity with the core service), and
+ * `message` is the multi-language text actually shown in the Configuration
+ * screen: an external integration cannot resolve a core i18n key, so without it
+ * the user would read a raw "integration.tuya.setup.errorX" string.
  * @param {Error} error - Error thrown during connection.
  * @returns {object|null} Mapping info or null when unknown.
  * @example
@@ -30,7 +35,14 @@ export const mapConnectionError = (error) => {
     message.includes('clientid is invalid') ||
     message.includes('get_token_failed 2009')
   ) {
-    return { key: 'integration.tuya.setup.errorInvalidClientId', disableAutoReconnect: true };
+    return {
+      key: 'integration.tuya.setup.errorInvalidClientId',
+      message: {
+        en: 'Invalid Access ID / Client ID: copy it again from the Overview tab of your Tuya cloud project.',
+        fr: "Access ID / Client ID invalide : recopiez-le depuis l'onglet Overview de votre projet Tuya cloud.",
+      },
+      disableAutoReconnect: true,
+    };
   }
 
   if (
@@ -38,7 +50,14 @@ export const mapConnectionError = (error) => {
     message.includes('sign invalid') ||
     message.includes('get_token_failed 1004')
   ) {
-    return { key: 'integration.tuya.setup.errorInvalidClientSecret', disableAutoReconnect: true };
+    return {
+      key: 'integration.tuya.setup.errorInvalidClientSecret',
+      message: {
+        en: 'Invalid Access Secret / Client Secret: copy it again from the Overview tab of your Tuya cloud project.',
+        fr: "Access Secret / Client Secret invalide : recopiez-le depuis l'onglet Overview de votre projet Tuya cloud.",
+      },
+      disableAutoReconnect: true,
+    };
   }
 
   if (
@@ -46,7 +65,33 @@ export const mapConnectionError = (error) => {
     message.includes('data center is suspended') ||
     message.includes('data center')
   ) {
-    return { key: 'integration.tuya.setup.errorInvalidEndpoint', disableAutoReconnect: true };
+    return {
+      key: 'integration.tuya.setup.errorInvalidEndpoint',
+      message: {
+        en: 'Wrong data center: pick the region your Tuya cloud project was created in.',
+        fr: 'Mauvais data center : choisissez la région dans laquelle votre projet Tuya cloud a été créé.',
+      },
+      disableAutoReconnect: true,
+    };
+  }
+
+  // The IoT Core service of the Tuya cloud project runs on a free trial (one
+  // month, renewable for six more at no cost). Once it lapses Tuya rejects
+  // EVERY API call of the project, so the raw message alone leaves the user
+  // stuck: spell out the fix.
+  if (code === '28841002' || message.includes('subscription has expired')) {
+    return {
+      key: 'integration.tuya.setup.errorSubscriptionExpired',
+      message: {
+        en:
+          'The free trial of the Tuya "IoT Core" service has expired: every API call of your cloud project is rejected. ' +
+          'Renew it for free on iot.tuya.com (Cloud > Development > your project > Service API, or Cloud > Cloud Services > IoT Core), then restart the integration.',
+        fr:
+          "L'essai gratuit du service Tuya « IoT Core » a expiré : tous les appels API de votre projet cloud sont rejetés. " +
+          "Prolongez-le gratuitement sur iot.tuya.com (Cloud > Development > votre projet > Service API, ou Cloud > Cloud Services > IoT Core), puis redémarrez l'intégration.",
+      },
+      disableAutoReconnect: true,
+    };
   }
 
   if (
@@ -55,7 +100,14 @@ export const mapConnectionError = (error) => {
     code === 'tuya_app_account_uid_missing' ||
     code === 'tuya_app_account_uid_invalid'
   ) {
-    return { key: 'integration.tuya.setup.errorInvalidAppAccountUid', disableAutoReconnect: true };
+    return {
+      key: 'integration.tuya.setup.errorInvalidAppAccountUid',
+      message: {
+        en: 'Invalid app account UID, or the account is not linked: link your Smart Life / Tuya app account to the cloud project (Devices > Link Tuya App Account), then copy its UID.',
+        fr: 'UID de compte applicatif invalide, ou compte non lié : liez votre compte Smart Life / Tuya au projet cloud (Devices > Link Tuya App Account), puis recopiez son UID.',
+      },
+      disableAutoReconnect: true,
+    };
   }
 
   return null;
@@ -111,6 +163,7 @@ export async function connect(configuration) {
 
   this.status = STATUS.CONNECTING;
   this.lastError = null;
+  this.lastErrorMessage = null;
   logger.info('Connecting to Tuya...');
 
   this.connector = new this.TuyaContext({
@@ -138,6 +191,12 @@ export async function connect(configuration) {
       message = e.message;
     }
     this.lastError = message;
+    // The readable, multi-language reason shown in the Configuration screen:
+    // the i18n key above cannot be resolved by an external integration, and the
+    // raw Tuya message rarely says what to do. Unknown errors keep the raw
+    // message (better than nothing).
+    this.lastErrorMessage =
+      mapped && mapped.message ? mapped.message : { en: message, fr: message };
     if (mapped && mapped.disableAutoReconnect) {
       this.autoReconnectAllowed = false;
     }
