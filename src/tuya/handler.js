@@ -58,6 +58,7 @@ export class TuyaHandler {
     this.connector = null;
     this.status = STATUS.NOT_INITIALIZED;
     this.lastError = null;
+    this.lastErrorMessage = null;
     this.config = null;
     this.tokens = {};
     this.discoveredDevices = [];

@@ -258,6 +258,11 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
   const deviceSelector = buildDeviceSelector(name, id);
   const ignoredCloudCodes = getIgnoredCloudCodes(deviceType, productId);
   const temperatureUnit = getTemperatureUnit(properties);
+  // Per-device conversion report: what each Tuya code became. Logged below so
+  // an unsupported device is reportable from the integration logs alone (the
+  // per-code warning is deduplicated for the whole process lifetime, so it is
+  // never seen again after the first discovery).
+  const report = { mapped: [], ignored: [], unmanaged: [] };
   const features = Object.values(groups).map((group) =>
     convertFeature(group, ids, {
       deviceType,
@@ -266,9 +271,22 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
       temperatureUnit,
       productId,
       coreSupportsFirstClassTypes,
+      report,
     }),
   );
   const filteredFeatures = features.filter((feature) => feature);
+  logger.info(
+    `[Tuya][discovery] "${name}" id=${id || 'unknown'} type=${deviceType} product_id=${
+      productId || 'unknown'
+    } category=${specifications.category || category || 'unknown'} features=${
+      filteredFeatures.length
+    }${report.unmanaged.length > 0 ? ` UNMANAGED=[${report.unmanaged.join(', ')}]` : ''}`,
+  );
+  logger.debug(
+    `[Tuya][discovery] "${name}" mapped=[${report.mapped.join(', ')}] ignored=[${report.ignored.join(
+      ', ',
+    )}]`,
+  );
   if (filteredFeatures.length === 0 && deviceType !== DEVICE_TYPES.UNKNOWN) {
     logger.debug(
       `[Tuya][convertDevice] inferred type=${deviceType} but no supported feature found (device=${

@@ -186,3 +186,61 @@ test('poll throws on an invalid external id', async () => {
     /external_id/,
   );
 });
+
+// --- devices without any feature (issue #36) ---------------------------------
+
+test('poll skips a device with no feature instead of hitting the cloud', async () => {
+  const { gladys, handler } = createHandler();
+  let requests = 0;
+  handler.connector = {
+    request: async () => {
+      requests += 1;
+      return { success: true, result: [] };
+    },
+  };
+
+  // A device type not mapped yet (e.g. the pet feeder before issue #35): the
+  // user created it from the Discovery screen, but it can publish nothing.
+  await handler.poll(createDevice({ features: [] }));
+
+  assert.equal(requests, 0, 'no cloud call for a device with nothing to read');
+  assert.equal(gladys.published.length, 0);
+});
+
+test('poll does not open a LAN session for a device whose features have no local DPS', async () => {
+  const { handler } = createHandler();
+  handler.config = { localMode: true };
+  let localReads = 0;
+  handler.localRead = async () => {
+    localReads += 1;
+    return { dps: { 1: true } };
+  };
+  handler.connector = { request: async () => ({ success: true, result: [] }) };
+
+  const device = createDevice({
+    device_type: 'pet-feeder',
+    features: [
+      {
+        external_id: 'ext:tuya:device:dev1:manual_feed',
+        category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+        type: DEVICE_FEATURE_TYPES.BUTTON.PUSH,
+      },
+    ],
+    params: [
+      { name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'dev1' },
+      { name: DEVICE_PARAM_NAME.IP_ADDRESS, value: '192.168.1.199' },
+      { name: DEVICE_PARAM_NAME.LOCAL_KEY, value: 'lk' },
+      { name: DEVICE_PARAM_NAME.PROTOCOL_VERSION, value: '3.4' },
+    ],
+  });
+
+  // First cycle: one local read is still attempted, to capture the DPS
+  // snapshot that documents the model-specific indexes we are missing.
+  await handler.poll(device);
+  assert.equal(localReads, 1);
+  // Once captured, the device is polled over the cloud only: no more LAN
+  // session churn every cycle.
+  await handler.poll(device);
+  await handler.poll(device);
+  assert.equal(localReads, 1);
+});

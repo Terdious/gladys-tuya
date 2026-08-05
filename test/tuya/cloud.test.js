@@ -123,6 +123,44 @@ test('mapConnectionError maps the known Tuya error codes', () => {
   assert.equal(mapConnectionError(new Error('boom')), null);
 });
 
+test('mapConnectionError explains an expired IoT Core trial (issue #36)', () => {
+  const byCode = mapConnectionError({
+    code: 28841002,
+    message: 'IoT Core service subscription has expired.',
+  });
+  assert.equal(byCode.key, 'integration.tuya.setup.errorSubscriptionExpired');
+  assert.equal(byCode.disableAutoReconnect, true);
+  // The raw Tuya message says what broke but not what to do: the mapped
+  // message must carry the (free) renewal path, in both languages.
+  assert.match(byCode.message.en, /IoT Core/);
+  assert.match(byCode.message.en, /iot\.tuya\.com/);
+  assert.match(byCode.message.fr, /Prolongez-le gratuitement/);
+  // Recognised from the message alone too (code missing on some SDK errors).
+  assert.equal(
+    mapConnectionError(new Error('IoT Core service subscription has expired.')).key,
+    'integration.tuya.setup.errorSubscriptionExpired',
+  );
+});
+
+test('every mapped connection error carries a readable bilingual message', () => {
+  // An external integration cannot resolve a core i18n key: without a message
+  // the Configuration screen would show a raw "integration.tuya.setup.errorX".
+  const errors = [
+    { code: '2009', message: 'x' },
+    new Error('GET_TOKEN_FAILED 1004, sign invalid'),
+    { code: 28841107, message: 'this data center is suspended' },
+    { code: 28841002, message: 'IoT Core service subscription has expired.' },
+    { code: 'TUYA_APP_ACCOUNT_UID_MISSING', message: '' },
+  ];
+  errors.forEach((error) => {
+    const mapped = mapConnectionError(error);
+    assert.ok(mapped.message, `no message for ${error.code || error.message}`);
+    assert.ok(mapped.message.en.length > 0);
+    assert.ok(mapped.message.fr.length > 0);
+    assert.ok(!mapped.message.en.startsWith('integration.tuya'));
+  });
+});
+
 // --- loadDevices -------------------------------------------------------------
 
 test('loadDevices returns the list and follows pagination (has_more)', async () => {

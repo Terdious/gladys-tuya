@@ -26,6 +26,7 @@ export async function disconnect(options = {}) {
   this.connector = null;
   this.status = STATUS.NOT_INITIALIZED;
   this.lastError = null;
+  this.lastErrorMessage = null;
   // Stop the real-time cloud events listener (issue #10).
   if (typeof this.stopPulsar === 'function') {
     this.stopPulsar();

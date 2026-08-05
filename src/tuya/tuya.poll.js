@@ -10,7 +10,11 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { readValues } from './device/tuya.deviceMapping.js';
-import { processMediaCodes, extractMediaValuesFromDps } from './media/tuya.media.js';
+import {
+  processMediaCodes,
+  extractMediaValuesFromDps,
+  MEDIA_CODES_BY_DPS,
+} from './media/tuya.media.js';
 import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
@@ -480,6 +484,75 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
  * @example
  * const result = emitLocalDpsStates(handler, device, { 1: true }, pending);
  */
+// A media DP carries a base64 payload of several KB: never log it whole.
+const MAX_DPS_VALUE_LOG_LENGTH = 48;
+
+const formatDpsValueForLog = (value) => {
+  if (typeof value === 'string') {
+    return value.length > MAX_DPS_VALUE_LOG_LENGTH
+      ? `"${value.slice(0, MAX_DPS_VALUE_LOG_LENGTH)}…"(${value.length} chars)`
+      : `"${value}"`;
+  }
+  return String(value);
+};
+
+/**
+ * @description Return the local DPS index of every feature of a device, keyed
+ * by DPS index (as a string) -> Tuya code.
+ * @param {object} device - The Gladys device.
+ * @returns {Map} The resolved DPS indexes.
+ * @example
+ * const mapped = getMappedLocalDps(device);
+ */
+const getMappedLocalDps = (device) => {
+  const mapped = new Map();
+  (Array.isArray(device.features) ? device.features : []).forEach((feature) => {
+    const code = getFeatureCode(feature);
+    const dpsKey = code ? getLocalDpsFromCode(code, device) : null;
+    if (dpsKey !== null && dpsKey !== undefined) {
+      mapped.set(String(dpsKey), code);
+    }
+  });
+  return mapped;
+};
+
+/**
+ * @description Log the raw DPS map returned by a local read, annotated with the
+ * Tuya code each DPS is mapped to (or UNMAPPED). This is how a device type
+ * gets its LAN mapping: the indexes are model-specific and only the device can
+ * tell them. Logged once per device and re-logged whenever the DPS key set
+ * changes, so it never floods a poll loop.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device.
+ * @param {string} topic - The Tuya device id.
+ * @param {object} dps - The raw DPS map from the local read.
+ * @returns {void}
+ * @example
+ * logLocalDpsSnapshot(handler, device, 'bf15...', { 1: true, 3: 2 });
+ */
+export const logLocalDpsSnapshot = (self, device, topic, dps) => {
+  if (!dps || typeof dps !== 'object') {
+    return;
+  }
+  const keys = Object.keys(dps);
+  if (keys.length === 0) {
+    return;
+  }
+  self.loggedLocalDpsSignature = self.loggedLocalDpsSignature || {};
+  const signature = keys.slice().sort().join(',');
+  if (self.loggedLocalDpsSignature[topic] === signature) {
+    return;
+  }
+  self.loggedLocalDpsSignature[topic] = signature;
+
+  const mapped = getMappedLocalDps(device);
+  const described = keys.map((key) => {
+    const code = mapped.get(String(key)) || MEDIA_CODES_BY_DPS[key];
+    return `${key}=${formatDpsValueForLog(dps[key])} (${code || 'UNMAPPED'})`;
+  });
+  logger.info(`[Tuya][poll][local] device=${topic} DPS snapshot: ${described.join(' | ')}`);
+};
+
 export function emitLocalDpsStates(self, device, dps, pending) {
   const deviceFeatures = Array.isArray(device.features) ? device.features : [];
   const pendingCloudFeatures = [];
@@ -631,6 +704,15 @@ export async function poll(device) {
 async function pollDevice(device, topic) {
   const deviceFeatures = Array.isArray(device.features) ? device.features : [];
 
+  // A device with no feature has nothing to publish: polling it would open a
+  // LAN session (and burn a cloud call) every cycle for nothing. This happens
+  // on a device type that is not mapped yet — the user still created it from
+  // the Discovery screen.
+  if (deviceFeatures.length === 0) {
+    logger.debug(`[Tuya][poll] device=${topic} has no feature, nothing to poll`);
+    return;
+  }
+
   const params = device.params || [];
   const ipAddress = getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS);
   const localKey = getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY);
@@ -648,7 +730,26 @@ async function pollDevice(device, topic) {
   // poll frequency.
   const hasLocalCapability = Boolean(ipAddress && localKey && protocolVersion);
   const localModeEnabled = Boolean(this.config && this.config.localMode === true);
-  const useLocal = localModeEnabled && hasLocalCapability;
+  // A device type with no LAN mapping (or none matching its features) can only
+  // be read over the cloud: opening a local session every cycle would time out
+  // for nothing before the existing cloud fallback kicks in. One local read is
+  // still attempted (until the DPS snapshot below is captured) because that
+  // snapshot is the only way to learn the model-specific DPS indexes such a
+  // device type is missing.
+  const hasMappableLocalDps = deviceFeatures.some((feature) => {
+    const featureCode = getFeatureCode(feature);
+    return featureCode ? getLocalDpsFromCode(featureCode, device) !== null : false;
+  });
+  const localSnapshotCaptured = Boolean(
+    this.loggedLocalDpsSignature && this.loggedLocalDpsSignature[topic],
+  );
+  const skipLocalMapping = !hasMappableLocalDps && localSnapshotCaptured;
+  const useLocal = localModeEnabled && hasLocalCapability && !skipLocalMapping;
+  if (localModeEnabled && hasLocalCapability && skipLocalMapping) {
+    logger.debug(
+      `[Tuya][poll] device=${topic} has no local DPS mapping for its features -> cloud only`,
+    );
+  }
   const requestedMode = localModeEnabled ? 'local' : 'cloud';
   logger.debug(
     `[Tuya][poll] device=${topic} requested=${requestedMode} has_local=${useLocal} local_mode=${localModeEnabled} protocol=${protocolVersion || 'none'} ip=${ipAddress || 'none'}`,
@@ -721,6 +822,10 @@ async function pollDevice(device, topic) {
       if (dps && typeof dps === 'object') {
         // Local read succeeded: clear any accumulated failures / cooldown.
         recordLocalSuccess(this.localCircuit, topic);
+        // Trace what the device really exposes on the LAN: this is the only
+        // source of truth for the (model-specific) DPS indexes of a device type
+        // whose LAN mapping is still incomplete.
+        logLocalDpsSnapshot(this, device, topic, dps);
         const localResultStates = emitLocalDpsStates(this, device, dps, pending);
         localHandled = localResultStates.localHandled;
         localChanged = localResultStates.localChanged;

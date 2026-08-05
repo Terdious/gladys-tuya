@@ -49,18 +49,30 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // index.js passes the value it detects from gladys.getStatus() so an older
     // core gets the downgraded mapping below instead of a rejected discovery.
     coreSupportsFirstClassTypes = true,
+    // Optional collector filled with what happened to each code, so the caller
+    // can log a per-device discovery summary (mapped / ignored / unmanaged).
+    // This is what makes an unsupported device reportable by a user: the
+    // per-code warning below is deduplicated for the whole process lifetime.
+    report,
   } = options;
+  const collect = (bucket, value) => {
+    if (report && Array.isArray(report[bucket])) {
+      report[bucket].push(value);
+    }
+  };
 
   const codeLower = normalizeCode(code);
   const ignoredCodes = Array.isArray(ignoredCloudCodes)
     ? ignoredCloudCodes
     : getIgnoredCloudCodes(deviceType, productId);
   if (codeLower && ignoredCodes.includes(codeLower)) {
+    collect('ignored', codeLower);
     return undefined;
   }
 
   const mappingEntry = getFeatureMapping(code, deviceType, productId);
   if (!mappingEntry) {
+    collect('unmanaged', codeLower || String(code));
     if (!warnedUnmanagedCodes.has(codeLower)) {
       warnedUnmanagedCodes.add(codeLower);
       logger.warn(`Tuya function with "${code}" code is not managed`);
@@ -91,6 +103,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
       featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
       AC_FIRST_CLASS_TYPES.includes(featuresCategoryAndType.type)
     ) {
+      collect('ignored', `${codeLower} (needs Gladys >= 4.84.2)`);
       return undefined;
     }
   }
@@ -187,5 +200,6 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     feature.supported_options = downgradeSupportedOptions;
   }
 
+  collect('mapped', `${codeLower}=${feature.category}/${feature.type}`);
   return feature;
 }
