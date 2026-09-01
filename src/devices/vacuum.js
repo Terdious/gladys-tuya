@@ -88,8 +88,8 @@
 //     never appears in a full local `status()` snapshot in either state —
 //     it is write-only, so Gladys cannot read its own toggle back; use the
 //     "État" (robot_state) feature to see whether a cycle is actually
-//     running. Its cloud code (`power_go`) was confirmed via the
-//     `debug_device_status` action against the real robot, not guessed.
+//     running. Its cloud code (`power_go`) was confirmed against the real
+//     robot's Tuya cloud specification, not guessed.
 //   Both `battery` and the two MAINTENANCE.LIFE_REMAINING features declare
 //   `unit: DEVICE_FEATURE_UNITS.PERCENT` (all three are 0-100 percentages).
 //   Every feature except the two consumables (main_brush_time/
@@ -101,11 +101,11 @@
 //   the Gladys core default, so the choice reads as deliberate here rather
 //   than an accidental omission.
 //
-// The cloud code <-> DPS mapping below is the REAL one, read via the
-// "Debug device status" action (`debug_device_status`) against the actual
-// robot, with every value confirmed one at a time by toggling the matching
-// setting in the Smart Life app and diffing DPS snapshots. The rest of the
-// DPS this product exposes, deliberately NOT wired into a Gladys feature:
+// The cloud code <-> DPS mapping below is the REAL one, read from the
+// actual robot's Tuya cloud specification and local DPS, with every value
+// confirmed one at a time by toggling the matching setting in the Smart
+// Life app and diffing DPS snapshots. The rest of the DPS this product
+// exposes, deliberately NOT wired into a Gladys feature:
 //   - clean_switch=101 (its real purpose is now understood — NOT the start
 //     control it was first assumed to be). Tried as BUTTON/PUSH (writing
 //     the plain `1` Gladys' own push control sends, unchanged, straight to
@@ -150,9 +150,10 @@
 //     (`{data:{autoAreaValue:[{id,name,tag,vertexs},...],mapId,value:[...
 //     forbidden zones]}}` — room `name` is Tuya-internal-encoded, not the
 //     human label typed in the app) or a save-config ack
-//     (`{data:{code,operate:"save"}}`). Useful for investigation via the
-//     debug action's base64-JSON decoder, not for the cloud/local mapping
-//     tables (no stable per-DPS shape to map to a Gladys feature).
+//     (`{data:{code,operate:"save"}}`). Their string payloads are
+//     base64-encoded JSON, useful for investigation but not for the
+//     cloud/local mapping tables (no stable per-DPS shape to map to a
+//     Gladys feature).
 //   - cmd_comm=124, request_data=125, comm_flag=126, message_report=128,
 //     sn=130, uuid=131, voice_id=133, voice_link=134 (not exercised yet)
 //   - mop_installed=138, only_mop_mode=141 (not exercised yet)
