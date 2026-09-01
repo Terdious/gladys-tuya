@@ -6,6 +6,7 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 import { TuyaHandler } from '../../src/tuya/handler.js';
 import { API, DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { CLOUD_STRATEGY } from '../../src/tuya/cloud/tuya.cloudStrategy.js';
+import { describeDpsSnapshot } from '../../src/tuya/tuya.poll.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 
 function createDevice(overrides = {}) {
@@ -57,6 +58,67 @@ test('poll reads the legacy status endpoint and publishes the transformed states
   assert.deepEqual(gladys.published, [
     { featureExternalId: 'ext:tuya:device:dev1:switch', state: 1 },
     { featureExternalId: 'ext:tuya:device:dev1:cur_power', state: 25.3 },
+  ]);
+});
+
+test('poll publishes a TEXT/SELECT feature as { text } (bare string is rejected by the core)', async () => {
+  const { gladys, handler } = createHandler();
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [{ code: 'fan_mode', value: 'strong' }],
+    }),
+  };
+
+  await handler.poll(
+    createDevice({
+      features: [
+        {
+          external_id: 'ext:tuya:device:dev1:fan_mode',
+          category: DEVICE_FEATURE_CATEGORIES.TEXT,
+          type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
+        },
+      ],
+    }),
+  );
+
+  assert.deepEqual(gladys.published, [
+    { featureExternalId: 'ext:tuya:device:dev1:fan_mode', state: { text: 'strong' } },
+  ]);
+});
+
+test('poll publishes VACUUM_CLEANER.DOCK and BATTERY.INTEGER (regression: both had no reader, so getFeatureReader skipped them and they never polled)', async () => {
+  const { gladys, handler } = createHandler();
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'charge_switch', value: true },
+        { code: 'battery', value: 87 },
+      ],
+    }),
+  };
+
+  await handler.poll(
+    createDevice({
+      features: [
+        {
+          external_id: 'ext:tuya:device:dev1:charge_switch',
+          category: DEVICE_FEATURE_CATEGORIES.VACUUM_CLEANER,
+          type: DEVICE_FEATURE_TYPES.VACUUM_CLEANER.DOCK,
+        },
+        {
+          external_id: 'ext:tuya:device:dev1:battery',
+          category: DEVICE_FEATURE_CATEGORIES.BATTERY,
+          type: DEVICE_FEATURE_TYPES.BATTERY.INTEGER,
+        },
+      ],
+    }),
+  );
+
+  assert.deepEqual(gladys.published, [
+    { featureExternalId: 'ext:tuya:device:dev1:charge_switch', state: 1 },
+    { featureExternalId: 'ext:tuya:device:dev1:battery', state: 87 },
   ]);
 });
 
@@ -243,4 +305,10 @@ test('poll does not open a LAN session for a device whose features have no local
   await handler.poll(device);
   await handler.poll(device);
   assert.equal(localReads, 1);
+});
+
+test('describeDpsSnapshot annotates each DPS with its mapped code, or UNMAPPED', () => {
+  const device = createDevice();
+  const described = describeDpsSnapshot(device, { 1: true, 99: 'raw value' });
+  assert.deepEqual(described, ['1=true (switch)', '99="raw value" (UNMAPPED)']);
 });

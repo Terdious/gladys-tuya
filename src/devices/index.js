@@ -21,6 +21,7 @@ import { pilotThermostat } from './pilotThermostat.js';
 import { petFeeder } from './petFeeder.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
+import { vacuum } from './vacuum.js';
 
 export { globalCloudMapping, globalLocalMapping } from './global.js';
 
@@ -35,4 +36,5 @@ export const DEVICE_TYPE_DEFINITIONS = [
   petFeeder,
   smartSocket,
   smartMeter,
+  vacuum,
 ];

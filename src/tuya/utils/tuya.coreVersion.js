@@ -13,6 +13,14 @@
 // fan-speed / swing feature types.
 export const FIRST_CLASS_TYPES_MIN_CORE_VERSION = '4.84.2';
 
+// The core version that first exposes the TEXT/SELECT feature type (a
+// dynamic select among string values declared per-device through
+// supported_options — Gladys core commit e390ffdf / PR #2869, first released
+// in 4.86.0; needs SDK >= 0.12.0 client-side for the DEVICE_FEATURE_TYPES.TEXT.SELECT
+// constant). Same rejection risk as the DOORBELL/AC types above, gated
+// separately since it landed in a later core release.
+export const TEXT_SELECT_MIN_CORE_VERSION = '4.86.0';
+
 /**
  * @description Parse a Gladys version string into { major, minor, patch }.
  * Tolerates a leading `v` and any pre-release / build suffix (`4.84.2-beta`).
@@ -72,3 +80,14 @@ export const compareVersions = (a, b) => {
  */
 export const coreSupportsFirstClassFeatureTypes = (gladysVersion) =>
   compareVersions(gladysVersion, FIRST_CLASS_TYPES_MIN_CORE_VERSION) >= 0;
+
+/**
+ * @description Whether the given Gladys version accepts the TEXT/SELECT
+ * dynamic-select feature type (core >= 4.86.0).
+ * @param {string} gladysVersion - The running core version.
+ * @returns {boolean} True when a text/select feature can be published safely.
+ * @example
+ * coreSupportsTextSelect('4.86.0'); // true
+ */
+export const coreSupportsTextSelect = (gladysVersion) =>
+  compareVersions(gladysVersion, TEXT_SELECT_MIN_CORE_VERSION) >= 0;

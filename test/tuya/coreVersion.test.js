@@ -6,6 +6,8 @@ import {
   compareVersions,
   coreSupportsFirstClassFeatureTypes,
   FIRST_CLASS_TYPES_MIN_CORE_VERSION,
+  coreSupportsTextSelect,
+  TEXT_SELECT_MIN_CORE_VERSION,
 } from '../../src/tuya/utils/tuya.coreVersion.js';
 
 test('parseVersion tolerates a leading v and a suffix', () => {
@@ -36,4 +38,16 @@ test('coreSupportsFirstClassFeatureTypes gates on the 4.84.2 threshold', () => {
   // Unknown / unreadable version -> treated as unsupported (safe).
   assert.equal(coreSupportsFirstClassFeatureTypes(undefined), false);
   assert.equal(coreSupportsFirstClassFeatureTypes(null), false);
+});
+
+test('coreSupportsTextSelect gates on the 4.86.0 threshold', () => {
+  assert.equal(TEXT_SELECT_MIN_CORE_VERSION, '4.86.0');
+  assert.equal(coreSupportsTextSelect('4.86.0'), true);
+  assert.equal(coreSupportsTextSelect('4.86.1'), true);
+  assert.equal(coreSupportsTextSelect('5.0.0'), true);
+  assert.equal(coreSupportsTextSelect('4.85.9'), false);
+  // A core new enough for the doorbell/AC types is not necessarily new
+  // enough for TEXT/SELECT: the two thresholds are independent.
+  assert.equal(coreSupportsTextSelect('4.84.2'), false);
+  assert.equal(coreSupportsTextSelect(undefined), false);
 });

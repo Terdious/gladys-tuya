@@ -11,11 +11,12 @@ Pilotez vos appareils Tuya / Smart Life depuis Gladys, via le **cloud** et, quan
 - **Caméras** (dont LSC) : mode privé, détection de mouvement, sirène, suivi de mouvement, filtre humain, enregistrement, retournement d'image, et un capteur de mouvement utilisable dans vos scènes.
 - **Sonnettes vidéo** : sonnerie (fonctionnalité sonnette dédiée), photo du visiteur, détection de mouvement, enregistrement, voyant d'état.
 - **Distributeurs de croquettes** : distribution à la demande, dernière quantité distribuée, distribution lente, batterie.
+- **Aspirateurs robots** (Honiture Q6 Pro) : démarrer/arrêter, pause, retour à la base, état de nettoyage, batterie, puissance d'aspiration, niveau d'eau, boost tapis, mode personnalisé (pièce), lavage en Y, fréquence de collecte des poussières, durée de vie restante des brosses principale/latérale.
 - **Interrupteurs, lumières et volets** via les correspondances génériques.
 
 > Les caméras et sonnettes exposent leurs photos, pas un flux vidéo en direct : Tuya ne publie aucun point d'accès RTSP/ONVIF local stable.
 >
-> La sonnerie des sonnettes et la ventilation / les oscillations des climatiseurs nécessitent **Gladys 4.84.2 ou plus récent**. Sur un Gladys plus ancien, l'intégration continue de fonctionner, sans ces fonctionnalités.
+> La sonnerie des sonnettes et la ventilation / les oscillations des climatiseurs nécessitent **Gladys 4.84.2 ou plus récent**. La puissance d'aspiration / le niveau d'eau / la fréquence de collecte des poussières de l'aspirateur nécessitent **Gladys 4.86.0 ou plus récent**. Sur un Gladys plus ancien, l'intégration continue de fonctionner, sans ces fonctionnalités.
 
 Chaque appareil affiche un macaron **Local** ou **Cloud** pour savoir comment il communique.
 

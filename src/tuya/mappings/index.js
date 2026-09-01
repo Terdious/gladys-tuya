@@ -20,6 +20,7 @@ export const DEVICE_TYPES = {
   PILOT_THERMOSTAT: 'pilot-thermostat',
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',
+  VACUUM: 'vacuum',
   UNKNOWN: 'unknown',
 };
 
