@@ -11,11 +11,12 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 - **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes.
 - **Video doorbells**: ring (a dedicated doorbell feature), snapshot of the visitor, motion detection, recording, status LED.
 - **Pet feeders**: feed on demand, last amount fed, slow feed, battery.
+- **Robot vacuums** (Honiture Q6 Pro): start/stop, pause, dock, cleaning state, battery, suction power, water level, carpet boost, custom (room) mode, Y-mop wash, dust-collection frequency, main/side brush remaining life.
 - **Switches, lights and covers** through the generic mappings.
 
 > Cameras and doorbells expose their snapshots, not a live video stream: Tuya publishes no stable local RTSP/ONVIF endpoint.
 >
-> The doorbell ring and the air-conditioner fan speed / swings need **Gladys 4.84.2 or later**. On an older Gladys the integration keeps working, without those features.
+> The doorbell ring and the air-conditioner fan speed / swings need **Gladys 4.84.2 or later**. The vacuum's suction power / water level / dust-collection frequency need **Gladys 4.86.0 or later**. On an older Gladys the integration keeps working, without those features.
 
 Every device shows a **Local** or **Cloud** badge so you always know how it communicates.
 

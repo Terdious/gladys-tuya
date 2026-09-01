@@ -49,6 +49,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // index.js passes the value it detects from gladys.getStatus() so an older
     // core gets the downgraded mapping below instead of a rejected discovery.
     coreSupportsFirstClassTypes = true,
+    // Same idea, for the TEXT/SELECT dynamic-select type (core >= 4.86.0): a
+    // feature mapped to it is skipped entirely on an older core instead of
+    // rejecting the whole discovery (there is no older-core equivalent to
+    // downgrade to, unlike the doorbell/AC types above).
+    coreSupportsTextSelect = true,
     // Optional collector filled with what happened to each code, so the caller
     // can log a per-device discovery summary (mapped / ignored / unmanaged).
     // This is what makes an unsupported device reportable by a user: the
@@ -81,9 +86,17 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     }
     return undefined;
   }
-  // tuyaEnum is mapping-only metadata (per-variant mode vocabulary consumed by
-  // the read/write pipeline); it must not leak onto the persisted feature.
-  const { tuyaEnum: _tuyaEnum, ...featuresCategoryAndType } = mappingEntry;
+  // tuyaEnum/selectOptions/fullLifeSeconds are mapping-only metadata
+  // (per-variant mode vocabulary, TEXT/SELECT option list, and the
+  // MAINTENANCE.LIFE_REMAINING full-life reference — all consumed by the
+  // read/write pipeline, not the feature itself); they must not leak onto
+  // the persisted feature.
+  const {
+    tuyaEnum: _tuyaEnum,
+    selectOptions: _selectOptions,
+    fullLifeSeconds: _fullLifeSeconds,
+    ...featuresCategoryAndType
+  } = mappingEntry;
 
   // Graceful degradation for a Gladys core older than 4.84.2, which knows
   // neither the DOORBELL category nor the AC fan-speed / swing types. The core
@@ -106,6 +119,17 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
       collect('ignored', `${codeLower} (needs Gladys >= 4.84.2)`);
       return undefined;
     }
+  }
+  // Same rejection risk for TEXT/SELECT (core >= 4.86.0): there is no older
+  // mapping to downgrade to (unlike doorbell/AC), so the feature is skipped
+  // outright rather than published unsupported.
+  if (
+    !coreSupportsTextSelect &&
+    featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
+    featuresCategoryAndType.type === DEVICE_FEATURE_TYPES.TEXT.SELECT
+  ) {
+    collect('ignored', `${codeLower} (needs Gladys >= 4.86.0)`);
+    return undefined;
   }
 
   let valuesObject = {};
@@ -193,6 +217,21 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     if (acSupportedOptions) {
       feature.supported_options = acSupportedOptions;
     }
+  }
+  if (
+    feature.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
+    feature.type === DEVICE_FEATURE_TYPES.TEXT.SELECT &&
+    Array.isArray(mappingEntry.selectOptions)
+  ) {
+    // TEXT/SELECT has no fixed vocabulary of its own (unlike PILOT_WIRE_MODE
+    // or the AC enums above): the mapping's selectOptions ARE the complete,
+    // per-device option list — Tuya's raw string values, with the labels the
+    // device-type mapping curated for them.
+    feature.supported_options = mappingEntry.selectOptions.map((option, index) => ({
+      value: option.value,
+      label: option.label,
+      sort_order: index,
+    }));
   }
   // A doorbell downgraded to a BUTTON (old core) carries its single "Ring"
   // option so the scene selector stays clean.

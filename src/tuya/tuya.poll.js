@@ -7,7 +7,7 @@
 //   handler (the core read it from its stateManager), with the device
 //   feature `last_value` / `last_value_changed` sent by Gladys as fallback.
 
-import { createLogger } from '@gladysassistant/integration-sdk';
+import { createLogger, DEVICE_FEATURE_CATEGORIES } from '@gladysassistant/integration-sdk';
 
 import { readValues } from './device/tuya.deviceMapping.js';
 import {
@@ -173,8 +173,17 @@ const emitFeatureState = (
       lastValue: transformedValue,
       lastValueChanged: new Date(),
     });
+    // The SDK's publishState only infers `state` (numeric) unless the value
+    // is explicitly wrapped as `{ text }`: a TEXT-category feature (e.g.
+    // TEXT/SELECT's raw device string, no int enum — see
+    // src/devices/vacuum.js) is rejected by the core as "must have a numeric
+    // state or a string text" if sent as a bare string.
+    const publishValue =
+      deviceFeature.category === DEVICE_FEATURE_CATEGORIES.TEXT
+        ? { text: transformedValue }
+        : transformedValue;
     pending.push(
-      self.gladys.publishState(deviceFeature.external_id, transformedValue).catch((e) => {
+      self.gladys.publishState(deviceFeature.external_id, publishValue).catch((e) => {
         logger.warn(`[Tuya][poll] failed to publish state for ${deviceFeature.external_id}`, e);
       }),
     );
@@ -517,11 +526,32 @@ const getMappedLocalDps = (device) => {
 };
 
 /**
- * @description Log the raw DPS map returned by a local read, annotated with the
+ * @description Describe a raw DPS map, one entry per key, annotated with the
  * Tuya code each DPS is mapped to (or UNMAPPED). This is how a device type
- * gets its LAN mapping: the indexes are model-specific and only the device can
- * tell them. Logged once per device and re-logged whenever the DPS key set
- * changes, so it never floods a poll loop.
+ * gets its LAN mapping: the indexes are model-specific and only the device
+ * can tell them. Shared by the poll-time snapshot log and the on-demand
+ * `debug_device_status` action.
+ * @param {object} device - The Gladys device.
+ * @param {object} dps - The raw DPS map from a local read.
+ * @returns {Array<string>} One "key=value (code|UNMAPPED)" entry per DPS key.
+ * @example
+ * describeDpsSnapshot(device, { 1: true, 3: 2 });
+ */
+export const describeDpsSnapshot = (device, dps) => {
+  if (!dps || typeof dps !== 'object') {
+    return [];
+  }
+  const mapped = getMappedLocalDps(device);
+  return Object.keys(dps).map((key) => {
+    const code = mapped.get(String(key)) || MEDIA_CODES_BY_DPS[key];
+    return `${key}=${formatDpsValueForLog(dps[key])} (${code || 'UNMAPPED'})`;
+  });
+};
+
+/**
+ * @description Log the raw DPS map returned by a local read, annotated with the
+ * Tuya code each DPS is mapped to (or UNMAPPED). Logged once per device and
+ * re-logged whenever the DPS key set changes, so it never floods a poll loop.
  * @param {object} self - The TuyaHandler instance.
  * @param {object} device - The Gladys device.
  * @param {string} topic - The Tuya device id.
@@ -545,11 +575,7 @@ export const logLocalDpsSnapshot = (self, device, topic, dps) => {
   }
   self.loggedLocalDpsSignature[topic] = signature;
 
-  const mapped = getMappedLocalDps(device);
-  const described = keys.map((key) => {
-    const code = mapped.get(String(key)) || MEDIA_CODES_BY_DPS[key];
-    return `${key}=${formatDpsValueForLog(dps[key])} (${code || 'UNMAPPED'})`;
-  });
+  const described = describeDpsSnapshot(device, dps);
   logger.info(`[Tuya][poll][local] device=${topic} DPS snapshot: ${described.join(' | ')}`);
 };
 

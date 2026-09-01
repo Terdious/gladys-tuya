@@ -19,13 +19,20 @@
 import { GladysIntegration, logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './src/config.js';
 import { TuyaHandler } from './src/tuya/handler.js';
-import { STATUS } from './src/tuya/constants.js';
+import { STATUS, DEVICE_PARAM_NAME } from './src/tuya/constants.js';
 import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
 import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 import { enrichFromCreatedDevices } from './src/tuya/device/tuya.enrichDiscovery.js';
 import { getLastCameraImage } from './src/tuya/media/tuya.media.js';
-import { coreSupportsFirstClassFeatureTypes } from './src/tuya/utils/tuya.coreVersion.js';
+import {
+  coreSupportsFirstClassFeatureTypes,
+  coreSupportsTextSelect,
+} from './src/tuya/utils/tuya.coreVersion.js';
+import { resolveTuyaDeviceRef } from './src/tuya/utils/tuya.resolveDeviceRef.js';
+import { getParamValue } from './src/tuya/utils/tuya.deviceParams.js';
+import { describeDpsSnapshot } from './src/tuya/tuya.poll.js';
+import { tryDecodeBase64Json, truncateForDisplay } from './src/tuya/utils/tuya.decodeDps.js';
 
 const gladys = new GladysIntegration();
 const tuya = new TuyaHandler(gladys);
@@ -40,9 +47,14 @@ let config = normalizeConfig();
 // core upgrade is picked up on the next scan.
 let coreSupportsFirstClassTypes = false;
 
+// Whether the running Gladys core (>= 4.86.0) accepts the TEXT/SELECT dynamic
+// select feature type (e.g. the Honiture Q6 Pro's suction power / water level).
+// Same safe-default/refresh rationale as coreSupportsFirstClassTypes above.
+let coreSupportsTextSelectFlag = false;
+
 /**
- * Refresh the core-capability flag from the running Gladys version. Best-effort:
- * on any failure we keep the safe default (downgraded features), never breaking
+ * Refresh the core-capability flags from the running Gladys version. Best-effort:
+ * on any failure we keep the safe defaults (downgraded features), never breaking
  * discovery on a core that cannot report its version.
  */
 async function refreshCoreCapabilities() {
@@ -50,13 +62,15 @@ async function refreshCoreCapabilities() {
     const status = await gladys.getStatus();
     const version = status && status.gladys_version;
     coreSupportsFirstClassTypes = coreSupportsFirstClassFeatureTypes(version);
+    coreSupportsTextSelectFlag = coreSupportsTextSelect(version);
     logger.debug(
       `Gladys core version ${version || 'unknown'} -> first-class doorbell/AC types ${
         coreSupportsFirstClassTypes ? 'enabled' : 'disabled (downgraded)'
-      }`,
+      }, text/select ${coreSupportsTextSelectFlag ? 'enabled' : 'disabled (skipped)'}`,
     );
   } catch (e) {
     coreSupportsFirstClassTypes = false;
+    coreSupportsTextSelectFlag = false;
     logger.warn(`Unable to read the Gladys core version (using downgraded features): ${e.message}`);
   }
 }
@@ -64,7 +78,10 @@ async function refreshCoreCapabilities() {
 /** Convert the discovered raw Tuya devices to Gladys discovery payloads. */
 function buildDiscoveredDevices(tuyaDevices) {
   return tuyaDevices.map((tuyaDevice) =>
-    convertDevice(gladys, tuyaDevice, { coreSupportsFirstClassTypes }),
+    convertDevice(gladys, tuyaDevice, {
+      coreSupportsFirstClassTypes,
+      coreSupportsTextSelect: coreSupportsTextSelectFlag,
+    }),
   );
 }
 
@@ -234,28 +251,7 @@ gladys.onAction('detect_protocol', async (fields) => {
   }
   logger.info(`onAction detect_protocol <- device=${deviceRef} ip=${ip}`);
 
-  // The local key only comes from the cloud discovery: refresh the cache when
-  // needed (fast, cloud only — no LAN scan here).
-  if (!Array.isArray(tuya.discoveredDevices) || tuya.discoveredDevices.length === 0) {
-    tuya.discoveredDevices = await tuya.discoverDevices();
-  }
-  // Resolve by Tuya id first, then by display name (the name the user actually
-  // sees on the device card — nobody knows the Tuya id by heart).
-  let rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceRef);
-  if (!rawDevice) {
-    const wanted = deviceRef.toLowerCase();
-    const byName = tuya.discoveredDevices.filter(
-      (d) => d && typeof d.name === 'string' && d.name.trim().toLowerCase() === wanted,
-    );
-    if (byName.length > 1) {
-      const ids = byName.map((d) => d.id).join(', ');
-      throw new Error(`Several devices are named "${deviceRef}" — use the Tuya id (${ids})`);
-    }
-    [rawDevice] = byName;
-  }
-  if (!rawDevice) {
-    throw new Error(`Device "${deviceRef}" not found in the Tuya cloud project (name or id)`);
-  }
+  const rawDevice = await resolveTuyaDeviceRef(tuya, deviceRef);
   const deviceId = rawDevice.id;
   if (!rawDevice.local_key) {
     throw new Error(`Device ${deviceId} has no local key (cloud project permissions?)`);
@@ -280,6 +276,155 @@ gladys.onAction('detect_protocol', async (fields) => {
     en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,
     fr: `Protocole ${version} détecté sur ${ip} — appareil mis à jour, mode local prêt.`,
   };
+});
+
+// --- Action: debug dump of cloud codes + local DPS for one device -----------
+// Bootstrapping a new device type (or filling in the DPS an existing one is
+// still missing) needs two things that are otherwise buried in debug logs:
+// the Tuya cloud function/status codes (already fetched by
+// loadDeviceDetails during discovery) and a fresh raw local DPS read,
+// annotated with the Gladys code each DPS already resolves to (or UNMAPPED).
+// This surfaces both in one click, directly under the button, instead of
+// requiring `docker logs`.
+gladys.onAction('debug_device_status', async (fields) => {
+  const deviceRef = String((fields && fields.device) || (fields && fields.device_id) || '').trim();
+  if (!deviceRef) {
+    throw new Error('device is required');
+  }
+  if (discoveryInFlight) {
+    await discoveryInFlight;
+  }
+  if (tuya.status !== STATUS.CONNECTED) {
+    throw new Error('Tuya cloud is not connected yet');
+  }
+  logger.info(`onAction debug_device_status <- device=${deviceRef}`);
+
+  const rawDevice = await resolveTuyaDeviceRef(tuya, deviceRef);
+  // Pull the code list from every source loadDeviceDetails collected, not just
+  // specifications.functions/status: a custom/rebranded product's official
+  // specification often only documents a handful of "headline" codes (e.g. a
+  // vacuum's power/mode/seek), while its properties (shadow) or thing model
+  // cover the rest of the DPS. Each entry carries a dp_id when the API
+  // returns one (the field name varies: dp_id, dpId, abilityId), which is the
+  // direct code<->DPS link we actually need — the DPS numbers alone (Local
+  // DPS below) don't say which code they answer to.
+  const specifications = rawDevice.specifications || {};
+  const functions = Array.isArray(specifications.functions) ? specifications.functions : [];
+  const status = Array.isArray(specifications.status) ? specifications.status : [];
+  const propsPayload = rawDevice.properties;
+  const properties = Array.isArray(propsPayload)
+    ? propsPayload
+    : Array.isArray(propsPayload && propsPayload.properties)
+      ? propsPayload.properties
+      : [];
+  const thingModelServices = Array.isArray(rawDevice.thing_model && rawDevice.thing_model.services)
+    ? rawDevice.thing_model.services
+    : [];
+  const thingModelProperties = thingModelServices.flatMap((service) =>
+    Array.isArray(service && service.properties) ? service.properties : [],
+  );
+
+  const cloudEntriesByCode = new Map();
+  [...functions, ...status, ...properties, ...thingModelProperties].forEach((entry) => {
+    if (!entry || !entry.code) {
+      return;
+    }
+    const existing = cloudEntriesByCode.get(entry.code) || {};
+    const dpId = [existing.dpId, entry.dp_id, entry.dpId, entry.abilityId].find(
+      (value) => value !== undefined && value !== null,
+    );
+    // type/values (a JSON string, e.g. '{"unit":"h","min":0,"max":300}') tell
+    // us whether a counter-looking code (side_brush_time...) is actually a
+    // 0-100 percent already, or a raw elapsed/remaining time needing a
+    // known full-life value to turn into a percent — see the debug action's
+    // "Consumable specs" line below.
+    cloudEntriesByCode.set(entry.code, {
+      code: entry.code,
+      dpId: dpId ?? null,
+      type: existing.type ?? entry.type,
+      values: existing.values ?? entry.values,
+    });
+  });
+  const cloudCodes = [...cloudEntriesByCode.values()].map((entry) =>
+    entry.dpId !== null ? `${entry.code}(dp${entry.dpId})` : entry.code,
+  );
+
+  const lines = [
+    `Tuya id: ${rawDevice.id}`,
+    `Cloud codes: ${
+      cloudCodes.length > 0 ? cloudCodes.join(', ') : 'none returned by the cloud specification'
+    }`,
+  ];
+
+  // Targeted spec dump for consumable/wear-part codes: is the value already
+  // a 0-100 percent, or a raw counter that needs a known full-life reference
+  // to convert? (see MAINTENANCE.LIFE_REMAINING in tuya.deviceMapping.js).
+  const CONSUMABLE_CODES = [
+    'side_brush_time',
+    'main_brush_time',
+    'filter_time',
+    'dust_collection_num',
+  ];
+  const consumableSpecs = CONSUMABLE_CODES.filter((code) => cloudEntriesByCode.has(code)).map(
+    (code) => {
+      const entry = cloudEntriesByCode.get(code);
+      return `${code}: type=${entry.type || 'unknown'} values=${entry.values || '{}'}`;
+    },
+  );
+  if (consumableSpecs.length > 0) {
+    lines.push(`Consumable specs: ${consumableSpecs.join(' | ')}`);
+  }
+
+  // Same idea for codes whose meaning depends on cloud-side metadata this
+  // debug action doesn't otherwise print: an Enum's `range` (every possible
+  // robot_state string) or a Bitmap's `label` array (what each bit of
+  // robot_fault means) live only in this type/values JSON.
+  const EXTRA_SPEC_CODES = ['robot_state', 'robot_fault'];
+  const extraSpecs = EXTRA_SPEC_CODES.filter((code) => cloudEntriesByCode.has(code)).map((code) => {
+    const entry = cloudEntriesByCode.get(code);
+    return `${code}: type=${entry.type || 'unknown'} values=${entry.values || '{}'}`;
+  });
+  if (extraSpecs.length > 0) {
+    lines.push(`Extra specs: ${extraSpecs.join(' | ')}`);
+  }
+
+  const hasLocalConfig = Boolean(rawDevice.ip && rawDevice.local_key && rawDevice.protocol_version);
+  if (hasLocalConfig) {
+    try {
+      const { dps } = await tuya.localRead({
+        deviceId: rawDevice.id,
+        ip: rawDevice.ip,
+        localKey: rawDevice.local_key,
+        protocolVersion: rawDevice.protocol_version,
+      });
+      // The Gladys device (if it already exists) gives the DPS-to-code
+      // annotation; a not-yet-created device just shows everything UNMAPPED.
+      const gladysDevice = (gladys.devices || []).find(
+        (d) => getParamValue(d && d.params, DEVICE_PARAM_NAME.DEVICE_ID) === rawDevice.id,
+      ) || { features: [] };
+      const described = describeDpsSnapshot(gladysDevice, dps);
+      lines.push(`Local DPS: ${described.length > 0 ? described.join(' | ') : 'empty read'}`);
+
+      // The plain snapshot above truncates long strings (base64 blobs on
+      // map/path DPS read as noise otherwise); decode+expand those here so a
+      // structured field (e.g. a room id) is actually visible.
+      const decoded = Object.entries(dps)
+        .map(([key, value]) => [key, tryDecodeBase64Json(value)])
+        .filter(([, parsed]) => parsed !== null)
+        .map(([key, parsed]) => `${key}: ${JSON.stringify(truncateForDisplay(parsed))}`);
+      if (decoded.length > 0) {
+        lines.push(`Decoded DPS (base64 JSON): ${decoded.join(' | ')}`);
+      }
+    } catch (e) {
+      lines.push(`Local DPS: read failed (${e.message})`);
+    }
+  } else {
+    lines.push('Local DPS: no IP/local key/protocol yet — run "Detect local protocol" first.');
+  }
+
+  const report = lines.join('\n');
+  logger.info(`[Tuya][debug_device_status]\n${report}`);
+  return { en: report, fr: report };
 });
 
 // --- Device lifecycle: release per-device state ------------------------------

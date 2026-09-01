@@ -55,6 +55,33 @@
       ]
     },
     {
+      "key": "debug_device_status",
+      "label": {
+        "en": "Debug device status (cloud codes + local DPS)",
+        "fr": "Statut de débogage (codes cloud + DPS locaux)"
+      },
+      "description": {
+        "en": "For mapping a new or partially-supported device: shows the Tuya cloud function/status codes and, when the device is reachable on the LAN, a fresh raw read of its DPS values.",
+        "fr": "Pour cartographier un appareil nouveau ou partiellement pris en charge : affiche les codes de fonction/statut du cloud Tuya et, si l'appareil est joignable en LAN, une lecture brute et fraîche de ses valeurs DPS."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "device",
+          "type": "string",
+          "label": {
+            "en": "Device (name or Tuya ID)",
+            "fr": "Appareil (nom ou identifiant Tuya)"
+          },
+          "description": {
+            "en": "The device name as shown in Gladys, or its Tuya ID.",
+            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya."
+          },
+          "required": true
+        }
+      ]
+    },
+    {
       "key": "disconnect",
       "label": {
         "en": "Disconnect from the Tuya cloud",

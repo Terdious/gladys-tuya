@@ -314,6 +314,21 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.VACUUM_CLEANER]: {
+    [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.DOCK]: (valueFromGladys) => {
+      return valueFromGladys === 1;
+    },
+  },
+
+  [DEVICE_FEATURE_CATEGORIES.TEXT]: {
+    // The Gladys value of a TEXT/SELECT feature already IS the raw device
+    // string (last_value_string) — no enum translation, unlike CLEAN_MODE or
+    // PILOT_WIRE_MODE which map to a fixed Gladys integer vocabulary.
+    [DEVICE_FEATURE_TYPES.TEXT.SELECT]: (valueFromGladys) => {
+      return valueFromGladys;
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
     [DEVICE_FEATURE_TYPES.THERMOSTAT.TARGET_TEMPERATURE]: (valueFromGladys, deviceFeature) => {
       return unscaleValue(valueFromGladys, deviceFeature, 0);
@@ -378,6 +393,13 @@ export const writeValues = {
       return parseInt(valueFromGladys, 10);
     },
   },
+  // No BUTTON/PUSH writer here on purpose: unlike a boolean SWITCH, a push
+  // has no fixed raw shape to convert to — petFeeder.js's manual_feed needs
+  // the plain Gladys value (1, an integer DP) sent through unchanged, and
+  // the Honiture Q6 Pro's clean_switch (a genuine boolean DP) relies on the
+  // exact same passthrough (see the file header of src/devices/vacuum.js).
+  // A per-device-type write transform belongs in that mapping entry if a
+  // future product ever needs one, not here.
 };
 
 export const readValues = {
@@ -465,6 +487,56 @@ export const readValues = {
   [DEVICE_FEATURE_CATEGORIES.CHILD_LOCK]: {
     [DEVICE_FEATURE_TYPES.CHILD_LOCK.BINARY]: (valueFromDevice) => {
       return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.VACUUM_CLEANER]: {
+    [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.STATE]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const tuyaEnum = (mappingEntry && mappingEntry.tuyaEnum) || {};
+      return Object.prototype.hasOwnProperty.call(tuyaEnum, valueFromDevice)
+        ? tuyaEnum[valueFromDevice]
+        : null;
+    },
+    // Mirrors writeValues[VACUUM_CLEANER][DOCK] above (Gladys 1/0 <-> Tuya
+    // boolean). Missing here (and BATTERY.INTEGER below) meant those two
+    // features were silently skipped on every poll — getFeatureReader
+    // returns null for a category/type with no reader, so the DPS was read
+    // but never published — found by the "state.state = value" pipeline
+    // (see tuya.poll.js emitFeatureState) simply never running for them.
+    [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.DOCK]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.BATTERY]: {
+    [DEVICE_FEATURE_TYPES.BATTERY.INTEGER]: (valueFromDevice) => {
+      const parsedValue = Number(valueFromDevice);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.TEXT]: {
+    [DEVICE_FEATURE_TYPES.TEXT.SELECT]: (valueFromDevice) => {
+      return valueFromDevice;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.MAINTENANCE]: {
+    // Generic: the raw DPS is elapsed usage in seconds (counting UP from 0
+    // since the part was last replaced/reset), `mappingEntry.fullLifeSeconds`
+    // is the device-type mapping's confirmed full-life reference for THIS
+    // component (there is no cloud spec range/unit to read it from — see the
+    // Honiture Q6 Pro main brush cross-check in src/devices/vacuum.js).
+    // Without a confirmed reference, a mapping must leave this DPS unwired
+    // rather than guess one.
+    [DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING]: (
+      valueFromDevice,
+      deviceFeature,
+      mappingEntry,
+    ) => {
+      const fullLifeSeconds = mappingEntry && mappingEntry.fullLifeSeconds;
+      const elapsedSeconds = Number(valueFromDevice);
+      if (!fullLifeSeconds || !Number.isFinite(elapsedSeconds)) {
+        return null;
+      }
+      const remainingPercent = Math.round(100 - (elapsedSeconds / fullLifeSeconds) * 100);
+      return Math.min(100, Math.max(0, remainingPercent));
     },
   },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
