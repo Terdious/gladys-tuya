@@ -1,7 +1,7 @@
 // Resolve a Configuration-screen "device" action field (Tuya id or Gladys
-// display name) to its raw discovered Tuya device. Shared by every action
+// display name) to its raw discovered Tuya device. Used by every action
 // that lets the user target one device by typing its name or id
-// (`detect_protocol`, `debug_device_status`).
+// (e.g. `detect_protocol`).
 
 /**
  * @description Resolve a device reference (Tuya id or display name) to its

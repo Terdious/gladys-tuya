@@ -193,7 +193,7 @@ test('convertDevice drops fan_mode/water_mode/dust_collection_num on a core olde
   ]);
 });
 
-test('DP 2/102/103/105/106/109/110/119/120/136/137/139/144 resolve locally for the vacuum device type (confirmed via the debug_device_status action)', () => {
+test('DP 2/102/103/105/106/109/110/119/120/136/137/139/144 resolve locally for the vacuum device type (confirmed against the real robot)', () => {
   const device = { device_type: DEVICE_TYPES.VACUUM };
   assert.equal(getLocalDpsFromCode('charge_switch', device), 103);
   assert.equal(getLocalDpsFromCode('robot_state', device), 105);

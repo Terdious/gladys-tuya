@@ -529,8 +529,7 @@ const getMappedLocalDps = (device) => {
  * @description Describe a raw DPS map, one entry per key, annotated with the
  * Tuya code each DPS is mapped to (or UNMAPPED). This is how a device type
  * gets its LAN mapping: the indexes are model-specific and only the device
- * can tell them. Shared by the poll-time snapshot log and the on-demand
- * `debug_device_status` action.
+ * can tell them. Used by the poll-time snapshot log below.
  * @param {object} device - The Gladys device.
  * @param {object} dps - The raw DPS map from a local read.
  * @returns {Array<string>} One "key=value (code|UNMAPPED)" entry per DPS key.
