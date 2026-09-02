@@ -53,7 +53,7 @@ const getPilotWireTuyaEnum = (mappingEntry) =>
 // English fallback labels for pilot-wire supported options: the frontend
 // renders its own localized label from the option value, these only keep the
 // API payload human-readable.
-const PILOT_WIRE_MODE_LABELS = {
+export const PILOT_WIRE_MODE_LABELS = {
   [PILOT_WIRE_MODE.OFF]: 'Off',
   [PILOT_WIRE_MODE.FROST_PROTECTION]: 'Frost Protection',
   [PILOT_WIRE_MODE.ECO]: 'Eco',
@@ -244,7 +244,7 @@ const GLADYS_AC_SWING_VERTICAL_TO_TUYA = {
 // vary a lot (a cold-only unit has no heat, many lack quiet/turbo): the spec
 // enum range is the per-device truth here — there is no curated per-variant
 // vocabulary like the pilot wire, the maps above cover every known alias.
-const AC_SUPPORTED_OPTION_SOURCES = {
+export const AC_SUPPORTED_OPTION_SOURCES = {
   [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: {
     vocabulary: TUYA_AC_MODE_TO_GLADYS,
     labels: {

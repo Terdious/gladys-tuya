@@ -247,6 +247,36 @@
         "fr": "Retour d'état cloud instantané via le Tuya Message Service. Nécessite 'Message Service' activé sur votre projet Tuya IoT."
       },
       "required": false
+    },
+    {
+      "key": "feature_names",
+      "type": "select",
+      "label": {
+        "en": "Feature names",
+        "fr": "Noms des fonctionnalités"
+      },
+      "description": {
+        "en": "Applies to newly discovered devices. This integration's feature names are auto-generated in English by default (repo-wide convention) — translate the ones this integration knows into French, or keep English. A feature not covered by the dictionary keeps its English name either way; you can always rename any feature afterwards in Gladys.",
+        "fr": "S'applique aux appareils nouvellement découverts. Les noms de fonctionnalités générés par cette intégration sont en anglais par défaut (convention du dépôt) — traduisez ceux que l'intégration connaît en français, ou gardez l'anglais. Une fonctionnalité absente du dictionnaire garde son nom anglais dans les deux cas ; vous pouvez toujours renommer une fonctionnalité ensuite dans Gladys."
+      },
+      "required": false,
+      "default": "en",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        }
+      ]
     }
   ]
 }

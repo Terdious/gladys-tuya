@@ -90,12 +90,19 @@ const mergeFeatureValues = (currentValues, nextValues) => {
  * Gladys core (>= 4.84.2) accepts the DOORBELL / AC fan-speed / swing types.
  * @param {boolean} [options.coreSupportsTextSelect] - Whether the running
  * Gladys core (>= 4.86.1) accepts the TEXT/SELECT dynamic-select type.
+ * @param {string} [options.featureNamesLang] - Language of the auto-generated
+ * feature names/option labels (`feature_names` config option): 'en' (default)
+ * or 'fr'.
  * @returns {object} Gladys device.
  * @example
  * convertDevice(gladys, { id: 'tuyaId', name: 'My socket', specifications: {} });
  */
 export function convertDevice(gladys, tuyaDevice, options = {}) {
-  const { coreSupportsFirstClassTypes = true, coreSupportsTextSelect = true } = options;
+  const {
+    coreSupportsFirstClassTypes = true,
+    coreSupportsTextSelect = true,
+    featureNamesLang = 'en',
+  } = options;
   const {
     name,
     product_name: productName,
@@ -274,6 +281,7 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
       productId,
       coreSupportsFirstClassTypes,
       coreSupportsTextSelect,
+      featureNamesLang,
       report,
     }),
   );

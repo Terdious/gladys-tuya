@@ -13,6 +13,7 @@ import {
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
 import { buildFeatureSelector } from '../utils/tuya.selector.js';
 import { buildAcSupportedOptions, buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
+import { translateFeatureName } from '../../i18n/translateFeatureName.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -54,6 +55,15 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // rejecting the whole discovery (there is no older-core equivalent to
     // downgrade to, unlike the doorbell/AC types above).
     coreSupportsTextSelect = true,
+    // Language of the auto-generated `name`/`supported_options[].label`
+    // strings (`feature_names` config option, issue #41): 'en' (default,
+    // matches every mapping's own strings — a no-op lookup) or 'fr'
+    // (translated through src/i18n/featureNames.fr.js, a closed dictionary
+    // that leaves an unknown string untouched). Applied at the very end,
+    // after every source of name/label below (mapping, AC/pilot-wire
+    // vocabulary, doorbell downgrade) has had its say — one choke point
+    // instead of translating each source separately.
+    featureNamesLang = 'en',
     // Optional collector filled with what happened to each code, so the caller
     // can log a per-device discovery summary (mapped / ignored / unmanaged).
     // This is what makes an unsupported device reportable by a user: the
@@ -240,6 +250,17 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   // option so the scene selector stays clean.
   if (downgradeSupportedOptions) {
     feature.supported_options = downgradeSupportedOptions;
+  }
+
+  // Translate last, after every source above has produced its final name/
+  // labels: a single choke point instead of a translation call in each
+  // branch. `en` (the default) short-circuits to the value unchanged.
+  feature.name = translateFeatureName(feature.name, featureNamesLang);
+  if (Array.isArray(feature.supported_options)) {
+    feature.supported_options = feature.supported_options.map((option) => ({
+      ...option,
+      label: translateFeatureName(option.label, featureNamesLang),
+    }));
   }
 
   collect('mapped', `${codeLower}=${feature.category}/${feature.type}`);

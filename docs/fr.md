@@ -107,6 +107,16 @@ Un appareil créé sans fonctionnalité (ou avec une seule) expose des codes Tuy
 
 Dans la configuration de l'intégration, lancez l'action **Diagnostic d'un appareil**, saisissez le nom de l'appareil tel qu'il apparaît dans Gladys, et copiez le résultat dans une issue GitHub. Le rapport liste chaque code remonté par l'appareil, sa valeur et ce que l'intégration en fait. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya : il peut être collé publiquement tel quel.
 
+---
+
+## Noms des fonctionnalités (langue) — optionnel
+
+Les noms de fonctionnalités générés automatiquement par cette intégration (ex. « Dock », « Suction power ») et les labels d'options sont en **anglais** par défaut, conformément à la convention de tous les types d'appareils qu'elle prend en charge — un nom réellement lu sur l'appareil lui-même (rare) reste tel quel quel que soit ce réglage. L'option de configuration **« Feature names »** permet de basculer les appareils nouvellement découverts en **français**, traduits via un petit dictionnaire intégré.
+
+> **S'applique uniquement aux appareils nouvellement découverts.** Changer cette option ne renomme pas les fonctionnalités déjà créées dans Gladys — renommez-les à la main si vous le souhaitez, ou supprimez puis recréez l'appareil depuis l'onglet Découverte pour appliquer la nouvelle langue. Un nom/label que l'intégration ne sait pas encore traduire en français reste en anglais dans les deux cas, jamais deviné.
+
+---
+
 ## Actions utiles
 
 - **Détecter le protocole local (IP manuelle)** : active le mode local pour un appareil que le scan n'a pas trouvé (voir ci-dessus).
