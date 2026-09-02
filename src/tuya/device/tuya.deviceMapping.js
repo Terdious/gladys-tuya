@@ -302,6 +302,13 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.SIREN]: {
+    // Without this, setValue sent the raw Gladys integer (1/0) to a boolean DP.
+    [DEVICE_FEATURE_TYPES.SIREN.BINARY]: (valueFromGladys) => {
+      return valueFromGladys === 1;
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
     [DEVICE_FEATURE_TYPES.SWITCH.BINARY]: (valueFromGladys) => {
       return valueFromGladys === 1;
@@ -537,6 +544,22 @@ export const readValues = {
       }
       const remainingPercent = Math.round(100 - (elapsedSeconds / fullLifeSeconds) * 100);
       return Math.min(100, Math.max(0, remainingPercent));
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.SIREN]: {
+    // Camera sirens (siren_switch) are plain booleans, like SWITCH.BINARY.
+    [DEVICE_FEATURE_TYPES.SIREN.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR]: {
+    // Plain counters (e.g. the pet feeder's last amount fed): the raw value,
+    // scale-aware like every other numeric sensor.
+    [DEVICE_FEATURE_TYPES.SENSOR.INTEGER]: (valueFromDevice, deviceFeature) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
