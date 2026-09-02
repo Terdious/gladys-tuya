@@ -55,15 +55,42 @@ const logCloudReadFailure = (self, topic, label, error) => {
   }
 };
 
+// Categories whose features are NOT read by the poll on purpose: they are
+// fired by the media handler (doorbell ring, motion, snapshot) or are
+// write-only controls (push buttons). A missing reader there is by design.
+export const EVENT_DRIVEN_CATEGORIES = new Set([
+  DEVICE_FEATURE_CATEGORIES.DOORBELL,
+  DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.CAMERA,
+  DEVICE_FEATURE_CATEGORIES.BUTTON,
+]);
+
+// Warned once per process per category/type: a feature with no reader was
+// silently skipped on every poll (this is how the battery of the pet feeder
+// and the dock of the vacuum stayed frozen after creation — see PR #40).
+const warnedMissingReaders = new Set();
+
 const getFeatureReader = (deviceFeature) => {
   if (!deviceFeature || !deviceFeature.category || !deviceFeature.type) {
     return null;
   }
   const categoryReaders = readValues[deviceFeature.category];
-  if (!categoryReaders) {
-    return null;
+  const reader = categoryReaders ? categoryReaders[deviceFeature.type] : null;
+  if (reader) {
+    return reader;
   }
-  return categoryReaders[deviceFeature.type] || null;
+  const key = `${deviceFeature.category}/${deviceFeature.type}`;
+  if (!warnedMissingReaders.has(key)) {
+    warnedMissingReaders.add(key);
+    if (EVENT_DRIVEN_CATEGORIES.has(deviceFeature.category)) {
+      logger.debug(`[Tuya][poll] no reader for ${key} (event-driven feature, not polled)`);
+    } else {
+      logger.warn(
+        `[Tuya][poll] no reader for ${key}: this feature is never updated by the poll (missing readValues entry)`,
+      );
+    }
+  }
+  return null;
 };
 
 // Resolve the (possibly product-variant) cloud-mapping entry of a feature

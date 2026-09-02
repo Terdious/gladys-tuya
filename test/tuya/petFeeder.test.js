@@ -111,3 +111,34 @@ test('setValue sends one portion when the feed button is pushed', async () => {
   await handler.setValue(device, feature, 1);
   assert.deepEqual(commands, [{ code: 'manual_feed', value: 1 }]);
 });
+
+test('poll publishes the feed report and the battery over the cloud (regression: 1.12.0 had no reader for either, so they stayed frozen)', async () => {
+  const fake = createFakeGladys();
+  const handler = new TuyaHandler(fake);
+  const converted = convertDevice(fake, FEEDER_DEVICE);
+  const device = {
+    external_id: converted.external_id,
+    device_type: converted.device_type,
+    features: converted.features,
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'feeder1' }],
+  };
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'feed_report', value: 3 },
+        { code: 'battery_percentage', value: 64 },
+        { code: 'slow_feed', value: false },
+      ],
+    }),
+  };
+
+  await handler.poll(device);
+
+  const byCode = Object.fromEntries(
+    fake.published.map((p) => [p.featureExternalId.split(':').pop(), p.state]),
+  );
+  assert.equal(byCode.feed_report, 3);
+  assert.equal(byCode.battery_percentage, 64);
+  assert.equal(byCode.slow_feed, 0);
+});
