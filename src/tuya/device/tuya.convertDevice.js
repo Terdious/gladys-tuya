@@ -89,7 +89,7 @@ const mergeFeatureValues = (currentValues, nextValues) => {
  * @param {boolean} [options.coreSupportsFirstClassTypes] - Whether the running
  * Gladys core (>= 4.84.2) accepts the DOORBELL / AC fan-speed / swing types.
  * @param {boolean} [options.coreSupportsTextSelect] - Whether the running
- * Gladys core (>= 4.86.0) accepts the TEXT/SELECT dynamic-select type.
+ * Gladys core (>= 4.86.1) accepts the TEXT/SELECT dynamic-select type.
  * @returns {object} Gladys device.
  * @example
  * convertDevice(gladys, { id: 'tuyaId', name: 'My socket', specifications: {} });

@@ -14,10 +14,15 @@ import { convertDevice } from '../../src/tuya/device/tuya.convertDevice.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 import { HONITURE_Q6_PRO_STATE_TUYA_ENUM, VACUUM_CLEANER_STATE } from '../../src/devices/vacuum.js';
 
-// Honiture Q6 Pro cloud specification, as read from the real robot via the
-// "Debug device status" action (only the 13 codes this device type maps are
-// listed here; the real cloud specification exposes many more, unmapped
-// ones — see the comment at the top of src/devices/vacuum.js).
+// Honiture Q6 Pro cloud specification, as read from the real robot (only the
+// 13 codes this device type maps are listed here; the real cloud
+// specification exposes many more, unmapped ones — see the comment at the
+// top of src/devices/vacuum.js). Writable codes are listed under
+// `functions` and read-only ones under `status`, matching how
+// convertDevice.js actually sources `readOnly` (status -> true, functions
+// -> false, functions running after status so it wins on overlap) — a code
+// listed only in `status` would come out read_only regardless of what this
+// device type's mapping intends, silently hiding any write-path bug.
 const HONITURE_Q6_PRO_DEVICE = {
   id: 'bfefc3fd4bc8db1135f8cw',
   name: 'Q6 Pro (robert)',
@@ -26,21 +31,22 @@ const HONITURE_Q6_PRO_DEVICE = {
   ip: '192.168.1.40',
   protocol_version: '3.3',
   specifications: {
-    functions: [{ code: 'charge_switch', type: 'Boolean', values: '{}' }],
-    status: [
+    functions: [
       { code: 'charge_switch', type: 'Boolean', values: '{}' },
-      { code: 'robot_state', type: 'Enum', values: '{"range":["fullcharge"]}' },
-      { code: 'battery', type: 'Integer', values: '{"min":0,"max":100,"unit":"%"}' },
       { code: 'pause_switch', type: 'Boolean', values: '{}' },
       { code: 'auto_boost', type: 'Boolean', values: '{}' },
       { code: 'room_mode_switch', type: 'Boolean', values: '{}' },
       { code: 'fan_mode', type: 'Enum', values: '{"range":["quiet","auto","strong","max"]}' },
       { code: 'water_mode', type: 'Enum', values: '{"range":["low","mid","high"]}' },
-      { code: 'main_brush_time', type: 'Value', values: '{}' },
-      { code: 'side_brush_time', type: 'Value', values: '{}' },
       { code: 'dust_collection_num', type: 'Enum', values: '{"range":["0","1","2","3"]}' },
       { code: 'y_mop', type: 'Boolean', values: '{}' },
       { code: 'power_go', type: 'Boolean', values: '{}' },
+    ],
+    status: [
+      { code: 'robot_state', type: 'Enum', values: '{"range":["fullcharge"]}' },
+      { code: 'battery', type: 'Integer', values: '{"min":0,"max":100,"unit":"%"}' },
+      { code: 'main_brush_time', type: 'Value', values: '{}' },
+      { code: 'side_brush_time', type: 'Value', values: '{}' },
     ],
   },
 };
@@ -73,10 +79,30 @@ test('convertDevice maps the 13 confirmed vacuum features', () => {
   ['pause_switch', 'auto_boost', 'room_mode_switch', 'y_mop', 'power_go'].forEach((code) => {
     assert.equal(byCode[code].category, DEVICE_FEATURE_CATEGORIES.SWITCH);
     assert.equal(byCode[code].type, DEVICE_FEATURE_TYPES.SWITCH.BINARY);
+    // All 5 are writable (listed in `functions` in the fixture above).
+    assert.equal(byCode[code].read_only, false, `${code} should be writable`);
   });
 
-  // power_go (DP 2) is write-only: it never appears in a local status()
-  // snapshot, so Gladys cannot read its own toggle back.
+  // Every writable feature reports feedback by default (regression guard:
+  // convertFeature.js used to force has_feedback = true unconditionally for
+  // any writable feature, AFTER the mapping was spread — silently
+  // overwriting an explicit `has_feedback: false`).
+  [
+    'pause_switch',
+    'auto_boost',
+    'room_mode_switch',
+    'y_mop',
+    'fan_mode',
+    'water_mode',
+    'dust_collection_num',
+  ].forEach((code) => {
+    assert.equal(byCode[code].has_feedback, true, `${code} should have feedback`);
+  });
+  // power_go (DP 2) is the one exception: write-only, it never appears in a
+  // local status() snapshot, so Gladys cannot read its own toggle back. The
+  // mapping's explicit `has_feedback: false` must survive the writable-
+  // feature default above, not get overwritten by it.
+  assert.equal(byCode.power_go.read_only, false);
   assert.equal(byCode.power_go.has_feedback, false);
 
   // Everything except the 2 consumables opts OUT of history (frequent DPS
@@ -149,33 +175,33 @@ test('convertDevice maps the 13 confirmed vacuum features', () => {
   ]);
 });
 
-test('convertDevice names/labels are plain French strings (no per-viewer i18n exists for these)', () => {
+test('convertDevice names/labels are plain English strings (repo convention: auto-generated names are English, only a name read from the device itself is used as-is)', () => {
   const gladys = createFakeGladys();
   const device = convertDevice(gladys, HONITURE_Q6_PRO_DEVICE);
   const byCode = Object.fromEntries(
     device.features.map((f) => [f.external_id.split(':').pop(), f]),
   );
-  assert.equal(byCode.charge_switch.name, 'Retour à la base');
-  assert.equal(byCode.robot_state.name, 'État');
-  assert.equal(byCode.battery.name, 'Batterie');
-  assert.equal(byCode.auto_boost.name, 'Boost tapis');
-  assert.equal(byCode.room_mode_switch.name, 'Mode personnalisé');
-  assert.equal(byCode.fan_mode.name, "Puissance d'aspiration");
-  assert.equal(byCode.fan_mode.supported_options.find((o) => o.value === 'strong').label, 'Fort');
-  assert.equal(byCode.water_mode.name, "Niveau d'eau");
-  assert.equal(byCode.water_mode.supported_options.find((o) => o.value === 'low').label, 'Faible');
-  assert.equal(byCode.main_brush_time.name, 'Brosse principale');
-  assert.equal(byCode.side_brush_time.name, 'Brosse latérale');
-  assert.equal(byCode.dust_collection_num.name, 'Collecte des poussières');
+  assert.equal(byCode.charge_switch.name, 'Dock');
+  assert.equal(byCode.robot_state.name, 'State');
+  assert.equal(byCode.battery.name, 'Battery');
+  assert.equal(byCode.auto_boost.name, 'Carpet boost');
+  assert.equal(byCode.room_mode_switch.name, 'Custom mode');
+  assert.equal(byCode.fan_mode.name, 'Suction power');
+  assert.equal(byCode.fan_mode.supported_options.find((o) => o.value === 'strong').label, 'Strong');
+  assert.equal(byCode.water_mode.name, 'Water level');
+  assert.equal(byCode.water_mode.supported_options.find((o) => o.value === 'low').label, 'Low');
+  assert.equal(byCode.main_brush_time.name, 'Main brush');
+  assert.equal(byCode.side_brush_time.name, 'Side brush');
+  assert.equal(byCode.dust_collection_num.name, 'Dust collection');
   assert.equal(
     byCode.dust_collection_num.supported_options.find((o) => o.value === '2').label,
-    'Après 2 nettoyages',
+    'After 2 cleans',
   );
-  assert.equal(byCode.y_mop.name, 'Lavage en Y');
-  assert.equal(byCode.power_go.name, 'Nettoyage');
+  assert.equal(byCode.y_mop.name, 'Y-mop wash');
+  assert.equal(byCode.power_go.name, 'Cleaning');
 });
 
-test('convertDevice drops fan_mode/water_mode/dust_collection_num on a core older than 4.86.0 (no downgrade path for TEXT/SELECT)', () => {
+test('convertDevice drops fan_mode/water_mode/dust_collection_num on a core older than 4.86.1 (no downgrade path for TEXT/SELECT)', () => {
   const gladys = createFakeGladys();
   const device = convertDevice(gladys, HONITURE_Q6_PRO_DEVICE, { coreSupportsTextSelect: false });
   const codes = device.features.map((f) => f.external_id.split(':').pop()).sort();

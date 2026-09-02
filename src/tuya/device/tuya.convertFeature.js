@@ -49,7 +49,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // index.js passes the value it detects from gladys.getStatus() so an older
     // core gets the downgraded mapping below instead of a rejected discovery.
     coreSupportsFirstClassTypes = true,
-    // Same idea, for the TEXT/SELECT dynamic-select type (core >= 4.86.0): a
+    // Same idea, for the TEXT/SELECT dynamic-select type (core >= 4.86.1): a
     // feature mapped to it is skipped entirely on an older core instead of
     // rejecting the whole discovery (there is no older-core equivalent to
     // downgrade to, unlike the doorbell/AC types above).
@@ -120,7 +120,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
       return undefined;
     }
   }
-  // Same rejection risk for TEXT/SELECT (core >= 4.86.0): there is no older
+  // Same rejection risk for TEXT/SELECT (core >= 4.86.1): there is no older
   // mapping to downgrade to (unlike doorbell/AC), so the feature is skipped
   // outright rather than published unsupported.
   if (
@@ -128,7 +128,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
     featuresCategoryAndType.type === DEVICE_FEATURE_TYPES.TEXT.SELECT
   ) {
-    collect('ignored', `${codeLower} (needs Gladys >= 4.86.0)`);
+    collect('ignored', `${codeLower} (needs Gladys >= 4.86.1)`);
     return undefined;
   }
 
@@ -196,8 +196,10 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     feature.min /= divider;
     feature.max /= divider;
   }
-  // A writable feature reports its state back after a command.
-  if (feature.read_only === false) {
+  // A writable feature reports its state back after a command — unless the
+  // mapping already says otherwise (e.g. a write-only command DP that never
+  // appears in a status read, like the vacuum's power_go).
+  if (feature.read_only === false && featuresCategoryAndType.has_feedback === undefined) {
     feature.has_feedback = true;
   }
   if (

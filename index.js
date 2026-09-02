@@ -44,7 +44,7 @@ let config = normalizeConfig();
 // core upgrade is picked up on the next scan.
 let coreSupportsFirstClassTypes = false;
 
-// Whether the running Gladys core (>= 4.86.0) accepts the TEXT/SELECT dynamic
+// Whether the running Gladys core (>= 4.86.1) accepts the TEXT/SELECT dynamic
 // select feature type (e.g. the Honiture Q6 Pro's suction power / water level).
 // Same safe-default/refresh rationale as coreSupportsFirstClassTypes above.
 let coreSupportsTextSelectFlag = false;

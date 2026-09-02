@@ -28,7 +28,7 @@
 //     read back to `false` again shortly after (robot_state moved to
 //     "tocharge", not because the pause command itself failed or reverted).
 //   - `fan_mode` (DP 109, suction power) and `water_mode` (DP 110, mop water
-//     flow) as TEXT/SELECT features (core >= 4.86.0, PR #2869 upstream — see
+//     flow) as TEXT/SELECT features (core >= 4.86.1, PR #2869 upstream — see
 //     TEXT_SELECT_MIN_CORE_VERSION in tuya.coreVersion.js; skipped outright
 //     on an older core, see tuya.convertFeature.js). TEXT/SELECT was built
 //     exactly for this: "a choice among string values the integration
@@ -41,14 +41,20 @@
 //     publishes exactly and only the values this device supports, so the
 //     Gladys value IS the raw Tuya string directly (no int enum to translate,
 //     see writeValues/readValues[TEXT][SELECT] in tuya.deviceMapping.js).
-//     Names/labels below are plain French strings (this integration has no
-//     per-viewer translation for a feature's name or its supported_options —
-//     both are a plain string fixed once at discovery — and no way to detect
-//     the installing user's language either: a device-type integration is
-//     scoped to its service/container, not to a Gladys user account, so
-//     there is no "current user" to read a language from; see the
-//     account-scoped `onWeatherGet` language param for the one place Gladys
-//     does thread a language through, which does not apply here).
+//     Names/labels below (here and on every other feature in this file) are
+//     plain English strings, matching the repo-wide convention: an
+//     auto-generated name is English (e.g. petFeeder.js's "Feed"/"Last
+//     amount fed", camera.js's "Privacy mode") — only a name actually read
+//     from the device itself is used verbatim. A user who wants a localized
+//     label renames the feature in Gladys, where the name is editable. This
+//     integration has no per-viewer translation for a feature's name or its
+//     supported_options anyway (both are a plain string fixed once at
+//     discovery), and no way to detect the installing user's language
+//     either: a device-type integration is scoped to its service/container,
+//     not to a Gladys user account, so there is no "current user" to read a
+//     language from; see the account-scoped `onWeatherGet` language param
+//     for the one place Gladys does thread a language through, which does
+//     not apply here.
 //   - `main_brush_time` (DP 120) as MAINTENANCE.LIFE_REMAINING (a generic
 //     0-100 percent "remaining life" sensor — "One feature per component,
 //     the feature name identifies the component" per core constants.js).
@@ -87,7 +93,7 @@
 //     pause_switch/auto_boost/etc., but with `has_feedback: false`: DP 2
 //     never appears in a full local `status()` snapshot in either state —
 //     it is write-only, so Gladys cannot read its own toggle back; use the
-//     "État" (robot_state) feature to see whether a cycle is actually
+//     "State" (robot_state) feature to see whether a cycle is actually
 //     running. Its cloud code (`power_go`) was confirmed against the real
 //     robot's Tuya cloud specification, not guessed.
 //   Both `battery` and the two MAINTENANCE.LIFE_REMAINING features declare
@@ -228,13 +234,13 @@ const SIDE_BRUSH_FULL_LIFE_SECONDS = 150 * 3600;
 
 const cloudMapping = {
   charge_switch: {
-    name: 'Retour à la base',
+    name: 'Dock',
     category: DEVICE_FEATURE_CATEGORIES.VACUUM_CLEANER,
     type: DEVICE_FEATURE_TYPES.VACUUM_CLEANER.DOCK,
     keep_history: false,
   },
   robot_state: {
-    name: 'État',
+    name: 'State',
     category: DEVICE_FEATURE_CATEGORIES.VACUUM_CLEANER,
     type: DEVICE_FEATURE_TYPES.VACUUM_CLEANER.STATE,
     read_only: true,
@@ -242,7 +248,7 @@ const cloudMapping = {
     keep_history: false,
   },
   battery: {
-    name: 'Batterie',
+    name: 'Battery',
     category: DEVICE_FEATURE_CATEGORIES.BATTERY,
     type: DEVICE_FEATURE_TYPES.BATTERY.INTEGER,
     read_only: true,
@@ -257,21 +263,21 @@ const cloudMapping = {
     keep_history: false,
   },
   auto_boost: {
-    name: 'Boost tapis',
+    name: 'Carpet boost',
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
     has_feedback: true,
     keep_history: false,
   },
   room_mode_switch: {
-    name: 'Mode personnalisé',
+    name: 'Custom mode',
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
     has_feedback: true,
     keep_history: false,
   },
   fan_mode: {
-    name: "Puissance d'aspiration",
+    name: 'Suction power',
     category: DEVICE_FEATURE_CATEGORIES.TEXT,
     type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
     has_feedback: true,
@@ -280,26 +286,26 @@ const cloudMapping = {
     // value has ever been observed, and an unrecognized raw string is simply
     // not one of these options rather than silently accepted.
     selectOptions: [
-      { value: 'quiet', label: 'Silencieux' },
+      { value: 'quiet', label: 'Quiet' },
       { value: 'auto', label: 'Standard' },
-      { value: 'strong', label: 'Fort' },
+      { value: 'strong', label: 'Strong' },
       { value: 'max', label: 'Max' },
     ],
   },
   water_mode: {
-    name: "Niveau d'eau",
+    name: 'Water level',
     category: DEVICE_FEATURE_CATEGORIES.TEXT,
     type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
     has_feedback: true,
     keep_history: false,
     selectOptions: [
-      { value: 'low', label: 'Faible' },
-      { value: 'mid', label: 'Moyen' },
-      { value: 'high', label: 'Fort' },
+      { value: 'low', label: 'Low' },
+      { value: 'mid', label: 'Medium' },
+      { value: 'high', label: 'High' },
     ],
   },
   dust_collection_num: {
-    name: 'Collecte des poussières',
+    name: 'Dust collection',
     category: DEVICE_FEATURE_CATEGORIES.TEXT,
     type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
     has_feedback: true,
@@ -307,31 +313,31 @@ const cloudMapping = {
     // Confirmed 4-value numeric-string scale (see the file header); the raw
     // Tuya values are single digits "0".."3", used as-is as the option value.
     selectOptions: [
-      { value: '0', label: 'Jamais' },
-      { value: '1', label: 'Après chaque nettoyage' },
-      { value: '2', label: 'Après 2 nettoyages' },
-      { value: '3', label: 'Après 3 nettoyages' },
+      { value: '0', label: 'Never' },
+      { value: '1', label: 'After every clean' },
+      { value: '2', label: 'After 2 cleans' },
+      { value: '3', label: 'After 3 cleans' },
     ],
   },
   y_mop: {
-    name: 'Lavage en Y',
+    name: 'Y-mop wash',
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
     has_feedback: true,
     keep_history: false,
   },
   power_go: {
-    name: 'Nettoyage',
+    name: 'Cleaning',
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
     // DP 2 is write-only (never appears in a local status() snapshot): no
     // readback is possible, so this toggle cannot show the robot's real
-    // state — use "État" (robot_state) for that.
+    // state — use "State" (robot_state) for that.
     has_feedback: false,
     keep_history: false,
   },
   main_brush_time: {
-    name: 'Brosse principale',
+    name: 'Main brush',
     category: DEVICE_FEATURE_CATEGORIES.MAINTENANCE,
     type: DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING,
     read_only: true,
@@ -340,7 +346,7 @@ const cloudMapping = {
     keep_history: true,
   },
   side_brush_time: {
-    name: 'Brosse latérale',
+    name: 'Side brush',
     category: DEVICE_FEATURE_CATEGORIES.MAINTENANCE,
     type: DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING,
     read_only: true,
@@ -374,7 +380,15 @@ export const vacuum = {
   DEVICE_TYPE_NAME: 'vacuum',
   CATEGORIES: new Set(),
   PRODUCT_IDS: new Set(['c4ueb7cxlgmfon1t']),
-  KEYWORDS: ['vacuum', 'robot vacuum', 'aspirateur', 'honiture'],
+  // No KEYWORDS: the DPS table below is Honiture Q6 Pro-specific (confirmed
+  // by hand against the real robot), not a generic robot-vacuum mapping. A
+  // keyword match (e.g. another brand's product with "vacuum" in its name)
+  // would apply these exact DP indexes to a device they were never
+  // confirmed against — in local mode, writing to the wrong DP on someone
+  // else's robot. Detection is by product id only until a second product is
+  // confirmed and added as a VARIANT (see pilotThermostat.js's Konyks eCosy
+  // variant for the pattern).
+  KEYWORDS: [],
   REQUIRED_CODES: new Set(),
   CLOUD_MAPPINGS: cloudMapping,
   LOCAL_MAPPINGS: localMapping,
