@@ -19,7 +19,19 @@ export const FIRST_CLASS_TYPES_MIN_CORE_VERSION = '4.84.2';
 // in 4.86.0; needs SDK >= 0.12.0 client-side for the DEVICE_FEATURE_TYPES.TEXT.SELECT
 // constant). Same rejection risk as the DOORBELL/AC types above, gated
 // separately since it landed in a later core release.
-export const TEXT_SELECT_MIN_CORE_VERSION = '4.86.0';
+//
+// The gate is 4.86.1, NOT 4.86.0: in 4.86.0,
+// externalIntegration.setDiscoveredDevices.js calls
+// normalizeSupportedOptions(feature.supported_options) with no second
+// argument, and that helper defaults allowStringValues to false — so a
+// text-valued option (e.g. "quiet", "auto") fails Joi validation and throws,
+// which rejects the WHOLE discovered-device batch (every device from this
+// integration disappears from the Discovery screen), not just the one
+// TEXT/SELECT feature. The `{ allowStringValues }` argument at that call
+// site was only added in 4.86.1 (verified against both tags; the
+// normalizeSupportedOptions.js helper itself is unchanged between the two —
+// only the call site changed).
+export const TEXT_SELECT_MIN_CORE_VERSION = '4.86.1';
 
 /**
  * @description Parse a Gladys version string into { major, minor, patch }.
@@ -83,11 +95,13 @@ export const coreSupportsFirstClassFeatureTypes = (gladysVersion) =>
 
 /**
  * @description Whether the given Gladys version accepts the TEXT/SELECT
- * dynamic-select feature type (core >= 4.86.0).
+ * dynamic-select feature type (core >= 4.86.1 — see the note above
+ * TEXT_SELECT_MIN_CORE_VERSION: 4.86.0 accepts the type but rejects a
+ * string-valued option, which is what TEXT/SELECT actually publishes).
  * @param {string} gladysVersion - The running core version.
  * @returns {boolean} True when a text/select feature can be published safely.
  * @example
- * coreSupportsTextSelect('4.86.0'); // true
+ * coreSupportsTextSelect('4.86.1'); // true
  */
 export const coreSupportsTextSelect = (gladysVersion) =>
   compareVersions(gladysVersion, TEXT_SELECT_MIN_CORE_VERSION) >= 0;

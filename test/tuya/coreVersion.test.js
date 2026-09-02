@@ -40,9 +40,13 @@ test('coreSupportsFirstClassFeatureTypes gates on the 4.84.2 threshold', () => {
   assert.equal(coreSupportsFirstClassFeatureTypes(null), false);
 });
 
-test('coreSupportsTextSelect gates on the 4.86.0 threshold', () => {
-  assert.equal(TEXT_SELECT_MIN_CORE_VERSION, '4.86.0');
-  assert.equal(coreSupportsTextSelect('4.86.0'), true);
+test('coreSupportsTextSelect gates on the 4.86.1 threshold (4.86.0 accepts the type but rejects a string-valued option)', () => {
+  assert.equal(TEXT_SELECT_MIN_CORE_VERSION, '4.86.1');
+  // 4.86.0 knows the TEXT/SELECT type, but setDiscoveredDevices there calls
+  // normalizeSupportedOptions with no allowStringValues option (default
+  // false), so a string option value throws and rejects the whole
+  // discovered-device batch — must gate as unsupported.
+  assert.equal(coreSupportsTextSelect('4.86.0'), false);
   assert.equal(coreSupportsTextSelect('4.86.1'), true);
   assert.equal(coreSupportsTextSelect('5.0.0'), true);
   assert.equal(coreSupportsTextSelect('4.85.9'), false);
