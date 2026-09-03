@@ -8,6 +8,8 @@ import {
   extractMediaValuesFromCodes,
   extractMediaValuesFromDps,
   processMediaCodes,
+  awaitCameraImage,
+  EVENT_MAX_DELAY_MS,
   getLastCameraImage,
   MEDIA_CODES,
 } from '../../src/tuya/media/tuya.media.js';
@@ -210,4 +212,96 @@ test('getLastCameraImage returns the stored image or null', () => {
   const self = { lastCameraImage: { 'ext:tuya:device:d1': 'image/jpg;base64,AAAA' } };
   assert.equal(getLastCameraImage(self, 'ext:tuya:device:d1'), 'image/jpg;base64,AAAA');
   assert.equal(getLastCameraImage(self, 'ext:tuya:device:other'), null);
+});
+
+// --- snapshot-before-ring ordering (bench report 2026-09-03) -------------------
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+const makeCameraDoorbell = (calls, download) => ({
+  gladys: {
+    publishState: (externalId, value) => {
+      calls.push(['state', externalId, value]);
+      return Promise.resolve();
+    },
+    publishCameraImage: (externalId, image) => {
+      calls.push(['image', externalId, image.slice(0, 9)]);
+      return Promise.resolve();
+    },
+  },
+  downloadImageBuffer: download,
+  eventDpMemory: {},
+});
+
+const cameraDoorbellDevice = {
+  external_id: 'ext:tuya:device:d2',
+  features: [
+    { external_id: 'ext:tuya:device:d2:doorbell_active', category: 'doorbell' },
+    { external_id: 'ext:tuya:device:d2:doorbell_pic', category: 'camera' },
+  ],
+};
+
+test('the ring fires only once the visitor snapshot is published (scene gets the right picture)', async () => {
+  let resolveDownload;
+  const download = () => new Promise((resolve) => (resolveDownload = resolve));
+  const calls = [];
+  const self = makeCameraDoorbell(calls, download);
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/1.jpeg?sig=1'),
+  });
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/2.jpeg?sig=2'),
+  });
+  await flush();
+  // Download still in flight: no ring yet (before, the ring fired immediately
+  // and the scene fetched the previous snapshot, or none after a restart).
+  assert.deepEqual(calls, []);
+
+  resolveDownload(Buffer.from('jpegbytes'));
+  await flush();
+  await flush();
+  assert.deepEqual(calls, [
+    ['image', 'ext:tuya:device:d2', 'image/jpg'],
+    ['state', 'ext:tuya:device:d2:doorbell_active', 1],
+  ]);
+  // The pending download is cleaned up once settled.
+  assert.equal(self.pendingCameraImage['ext:tuya:device:d2'], undefined);
+});
+
+test('the ring is delayed at most EVENT_MAX_DELAY_MS when the download hangs', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const calls = [];
+  const self = makeCameraDoorbell(calls, () => new Promise(() => {}));
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/1.jpeg?sig=1'),
+  });
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/2.jpeg?sig=2'),
+  });
+  await flush();
+  assert.deepEqual(calls, []);
+  t.mock.timers.tick(EVENT_MAX_DELAY_MS);
+  await flush();
+  await flush();
+  assert.deepEqual(calls, [['state', 'ext:tuya:device:d2:doorbell_active', 1]]);
+});
+
+test('awaitCameraImage waits for a download in flight, then serves the fresh image', async () => {
+  let resolveDownload;
+  const download = () => new Promise((resolve) => (resolveDownload = resolve));
+  const self = makeCameraDoorbell([], download);
+  self.lastCameraImage = { 'ext:tuya:device:d2': 'image/jpg;base64,OLD=' };
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/1.jpeg?sig=1'),
+  });
+  processMediaCodes(self, cameraDoorbellDevice, {
+    doorbell_pic: b64('https://host/a/2.jpeg?sig=2'),
+  });
+  const waiting = awaitCameraImage(self, 'ext:tuya:device:d2');
+  resolveDownload(Buffer.from('new'));
+  const image = await waiting;
+  assert.notEqual(image, 'image/jpg;base64,OLD=');
+  assert.match(image, /^image\/jpg;base64,/);
+  // Nothing pending and nothing stored: null (onGetImage turns it into an error).
+  assert.equal(await awaitCameraImage({}, 'ext:tuya:device:none'), null);
 });

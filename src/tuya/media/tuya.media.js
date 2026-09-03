@@ -50,6 +50,14 @@ const PULSED_EVENT_CATEGORIES = new Set([
 ]);
 
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 10 * 1000;
+// When the device carries a camera image feature, the ring / motion event is
+// fired AFTER the snapshot is published, so a scene triggered by the event and
+// fetching the camera image gets the visitor's picture (not the previous one,
+// or nothing at all right after a restart). The event is never delayed longer
+// than this, whatever the download does.
+export const EVENT_MAX_DELAY_MS = 5 * 1000;
+// How long onGetImage waits for a snapshot download already in flight.
+export const GET_IMAGE_WAIT_MS = 8 * 1000;
 
 // publishCameraImage rejects an image whose `image/jpg;base64,...` string is
 // too large. gladys-netatmo targets 96 KB (the core mounts the camera route
@@ -240,10 +248,15 @@ export const handleMediaValue = async (self, device, code, rawValue) => {
     ? [media.directUrl]
     : buildMediaUrlCandidates(media.bucket, media.filePath);
 
+  // Tests inject a downloader on the handler; production uses fetch.
+  const download =
+    self && typeof self.downloadImageBuffer === 'function'
+      ? self.downloadImageBuffer
+      : downloadImageBuffer;
   let buffer = null;
   for (let i = 0; i < candidates.length && buffer === null; i += 1) {
     try {
-      buffer = await downloadImageBuffer(candidates[i]);
+      buffer = await download(candidates[i]);
     } catch (e) {
       logger.debug(`[Tuya][media] ${code} download failed on candidate ${i + 1}: ${e.message}`);
     }
@@ -384,17 +397,83 @@ export const processMediaCodes = (self, device, valuesByCode) => {
     // the mapped feature when the device carries it.
     const suffix = EVENT_FEATURE_SUFFIX[code];
     const eventFeature = suffix ? findFeatureBySuffix(device, suffix) : null;
-    if (eventFeature) {
-      fireEventFeature(self, device, code, eventFeature);
+
+    if (!hasCamera) {
+      if (eventFeature) {
+        fireEventFeature(self, device, code, eventFeature);
+      }
+      return;
     }
 
-    // The image itself goes to the camera widget when the device carries one.
-    if (hasCamera) {
-      handleMediaValue(self, device, code, rawValue).catch((e) =>
-        logger.warn(`[Tuya][media] unexpected media handling error for ${code}: ${e.message}`),
+    // The image goes to the camera widget first. The event is fired once the
+    // snapshot is published (or after EVENT_MAX_DELAY_MS at the latest): the
+    // scene it triggers typically sends the camera image, and used to race
+    // the download — it got the previous snapshot, or "no snapshot available
+    // yet" right after a restart (bench report, GBoulvin, 2026-09-03).
+    const mediaPromise = handleMediaValue(self, device, code, rawValue).catch((e) => {
+      logger.warn(`[Tuya][media] unexpected media handling error for ${code}: ${e.message}`);
+      return false;
+    });
+    trackPendingCameraImage(self, device.external_id, mediaPromise);
+    if (eventFeature) {
+      const eventTimer = new Promise((resolve) => {
+        const timer = setTimeout(resolve, EVENT_MAX_DELAY_MS);
+        if (typeof timer.unref === 'function') {
+          timer.unref();
+        }
+      });
+      Promise.race([mediaPromise, eventTimer]).then(() =>
+        fireEventFeature(self, device, code, eventFeature),
       );
     }
   });
+};
+
+/**
+ * @description Remember a snapshot download in flight for a device, so
+ * onGetImage can wait for it instead of serving a stale (or no) image.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} externalId - The device external id.
+ * @param {Promise} promise - The handleMediaValue promise.
+ * @returns {void}
+ * @example
+ * trackPendingCameraImage(handler, device.external_id, promise);
+ */
+const trackPendingCameraImage = (self, externalId, promise) => {
+  self.pendingCameraImage = self.pendingCameraImage || {};
+  self.pendingCameraImage[externalId] = promise;
+  promise.then(() => {
+    if (self.pendingCameraImage[externalId] === promise) {
+      delete self.pendingCameraImage[externalId];
+    }
+  });
+};
+
+/**
+ * @description Return the last snapshot of a device, waiting (bounded) for a
+ * download in flight first: right after a ring, the scene asking for the image
+ * must get the visitor's picture, not the previous one.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} externalId - The device external id.
+ * @param {number} [timeoutMs] - Maximum wait for a pending download.
+ * @returns {Promise<string|null>} The `image/jpg;base64,...` string, or null.
+ * @example
+ * const image = await awaitCameraImage(handler, device.external_id);
+ */
+export const awaitCameraImage = async (self, externalId, timeoutMs = GET_IMAGE_WAIT_MS) => {
+  const pending = self && self.pendingCameraImage && self.pendingCameraImage[externalId];
+  if (pending) {
+    await Promise.race([
+      pending,
+      new Promise((resolve) => {
+        const timer = setTimeout(resolve, timeoutMs);
+        if (typeof timer.unref === 'function') {
+          timer.unref();
+        }
+      }),
+    ]);
+  }
+  return getLastCameraImage(self, externalId);
 };
 
 /**
