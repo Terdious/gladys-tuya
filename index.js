@@ -24,7 +24,7 @@ import { buildConfigHash } from './src/tuya/utils/tuya.config.js';
 import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 import { enrichFromCreatedDevices } from './src/tuya/device/tuya.enrichDiscovery.js';
-import { getLastCameraImage } from './src/tuya/media/tuya.media.js';
+import { awaitCameraImage } from './src/tuya/media/tuya.media.js';
 import {
   coreSupportsFirstClassFeatureTypes,
   coreSupportsTextSelect,
@@ -338,7 +338,8 @@ gladys.onPoll(async (device) => {
 // Tuya exposes no on-demand snapshot: re-serve the last event snapshot
 // (doorbell ring / motion) the media handler stored for this device.
 gladys.onGetImage(async (device) => {
-  const image = getLastCameraImage(tuya, device.external_id);
+  // A download in flight (the ring just fired) is awaited first, bounded.
+  const image = await awaitCameraImage(tuya, device.external_id);
   if (!image) {
     throw new Error('No Tuya snapshot available yet (it updates on a ring or a motion event)');
   }
