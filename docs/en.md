@@ -17,6 +17,8 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 > Cameras and doorbells expose their snapshots, not a live video stream: Tuya publishes no stable local RTSP/ONVIF endpoint.
 >
 > The doorbell ring and the air-conditioner fan speed / swings need **Gladys 4.84.2 or later**. The vacuum's suction power / water level / dust-collection frequency need **Gladys 4.86.1 or later**. On an older Gladys the integration keeps working, without those features.
+>
+> New installs from the store require **Gladys 4.86.1 or later**; an integration already installed keeps updating on any Gladys version.
 
 Every device shows a **Local** or **Cloud** badge so you always know how it communicates.
 
