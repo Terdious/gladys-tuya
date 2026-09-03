@@ -17,6 +17,8 @@ Pilotez vos appareils Tuya / Smart Life depuis Gladys, via le **cloud** et, quan
 > Les caméras et sonnettes exposent leurs photos, pas un flux vidéo en direct : Tuya ne publie aucun point d'accès RTSP/ONVIF local stable.
 >
 > La sonnerie des sonnettes et la ventilation / les oscillations des climatiseurs nécessitent **Gladys 4.84.2 ou plus récent**. La puissance d'aspiration / le niveau d'eau / la fréquence de collecte des poussières de l'aspirateur nécessitent **Gladys 4.86.1 ou plus récent**. Sur un Gladys plus ancien, l'intégration continue de fonctionner, sans ces fonctionnalités.
+>
+> Une nouvelle installation depuis le store nécessite **Gladys 4.86.1 ou plus récent** ; une intégration déjà installée continue de se mettre à jour quelle que soit la version de Gladys.
 
 Chaque appareil affiche un macaron **Local** ou **Cloud** pour savoir comment il communique.
 
