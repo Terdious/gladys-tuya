@@ -6,7 +6,7 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 import { TuyaHandler } from '../../src/tuya/handler.js';
 import { API, DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { CLOUD_STRATEGY } from '../../src/tuya/cloud/tuya.cloudStrategy.js';
-import { describeDpsSnapshot } from '../../src/tuya/tuya.poll.js';
+import { describeDpsSnapshot, describeCloudStatusSnapshot } from '../../src/tuya/tuya.poll.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 
 function createDevice(overrides = {}) {
@@ -311,4 +311,38 @@ test('describeDpsSnapshot annotates each DPS with its mapped code, or UNMAPPED',
   const device = createDevice();
   const described = describeDpsSnapshot(device, { 1: true, 99: 'raw value' });
   assert.deepEqual(described, ['1=true (switch)', '99="raw value" (UNMAPPED)']);
+});
+
+// --- cloud status snapshot (diagnostic for unsupported model variants) --------
+
+test('describeCloudStatusSnapshot flags the codes no feature consumes, and skips media payloads', () => {
+  const device = createDevice();
+  const described = describeCloudStatusSnapshot(device, {
+    switch: true,
+    feed_record: '{"value":2,"type":2}',
+    doorbell_pic: 'aHR0cHM6Ly9ob3N0L2EvMS5qcGVn',
+  });
+  assert.deepEqual(described, [
+    'switch=true (mapped)',
+    'feed_record="{"value":2,"type":2}" (UNMAPPED)',
+  ]);
+});
+
+test('poll logs the cloud status snapshot once per device, again when the code set changes', async () => {
+  const { handler } = createHandler();
+  let result = [{ code: 'switch', value: true }];
+  handler.connector = { request: async () => ({ success: true, result }) };
+  const device = createDevice();
+
+  await handler.poll(device);
+  assert.equal(handler.loggedCloudStatusSignature.dev1, 'switch');
+  await handler.poll(device);
+  assert.equal(handler.loggedCloudStatusSignature.dev1, 'switch');
+  // A new code appears (firmware update, another endpoint): re-logged.
+  result = [
+    { code: 'switch', value: true },
+    { code: 'battery_val', value: 2957 },
+  ];
+  await handler.poll(device);
+  assert.equal(handler.loggedCloudStatusSignature.dev1, 'battery_val,switch');
 });
