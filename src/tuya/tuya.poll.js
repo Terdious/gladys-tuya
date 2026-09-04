@@ -11,9 +11,10 @@ import { createLogger, DEVICE_FEATURE_CATEGORIES } from '@gladysassistant/integr
 
 import { readValues } from './device/tuya.deviceMapping.js';
 import {
-  processMediaCodes,
-  extractMediaValuesFromDps,
+  MEDIA_CODES,
   MEDIA_CODES_BY_DPS,
+  extractMediaValuesFromDps,
+  processMediaCodes,
 } from './media/tuya.media.js';
 import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
@@ -456,6 +457,10 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
   summary.strategy = strategyUsed;
   summary.reachable = anyReadOk;
 
+  // Same diagnostic as the local DPS snapshot, for the cloud: what the device
+  // really reports, code by code, with the codes no feature consumes flagged.
+  logCloudStatusSnapshot(self, device, topic, values);
+
   // Doorbell/camera snapshot + ring: handled out of the normal read pipeline
   // (a camera/button feature has no reader), gated on a genuinely new image.
   processMediaCodes(self, device, values);
@@ -603,6 +608,68 @@ export const logLocalDpsSnapshot = (self, device, topic, dps) => {
 
   const described = describeDpsSnapshot(device, dps);
   logger.info(`[Tuya][poll][local] device=${topic} DPS snapshot: ${described.join(' | ')}`);
+};
+
+/**
+ * @description Annotate each code of a cloud status read with whether a feature
+ * of the device consumes it (the value shape of an UNMAPPED code is what a
+ * mapping for a new model needs — e.g. the pet feeder variants exposing
+ * feed_record / battery_val instead of feed_report / battery_percentage).
+ * Media codes (snapshot payloads) are left out: their value is a URL/JSON blob.
+ * @param {object} device - The Gladys device.
+ * @param {object} values - The code -> value map of the cloud read.
+ * @returns {Array<string>} One "code=value (mapped|UNMAPPED)" entry per code.
+ * @example
+ * describeCloudStatusSnapshot(device, { switch: true, feed_record: '{"value":2}' });
+ */
+export const describeCloudStatusSnapshot = (device, values) => {
+  if (!values || typeof values !== 'object') {
+    return [];
+  }
+  const featureCodes = new Set(
+    (Array.isArray(device.features) ? device.features : [])
+      .map((feature) => getFeatureCode(feature))
+      .filter(Boolean),
+  );
+  return Object.keys(values)
+    .filter((code) => !MEDIA_CODES.includes(code))
+    .map(
+      (code) =>
+        `${code}=${formatDpsValueForLog(values[code])} (${
+          featureCodes.has(code) ? 'mapped' : 'UNMAPPED'
+        })`,
+    );
+};
+
+/**
+ * @description Log the cloud status of a device annotated per code, once per
+ * device and again whenever the code set changes (never floods the poll loop).
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} device - The Gladys device.
+ * @param {string} topic - The Tuya device id.
+ * @param {object} values - The code -> value map of the cloud read.
+ * @returns {void}
+ * @example
+ * logCloudStatusSnapshot(handler, device, 'bf15...', { switch: true });
+ */
+export const logCloudStatusSnapshot = (self, device, topic, values) => {
+  if (!values || typeof values !== 'object') {
+    return;
+  }
+  const keys = Object.keys(values);
+  if (keys.length === 0) {
+    return;
+  }
+  self.loggedCloudStatusSignature = self.loggedCloudStatusSignature || {};
+  const signature = keys.slice().sort().join(',');
+  if (self.loggedCloudStatusSignature[topic] === signature) {
+    return;
+  }
+  self.loggedCloudStatusSignature[topic] = signature;
+  const described = describeCloudStatusSnapshot(device, values);
+  if (described.length > 0) {
+    logger.info(`[Tuya][poll][cloud] device=${topic} status snapshot: ${described.join(' | ')}`);
+  }
 };
 
 export function emitLocalDpsStates(self, device, dps, pending) {
