@@ -101,9 +101,16 @@ Two steps to enable it:
 
 ---
 
+## Reporting an unsupported device
+
+A device created with no feature (or a single one) exposes Tuya codes the integration does not know yet — common across variants of the same model.
+
+In the integration configuration, run the **Device diagnostic** action, type the device name as shown in Gladys, and copy the result into a GitHub issue. The report lists every code the device reports, its value and what the integration does with it. It carries no local key, IP address nor Tuya device id: it can be pasted publicly as-is.
+
 ## Useful actions
 
 - **Detect local protocol (manual IP)**: enable local mode for a device the scan did not find (see above).
+- **Device diagnostic**: builds the report of what a device exposes (see above).
 - **Disconnect from the Tuya cloud**: stops talking to the cloud until you save the configuration again.
 
 ## Troubleshooting

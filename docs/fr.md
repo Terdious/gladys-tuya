@@ -101,9 +101,16 @@ Deux étapes pour l'activer :
 
 ---
 
+## Signaler un appareil non supporté
+
+Un appareil créé sans fonctionnalité (ou avec une seule) expose des codes Tuya que l'intégration ne connaît pas encore — c'est fréquent sur les variantes d'un même modèle.
+
+Dans la configuration de l'intégration, lancez l'action **Diagnostic d'un appareil**, saisissez le nom de l'appareil tel qu'il apparaît dans Gladys, et copiez le résultat dans une issue GitHub. Le rapport liste chaque code remonté par l'appareil, sa valeur et ce que l'intégration en fait. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya : il peut être collé publiquement tel quel.
+
 ## Actions utiles
 
 - **Détecter le protocole local (IP manuelle)** : active le mode local pour un appareil que le scan n'a pas trouvé (voir ci-dessus).
+- **Diagnostic d'un appareil** : construit le rapport de ce qu'un appareil expose (voir ci-dessus).
 - **Se déconnecter du cloud Tuya** : coupe la connexion au cloud jusqu'au prochain enregistrement de la configuration.
 
 ## Dépannage
