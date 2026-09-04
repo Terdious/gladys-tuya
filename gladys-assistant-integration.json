@@ -56,6 +56,33 @@
       ]
     },
     {
+      "key": "device_diagnostic",
+      "label": {
+        "en": "Device diagnostic (report an unsupported device)",
+        "fr": "Diagnostic d'un appareil (signaler un appareil non supporté)"
+      },
+      "description": {
+        "en": "Lists what this device reports to Tuya and what the integration does with each code. Copy the result into a GitHub issue to get a missing device supported. It contains no local key, IP address nor Tuya id.",
+        "fr": "Liste ce que cet appareil remonte à Tuya et ce que l'intégration fait de chaque code. Copiez le résultat dans une issue GitHub pour faire supporter un appareil manquant. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya."
+      },
+      "timeout_seconds": 60,
+      "fields": [
+        {
+          "key": "device",
+          "type": "string",
+          "label": {
+            "en": "Device (name or Tuya ID)",
+            "fr": "Appareil (nom ou identifiant Tuya)"
+          },
+          "description": {
+            "en": "The device name as shown in Gladys, or its Tuya ID.",
+            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya."
+          },
+          "required": true
+        }
+      ]
+    },
+    {
       "key": "disconnect",
       "label": {
         "en": "Disconnect from the Tuya cloud",

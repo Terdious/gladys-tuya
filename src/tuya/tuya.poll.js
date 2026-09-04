@@ -359,7 +359,7 @@ const extractShadowValues = (response) => {
  * @example
  * const values = await readCloudValues(self, CLOUD_STRATEGY.LEGACY, 'dev1');
  */
-async function readCloudValues(self, strategy, topic) {
+export async function readCloudValues(self, strategy, topic) {
   if (strategy === CLOUD_STRATEGY.SHADOW) {
     const response = await self.connector.request({
       method: 'GET',

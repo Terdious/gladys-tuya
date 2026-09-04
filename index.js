@@ -25,6 +25,7 @@ import { convertDevice } from './src/tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './src/tuya/local/tuya.localScan.js';
 import { enrichFromCreatedDevices } from './src/tuya/device/tuya.enrichDiscovery.js';
 import { awaitCameraImage } from './src/tuya/media/tuya.media.js';
+import { buildDeviceDiagnostic } from './src/tuya/tuya.diagnostic.js';
 import {
   coreSupportsFirstClassFeatureTypes,
   coreSupportsTextSelect,
@@ -304,6 +305,29 @@ gladys.onDeviceCreated(async (device) => {
     retry.unref();
   }
   await pollOnce('First');
+});
+
+// --- Action: device diagnostic ------------------------------------------------
+// The logs already carry everything needed to support a new model, but each
+// diagnostic line is printed once per device per container start: a user who
+// opens the logs later never finds it. This rebuilds the report on demand.
+gladys.onAction('device_diagnostic', async (fields) => {
+  const deviceRef = String((fields && fields.device) || '').trim();
+  if (!deviceRef) {
+    throw new Error('device is required');
+  }
+  if (discoveryInFlight) {
+    await discoveryInFlight;
+  }
+  if (tuya.status !== STATUS.CONNECTED) {
+    throw new Error('Tuya cloud is not connected yet');
+  }
+  logger.info(`onAction device_diagnostic <- device=${deviceRef}`);
+  const rawDevice = await resolveTuyaDeviceRef(tuya, deviceRef);
+  const report = await buildDeviceDiagnostic(tuya, rawDevice);
+  // Also in the logs: a user who cannot copy from the UI still has it.
+  logger.info(`[Tuya][diagnostic]\n${report}`);
+  return { en: report, fr: report };
 });
 
 // --- Action: manual cloud disconnect ------------------------------------------
