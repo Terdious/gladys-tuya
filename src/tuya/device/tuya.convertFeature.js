@@ -86,7 +86,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     }
     return undefined;
   }
-  // tuyaEnum/selectOptions/fullLifeSeconds are mapping-only metadata
+  // tuyaEnum/selectOptions/fullLifeSeconds/jsonValueKey are mapping-only metadata
   // (per-variant mode vocabulary, TEXT/SELECT option list, and the
   // MAINTENANCE.LIFE_REMAINING full-life reference — all consumed by the
   // read/write pipeline, not the feature itself); they must not leak onto
@@ -95,6 +95,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     tuyaEnum: _tuyaEnum,
     selectOptions: _selectOptions,
     fullLifeSeconds: _fullLifeSeconds,
+    jsonValueKey: _jsonValueKey,
     ...featuresCategoryAndType
   } = mappingEntry;
 

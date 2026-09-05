@@ -142,3 +142,107 @@ test('poll publishes the feed report and the battery over the cloud (regression:
   assert.equal(byCode.battery_percentage, 64);
   assert.equal(byCode.slow_feed, 0);
 });
+
+// --- F14-W variant (bench dump, issue #35) -----------------------------------
+// Same product id, but this firmware reports none of the standard codes.
+const FEEDER_VARIANT_DEVICE = {
+  id: 'feeder2',
+  name: 'F14-W',
+  product_name: 'Pet Feeder',
+  model: 'F14-W',
+  product_id: 'cyip5aunfcx3ftws',
+  local_key: 'lk',
+  ip: '192.168.1.199',
+  protocol_version: '3.4',
+  local_override: true,
+  online: true,
+  specifications: {
+    category: 'cwwsq',
+    functions: [{ code: 'manual_feed', type: 'Integer', values: '{"min":1,"max":6,"scale":0}' }],
+    status: [
+      { code: 'manual_feed', type: 'Integer', values: '{"min":1,"max":6,"scale":0}' },
+      { code: 'feed_record', type: 'Raw', values: '{}' },
+      { code: 'feed_state', type: 'Enum', values: '{"range":["standby","feeding"]}' },
+      { code: 'battery_val', type: 'Integer', values: '{}' },
+      { code: 'battery_alarm', type: 'Boolean', values: '{}' },
+      { code: 'meal_plan_num', type: 'Integer', values: '{}' },
+      { code: 'meal_plan2', type: 'Raw', values: '{}' },
+      { code: 'vip_alarm', type: 'Boolean', values: '{}' },
+    ],
+  },
+};
+
+test('the F14-W variant codes map alongside the standard ones', () => {
+  const device = convertDevice(gladys, FEEDER_VARIANT_DEVICE);
+  const byCode = Object.fromEntries(
+    device.features.map((f) => [f.external_id.split(':').pop(), f]),
+  );
+
+  assert.equal(byCode.feed_record.category, DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR);
+  assert.equal(byCode.feed_record.type, DEVICE_FEATURE_TYPES.SENSOR.INTEGER);
+  // The mapping-only extraction hint never reaches the persisted feature.
+  assert.equal(byCode.feed_record.jsonValueKey, undefined);
+
+  // Raw millivolts: no invented percentage.
+  assert.equal(byCode.battery_val.category, DEVICE_FEATURE_CATEGORIES.ENERGY_SENSOR);
+  assert.equal(byCode.battery_val.type, DEVICE_FEATURE_TYPES.ENERGY_SENSOR.VOLTAGE);
+  assert.equal(byCode.battery_val.unit, 'millivolt');
+
+  assert.equal(byCode.battery_alarm.category, DEVICE_FEATURE_CATEGORIES.BATTERY_LOW);
+  assert.equal(byCode.meal_plan_num.category, DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR);
+
+  // The undocumented alarm and the raw schedule stay out.
+  assert.deepEqual(Object.keys(byCode).sort(), [
+    'battery_alarm',
+    'battery_val',
+    'feed_record',
+    'manual_feed',
+    'meal_plan_num',
+  ]);
+});
+
+test('poll extracts the portion count from the feed_record payload and the low-battery flag', async () => {
+  const fake = createFakeGladys();
+  const handler = new TuyaHandler(fake);
+  const converted = convertDevice(fake, FEEDER_VARIANT_DEVICE);
+  const device = {
+    external_id: converted.external_id,
+    device_type: converted.device_type,
+    features: converted.features,
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'feeder2' }],
+  };
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'feed_record', value: '{"value":3,"type":2}' },
+        { code: 'battery_val', value: 2955 },
+        { code: 'battery_alarm', value: 0 },
+        { code: 'meal_plan_num', value: 1 },
+      ],
+    }),
+  };
+
+  await handler.poll(device);
+
+  const byCode = Object.fromEntries(
+    fake.published.map((p) => [p.featureExternalId.split(':').pop(), p.state]),
+  );
+  // 3 portions, not the raw JSON.
+  assert.equal(byCode.feed_record, 3);
+  assert.equal(byCode.battery_val, 2955);
+  assert.equal(byCode.battery_alarm, 0);
+  assert.equal(byCode.meal_plan_num, 1);
+});
+
+test('the F14-W LAN mapping resolves the read-only DPS, leaving the ambiguous ones out', () => {
+  const device = { device_type: DEVICE_TYPES.PET_FEEDER };
+  assert.equal(getLocalDpsFromCode('feed_record', device), 112);
+  assert.equal(getLocalDpsFromCode('battery_val', device), 106);
+  // DPS 113/114 both read 0 on the bench: which one is battery_alarm is
+  // unknown, so neither is declared (it would publish one as the other).
+  assert.equal(getLocalDpsFromCode('battery_alarm', device), null);
+  assert.equal(getLocalDpsFromCode('vip_alarm', device), null);
+  // Command DP: never reported in a read, stays on the cloud.
+  assert.equal(getLocalDpsFromCode('manual_feed', device), null);
+});

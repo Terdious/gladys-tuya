@@ -110,6 +110,29 @@ const getScale = (deviceFeature, defaultScale = 0) => {
   return Number.isNaN(parsedScale) ? defaultScale : parsedScale;
 };
 
+// Some models report a compound record where another reports a plain number
+// (the F14-W pet feeder sends feed_record = {"value":3,"type":2} instead of
+// feed_report = 3). The mapping names the key to read; without that hint the
+// value is passed through untouched.
+const unwrapRecordValue = (valueFromDevice, mappingEntry) => {
+  const key = mappingEntry && mappingEntry.jsonValueKey;
+  if (!key) {
+    return valueFromDevice;
+  }
+  let parsed = valueFromDevice;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+  return Object.prototype.hasOwnProperty.call(parsed, key) ? parsed[key] : null;
+};
+
 const scaleValue = (valueFromDevice, deviceFeature, defaultScale = 0) => {
   const parsedValue = Number(valueFromDevice);
   if (Number.isNaN(parsedValue)) {
@@ -554,12 +577,21 @@ export const readValues = {
   },
   [DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR]: {
     // Plain counters (e.g. the pet feeder's last amount fed): the raw value,
-    // scale-aware like every other numeric sensor.
-    [DEVICE_FEATURE_TYPES.SENSOR.INTEGER]: (valueFromDevice, deviceFeature) => {
-      return scaleValue(valueFromDevice, deviceFeature, 0);
+    // scale-aware like every other numeric sensor. A mapping declaring
+    // `jsonValueKey` first extracts that key from a compound record.
+    [DEVICE_FEATURE_TYPES.SENSOR.INTEGER]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const rawValue = unwrapRecordValue(valueFromDevice, mappingEntry);
+      return rawValue === null ? null : scaleValue(rawValue, deviceFeature, 0);
     },
-    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
-      return scaleValue(valueFromDevice, deviceFeature, 0);
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const rawValue = unwrapRecordValue(valueFromDevice, mappingEntry);
+      return rawValue === null ? null : scaleValue(rawValue, deviceFeature, 0);
+    },
+  },
+  // The device's own low-battery verdict (pet feeder `battery_alarm`).
+  [DEVICE_FEATURE_CATEGORIES.BATTERY_LOW]: {
+    [DEVICE_FEATURE_TYPES.BATTERY_LOW.BINARY]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
     },
   },
   [DEVICE_FEATURE_CATEGORIES.SWITCH]: {
