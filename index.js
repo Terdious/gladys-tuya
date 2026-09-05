@@ -79,6 +79,9 @@ function buildDiscoveredDevices(tuyaDevices) {
     convertDevice(gladys, tuyaDevice, {
       coreSupportsFirstClassTypes,
       coreSupportsTextSelect: coreSupportsTextSelectFlag,
+      // Read live off `config` (not cached like the two core-capability flags
+      // above): a plain user choice, not something to re-detect on connect.
+      featureNamesLang: config.featureNames,
     }),
   );
 }

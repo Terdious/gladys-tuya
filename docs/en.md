@@ -107,6 +107,16 @@ A device created with no feature (or a single one) exposes Tuya codes the integr
 
 In the integration configuration, run the **Device diagnostic** action, type the device name as shown in Gladys, and copy the result into a GitHub issue. The report lists every code the device reports, its value and what the integration does with it. It carries no local key, IP address nor Tuya device id: it can be pasted publicly as-is.
 
+---
+
+## Feature names (language) — optional
+
+This integration's auto-generated feature names (e.g. "Dock", "Suction power") and option labels default to **English**, matching the convention of every device type it supports — a name actually read from the device itself (rare) is kept as-is regardless of this setting. The **"Feature names"** configuration option lets you switch newly discovered devices to **French** instead, translated through a small built-in dictionary.
+
+> **Applies to newly discovered devices only.** Changing this option does not rename features already created in Gladys — rename them by hand there if you want, or delete and re-add the device from the Discover screen to pick up the new language. A feature name/label this integration does not yet have a French translation for is kept in English either way, never guessed.
+
+---
+
 ## Useful actions
 
 - **Detect local protocol (manual IP)**: enable local mode for a device the scan did not find (see above).

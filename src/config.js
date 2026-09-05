@@ -16,6 +16,10 @@ import { TUYA_ENDPOINTS } from './tuya/constants.js';
 // Defaults, keyed by the normalized (internal) names. The `config_schema`
 // keys of the manifest are snake_case (the manifest schema only allows
 // [a-z0-9_] keys): normalizeConfig maps them to these internal names.
+// Languages the `feature_names` config option accepts; anything else falls
+// back to 'en' (see normalizeConfig below).
+export const SUPPORTED_FEATURE_NAMES_LANGS = ['en', 'fr'];
+
 export const DEFAULT_CONFIG = {
   endpoint: '', // Tuya data center region key (see TUYA_ENDPOINTS)
   accessKey: '', // Tuya cloud project Access ID / Client ID
@@ -23,6 +27,9 @@ export const DEFAULT_CONFIG = {
   appAccountId: '', // Smart Life / Tuya app account UID
   localMode: true, // "Prefer the local connection" (GLADYS_PREFER_LOCAL, default true)
   pulsarEnabled: false, // Real-time cloud events via the Tuya Message Service (#10), opt-in
+  // Language of the auto-generated feature names/option labels (issue #41).
+  // Applies to newly discovered/created devices only — see docs.
+  featureNames: 'en',
 };
 
 // Opt-in booleans default to false: only an explicit truthy value turns them on.
@@ -64,6 +71,11 @@ export function normalizeConfig(raw = {}) {
     pulsarEnabled: asBooleanDefaultFalse(raw.pulsar_enabled),
     // Same fallback as the core service: unknown region -> China endpoint.
     baseUrl: TUYA_ENDPOINTS[endpoint] || TUYA_ENDPOINTS.china,
+    // An unrecognized value (empty, removed language...) falls back to 'en',
+    // never a guess at a language we have no dictionary for.
+    featureNames: SUPPORTED_FEATURE_NAMES_LANGS.includes(raw.feature_names)
+      ? raw.feature_names
+      : DEFAULT_CONFIG.featureNames,
   };
 }
 
