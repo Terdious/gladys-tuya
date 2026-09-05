@@ -21,6 +21,7 @@ const FEEDER_VARIANT = {
       { code: 'battery_val', type: 'Integer', values: '{}' },
       { code: 'meal_plan', type: 'Raw', values: '{}' },
       { code: 'vip_alarm', type: 'Boolean', values: '{}' },
+      { code: 'brand_new_code', type: 'Integer', values: '{}' },
     ],
   },
 };
@@ -52,16 +53,18 @@ test('the diagnostic reports each code with its value and what the integration d
     { code: 'feed_record', value: '{"value":2,"type":2}' },
     { code: 'battery_val', value: 2957 },
     { code: 'meal_plan', value: 'AAEC' },
+    { code: 'brand_new_code', value: 42 },
   ]);
 
   const report = await buildDeviceDiagnostic(self, FEEDER_VARIANT);
 
   assert.match(report, /detected type=pet-feeder/);
-  // The mapped code says what it became...
+  // A mapped code says what it became...
   assert.match(report, /manual_feed = 1 {2}\[button\/push\]/);
-  // ...the unknown ones carry the value shape a new mapping needs...
-  assert.match(report, /feed_record = "\{"value":2,"type":2\}" {2}\[UNMANAGED\]/);
-  assert.match(report, /battery_val = 2957 {2}\[UNMANAGED\]/);
+  assert.match(report, /feed_record = "\{"value":2,"type":2\}" {2}\[counter-sensor\/integer\]/);
+  assert.match(report, /battery_val = 2957 {2}\[energy-sensor\/voltage\]/);
+  // ...an unknown one carries the value shape a new mapping needs...
+  assert.match(report, /brand_new_code = 42 {2}\[UNMANAGED\]/);
   // ...and a deliberately ignored code is not reported as a gap.
   assert.match(report, /meal_plan = "AAEC" {2}\[ignored on purpose\]/);
   // Declared by the model but silent in this read.
@@ -96,8 +99,10 @@ test('the diagnostic adds the LAN DPS snapshot when the device is locally reacha
     protocol_version: '3.4',
   });
   assert.match(report, /LAN DPS snapshot:/);
+  // A DPS the LAN mapping knows is named; an unknown one is flagged so a
+  // future mapping can be built from it.
+  assert.match(report, /106=2957 \(battery_val\)/);
   assert.match(report, /4="standby" \(UNMAPPED\)/);
-  assert.match(report, /106=2957 \(UNMAPPED\)/);
   // The credentials used to read it never reach the report.
   assert.doesNotMatch(report, /secret-local-key|192\.168\.1\.199/);
 });

@@ -10,7 +10,7 @@ Pilotez vos appareils Tuya / Smart Life depuis Gladys, via le **cloud** et, quan
 - **Thermostats fil pilote** (gamme RP5, Konyks eCosy) : mode de chauffe, consigne, température ambiante, verrou enfant, énergie.
 - **Caméras** (dont LSC) : mode privé, détection de mouvement, sirène, suivi de mouvement, filtre humain, enregistrement, retournement d'image, et un capteur de mouvement utilisable dans vos scènes.
 - **Sonnettes vidéo** : sonnerie (fonctionnalité sonnette dédiée), photo du visiteur, détection de mouvement, enregistrement, voyant d'état.
-- **Distributeurs de croquettes** : distribution à la demande, dernière quantité distribuée, distribution lente, batterie.
+- **Distributeurs de croquettes** : distribution à la demande, dernière quantité distribuée, distribution lente, voyant, batterie (pourcentage ou tension brute avec l'alerte batterie faible selon le modèle), repas programmés.
 - **Aspirateurs robots** (Honiture Q6 Pro) : démarrer/arrêter, pause, retour à la base, état de nettoyage, batterie, puissance d'aspiration, niveau d'eau, boost tapis, mode personnalisé (pièce), lavage en Y, fréquence de collecte des poussières, durée de vie restante des brosses principale/latérale. À noter : sur ce modèle, désactiver la pause alors que le robot est complètement arrêté lance aussi un nouveau cycle de nettoyage — ce n'est pas un simple bouton de pause.
 - **Interrupteurs, lumières et volets** via les correspondances génériques.
 
