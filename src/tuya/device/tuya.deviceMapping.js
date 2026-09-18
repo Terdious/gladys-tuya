@@ -16,6 +16,8 @@ import {
 } from '../../devices/airConditioner.js';
 // Mirror of the core PILOT_WIRE_MODE constant (server/utils/constants.js).
 import { PILOT_WIRE_MODE } from '../../devices/pilotThermostat.js';
+// Mirror of the core FAN_AIRFLOW_DIRECTION constant (server/utils/constants.js).
+import { FAN_AIRFLOW_DIRECTION } from '../../devices/fan.js';
 
 // Mirror of the core COVER_STATE constant (server/utils/constants.js).
 export const COVER_STATE = {
@@ -303,6 +305,24 @@ export const buildAcSupportedOptions = (featureType, range) => {
   return buildSupportedOptionsFromVocabulary(source.vocabulary, tuyaValues, source.labels);
 };
 
+// Tuya fan airflow-direction vocabulary -> Gladys FAN_AIRFLOW_DIRECTION. The
+// documented `fan_direction` range is ["forward","reverse"]; `positive` /
+// `negative` are the two aliases seen on other firmwares. Unlike the fan speed
+// enum (see the `ignoredCodes` note in src/devices/fan.js), this code has a
+// single vocabulary across products, so a write can send the right string
+// without knowing the per-device spec range.
+const TUYA_FAN_DIRECTION_TO_GLADYS = {
+  forward: FAN_AIRFLOW_DIRECTION.FORWARD,
+  positive: FAN_AIRFLOW_DIRECTION.FORWARD,
+  reverse: FAN_AIRFLOW_DIRECTION.REVERSE,
+  negative: FAN_AIRFLOW_DIRECTION.REVERSE,
+};
+
+const GLADYS_FAN_DIRECTION_TO_TUYA = {
+  [FAN_AIRFLOW_DIRECTION.FORWARD]: 'forward',
+  [FAN_AIRFLOW_DIRECTION.REVERSE]: 'reverse',
+};
+
 export const writeValues = {
   [DEVICE_FEATURE_CATEGORIES.LIGHT]: {
     [DEVICE_FEATURE_TYPES.LIGHT.BINARY]: (valueFromGladys) => {
@@ -409,6 +429,22 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.FAN]: {
+    // The speed DP is a plain integer (1..3 levels on the reported ventilation
+    // unit, 1..100 on a fan that really is a percentage): the Gladys value IS
+    // the device level, sent back as it is — honouring a declared scale like
+    // every other numeric DP.
+    [DEVICE_FEATURE_TYPES.FAN.SPEED]: (valueFromGladys, deviceFeature) => {
+      return unscaleValue(valueFromGladys, deviceFeature, 0);
+    },
+    // Returns undefined for a value outside the vocabulary: setValue rejects
+    // it instead of sending garbage to the device.
+    [DEVICE_FEATURE_TYPES.FAN.AIRFLOW_DIRECTION]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_FAN_DIRECTION_TO_TUYA[parsedValue];
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.CURTAIN]: {
     [DEVICE_FEATURE_TYPES.CURTAIN.STATE]: (valueFromGladys) => {
       if (valueFromGladys === COVER_STATE.OPEN) {
@@ -483,6 +519,18 @@ export const readValues = {
       deviceFeature,
     ) => {
       return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
+  [DEVICE_FEATURE_CATEGORIES.FAN]: {
+    [DEVICE_FEATURE_TYPES.FAN.SPEED]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+    [DEVICE_FEATURE_TYPES.FAN.AIRFLOW_DIRECTION]: (valueFromDevice) => {
+      const normalized = String(valueFromDevice).trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(TUYA_FAN_DIRECTION_TO_GLADYS, normalized)
+        ? TUYA_FAN_DIRECTION_TO_GLADYS[normalized]
+        : null;
     },
   },
   [DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR]: {

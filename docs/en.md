@@ -11,6 +11,7 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 - **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes.
 - **Video doorbells**: ring (a dedicated doorbell feature), snapshot of the visitor, motion detection, recording, status LED.
 - **Pet feeders**: feed on demand, last amount fed, slow feed, light, battery (percentage or raw voltage plus the low-battery flag, depending on the model), scheduled meals.
+- **Fans and ventilation units** (category `fs`, e.g. the AV-TTW5-W heat-recovery unit): on/off, speed (the device's own levels, e.g. 1 to 3), light, child lock, airflow direction, horizontal/vertical swing, ambient temperature when the device measures one.
 - **Robot vacuums** (Honiture Q6 Pro): start/stop, pause, dock, cleaning state, battery, suction power, water level, carpet boost, custom (room) mode, Y-mop wash, dust-collection frequency, main/side brush remaining life. Note: on this product, turning Pause OFF while the robot is fully stopped also starts a new cleaning cycle — it is not purely a pause toggle.
 - **Switches, lights and covers** through the generic mappings.
 

@@ -19,6 +19,7 @@ import { videoDoorbell } from './videoDoorbell.js';
 import { camera } from './camera.js';
 import { pilotThermostat } from './pilotThermostat.js';
 import { petFeeder } from './petFeeder.js';
+import { fan } from './fan.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { vacuum } from './vacuum.js';
@@ -34,6 +35,7 @@ export const DEVICE_TYPE_DEFINITIONS = [
   camera,
   pilotThermostat,
   petFeeder,
+  fan,
   smartSocket,
   smartMeter,
   vacuum,
