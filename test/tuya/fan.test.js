@@ -4,11 +4,13 @@ import assert from 'node:assert/strict';
 import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistant/integration-sdk';
 
 import { TuyaHandler } from '../../src/tuya/handler.js';
+import { buildDeviceDiagnostic } from '../../src/tuya/tuya.diagnostic.js';
 import { convertDevice } from '../../src/tuya/device/tuya.convertDevice.js';
 import { readValues, writeValues } from '../../src/tuya/device/tuya.deviceMapping.js';
 import { getLocalDpsFromCode } from '../../src/tuya/device/tuya.localMapping.js';
 import { getDeviceType, DEVICE_TYPES } from '../../src/tuya/mappings/index.js';
-import { FAN_AIRFLOW_DIRECTION } from '../../src/devices/fan.js';
+import { fan, FAN_AIRFLOW_DIRECTION } from '../../src/devices/fan.js';
+import { globalCloudMapping } from '../../src/devices/index.js';
 import { DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 
@@ -206,4 +208,84 @@ test('the fan has no LAN mapping yet: every code falls back to the cloud', () =>
   assert.equal(getLocalDpsFromCode('switch', device), null);
   assert.equal(getLocalDpsFromCode('fan_speed_percent', device), null);
   assert.equal(getLocalDpsFromCode('light', device), null);
+});
+
+test('a fan inherits the global mapping: switching an existing device to the fan type never drops a feature', () => {
+  // A fan discovered before this device type existed was created as
+  // `unknown`, i.e. with the global mapping. Re-running the discovery now
+  // detects it as a fan: every code the global mapping handled must still be
+  // handled, otherwise the user would LOSE features on update.
+  const device = convertDevice(gladys, {
+    id: 'fan3',
+    name: 'Ceiling fan',
+    specifications: {
+      category: 'fs',
+      functions: [
+        // On/off reported as `power`, as the shadow-properties devices do.
+        { code: 'power', type: 'Boolean', values: '{}' },
+        { code: 'fan_speed_percent', type: 'Integer', values: '{"min":1,"max":6}' },
+        { code: 'switch_led', type: 'Boolean', values: '{}' },
+        { code: 'bright_value_v2', type: 'Integer', values: '{"min":10,"max":1000}' },
+      ],
+    },
+  });
+  const byCode = Object.fromEntries(
+    device.features.map((f) => [f.external_id.split(':').pop(), f]),
+  );
+
+  assert.equal(device.device_type, DEVICE_TYPES.FAN);
+  assert.equal(byCode.power.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
+  assert.equal(byCode.switch_led.category, DEVICE_FEATURE_CATEGORIES.LIGHT);
+  assert.equal(byCode.bright_value_v2.type, DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS);
+  assert.equal(byCode.fan_speed_percent.type, DEVICE_FEATURE_TYPES.FAN.SPEED);
+});
+
+test('the diagnostic dumps the LAN DPS of a fan, which is what LAN support needs', async () => {
+  // The LAN mapping is empty on purpose: the diagnostic is the way to collect
+  // the per-product DPS layout, and it reports every index with its value.
+  const self = {
+    gladys: createFakeGladys(),
+    connector: {
+      request: async ({ path }) => {
+        if (path.endsWith('/status')) {
+          return {
+            success: true,
+            result: [
+              { code: 'switch', value: true },
+              { code: 'fan_speed_percent', value: 2 },
+              { code: 'light', value: false },
+            ],
+          };
+        }
+        return { success: true, result: { properties: [] } };
+      },
+    },
+    localRead: async () => ({ dps: { 1: true, 3: 2, 9: false } }),
+  };
+
+  const report = await buildDeviceDiagnostic(self, {
+    ...FAN_DEVICE,
+    local_key: 'secret-local-key',
+    ip: '192.168.1.42',
+  });
+
+  assert.match(report, /detected type=fan/);
+  assert.match(report, /fan_speed_percent = 2 {2}\[fan\/speed\]/);
+  assert.match(report, /light = false {2}\[light\/binary\]/);
+  assert.match(report, /fault/);
+  // Nothing is claimed locally yet, so every index is reported raw: that dump
+  // is exactly what filling LOCAL_MAPPINGS needs.
+  assert.match(report, /LAN DPS snapshot:/);
+  assert.match(report, /1=true \(UNMAPPED\)/);
+  assert.match(report, /3=2 \(UNMAPPED\)/);
+  assert.match(report, /9=false \(UNMAPPED\)/);
+  assert.doesNotMatch(report, /secret-local-key|192\.168\.1\.42/);
+});
+
+test('every code of the global mapping is still handled by the fan mapping', () => {
+  // Structural guard for the test above: the day someone rewrites the fan
+  // entries, an existing device switching to this type must still not lose a
+  // feature it had as an `unknown` device.
+  const missing = Object.keys(globalCloudMapping).filter((code) => !fan.CLOUD_MAPPINGS[code]);
+  assert.deepEqual(missing, []);
 });

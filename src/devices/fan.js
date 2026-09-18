@@ -29,6 +29,8 @@ import {
   DEVICE_FEATURE_UNITS,
 } from '@gladysassistant/integration-sdk';
 
+import { globalCloudMapping } from './global.js';
+
 // Mirror of the core FAN_AIRFLOW_DIRECTION constant (server/utils/constants.js):
 // the values the Gladys front renders for a fan `airflow-direction` feature.
 export const FAN_AIRFLOW_DIRECTION = {
@@ -49,6 +51,14 @@ const FAN_CODES = new Set([
 ]);
 
 const cloudMapping = {
+  // A device-type mapping REPLACES the global one, and a fan discovered
+  // before this type existed was created as `unknown` — i.e. WITH the global
+  // mapping. Starting from it guarantees that re-running the discovery can
+  // only ADD features to those devices, never drop one (a fan reporting
+  // `power` instead of `switch`, or a fan light with `bright_value_v2` /
+  // `colour_data_v2`, keeps what it already had). The fan entries below
+  // override the global ones where they disagree.
+  ...globalCloudMapping,
   ignoredCodes: [
     // Speed as an enum. Its vocabulary is product-specific — Tuya products
     // ship ["low","mid","high"], ["1","2","3"] and ["level_1".."level_n"]
