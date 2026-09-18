@@ -15,6 +15,7 @@ import { DEVICE_PARAM_NAME } from '../constants.js';
 export const DEVICE_TYPES = {
   AIR_CONDITIONER: 'air-conditioner',
   CAMERA: 'camera',
+  FAN: 'fan',
   VIDEO_DOORBELL: 'video-doorbell',
   PET_FEEDER: 'pet-feeder',
   PILOT_THERMOSTAT: 'pilot-thermostat',
