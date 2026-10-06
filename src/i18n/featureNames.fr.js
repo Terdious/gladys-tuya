@@ -109,6 +109,21 @@ export const FEATURE_NAMES_FR = {
   'After 2 cleans': 'Après 2 nettoyages',
   'After 3 cleans': 'Après 3 nettoyages',
 
+  // --- Fan (fan.js) ----------------------------------------------------------
+  Speed: 'Vitesse',
+  'Airflow direction': 'Direction du flux d’air',
+  'Horizontal swing': 'Oscillation horizontale',
+  'Vertical swing': 'Oscillation verticale',
+
+  // --- Dehumidifier (dehumidifier.js) ---------------------------------------
+  Humidity: 'Humidité',
+  Temperature: 'Température',
+  'Fan speed': 'Vitesse du ventilateur',
+  Timer: 'Minuterie',
+  'Timer remaining': 'Minuterie restante',
+  'Target humidity': 'Humidité cible',
+  Ionizer: 'Ioniseur',
+
   // --- Pilot-wire mode option labels (API fallback: the frontend renders its
   // own localized label for this first-class type from the numeric value —
   // see the comment above PILOT_WIRE_MODE_LABELS in tuya.deviceMapping.js;
