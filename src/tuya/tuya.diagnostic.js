@@ -47,6 +47,79 @@ export const formatValue = (code, value) => {
   return String(value);
 };
 
+// Parse the `values` of a spec entry (a JSON string on the cloud API, an
+// object in some payloads); anything unreadable yields null.
+const parseSpecValues = (values) => {
+  if (values && typeof values === 'object') {
+    return values;
+  }
+  if (typeof values === 'string') {
+    try {
+      const parsed = JSON.parse(values);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+/**
+ * @description List the enum ranges the cloud declares for each code, per
+ * source (specification functions / status, thing model). The range is what
+ * the integration builds option lists from, and it is the one piece of the
+ * specification the user cannot see from Gladys: without it, a missing mode
+ * can only be explained from the Tuya IoT platform.
+ * @param {object} rawDevice - The raw discovered Tuya device.
+ * @returns {Array<string>} One line per code, sources merged when identical.
+ * @example
+ * describeDeclaredRanges({ specifications: { functions: [{ code: 'mode', values: '{"range":["auto"]}' }] } });
+ */
+export const describeDeclaredRanges = (rawDevice) => {
+  const byCode = new Map();
+  const add = (code, source, range) => {
+    if (!code || !Array.isArray(range)) {
+      return;
+    }
+    const sources = byCode.get(code) || [];
+    sources.push({ source, range: range.map(String) });
+    byCode.set(code, sources);
+  };
+  const specifications = (rawDevice && rawDevice.specifications) || {};
+  ['functions', 'status'].forEach((source) => {
+    (Array.isArray(specifications[source]) ? specifications[source] : []).forEach((entry) => {
+      const values = parseSpecValues(entry && entry.values);
+      add(entry && entry.code, source, values && values.range);
+    });
+  });
+  const services =
+    rawDevice && rawDevice.thing_model && Array.isArray(rawDevice.thing_model.services)
+      ? rawDevice.thing_model.services
+      : [];
+  services.forEach((service) => {
+    (Array.isArray(service && service.properties) ? service.properties : []).forEach((property) => {
+      add(
+        property && property.code,
+        'model',
+        property && property.typeSpec && property.typeSpec.range,
+      );
+    });
+  });
+
+  return [...byCode.keys()].sort().map((code) => {
+    const sources = byCode.get(code);
+    const distinct = new Map();
+    sources.forEach(({ source, range }) => {
+      const key = JSON.stringify(range);
+      distinct.set(key, [...(distinct.get(key) || []), source]);
+    });
+    const parts = [...distinct.entries()].map(
+      ([key, names]) => `${JSON.parse(key).join(', ')} (${names.join('+')})`,
+    );
+    return `${code}: ${parts.join(' | ')}`;
+  });
+};
+
 /**
  * @description Build the human-readable diagnostic report of one device: what
  * the integration makes of it, and every code it reports with its value and
@@ -120,6 +193,14 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
   const silent = [...new Set(declared)].filter((code) => !(code in values)).sort();
   if (silent.length > 0) {
     lines.push('', `Declared but not reported: ${silent.join(', ')}`);
+  }
+
+  // The enum ranges, per source: what the option lists (AC modes, fan
+  // speeds...) are built from, and where a firmware disagrees with itself.
+  const ranges = describeDeclaredRanges(rawDevice);
+  if (ranges.length > 0) {
+    lines.push('', 'Declared enum ranges:');
+    ranges.forEach((line) => lines.push(`  ${line}`));
   }
 
   // LAN view, when the device is locally reachable: the DPS indexes are
