@@ -547,6 +547,21 @@ export const readValues = {
       return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
+  // Ambient humidity (dehumidifier `humidity_indoor`), scale-aware like the
+  // temperatures.
+  [DEVICE_FEATURE_CATEGORIES.HUMIDITY_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
+  // Remaining time of a timer (dehumidifier `countdown_left`, in minutes).
+  [DEVICE_FEATURE_CATEGORIES.DURATION]: {
+    [DEVICE_FEATURE_TYPES.DURATION.INTEGER]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
     [DEVICE_FEATURE_TYPES.THERMOSTAT.TARGET_TEMPERATURE]: (valueFromDevice, deviceFeature) => {
       return scaleValue(valueFromDevice, deviceFeature, 0);
