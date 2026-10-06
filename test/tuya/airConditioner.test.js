@@ -132,6 +132,61 @@ test('convertDevice maps the supported AC features (power, mode, setpoint, ambie
   );
 });
 
+test('the AC mode always offers the five modes, whatever range the cloud declares (1.11.0 regression)', () => {
+  // Bench report ("Bureau TLT", v1.16.0): the unit heats and ventilates, but
+  // the mode buttons only offered Auto / Cooling / Drying. From 1.11.0 the
+  // mode options were narrowed by the cloud spec range, which is not reliable
+  // enough to remove a mode — a mode missing from the options cannot be
+  // selected at all.
+  const narrowed = (range) => ({
+    ...AC_DEVICE,
+    specifications: {
+      ...AC_DEVICE.specifications,
+      functions: AC_DEVICE.specifications.functions.map((f) =>
+        f.code === 'mode' ? { ...f, values: JSON.stringify({ range }) } : f,
+      ),
+      status: AC_DEVICE.specifications.status.map((f) =>
+        f.code === 'mode' ? { ...f, values: JSON.stringify({ range }) } : f,
+      ),
+    },
+  });
+  const ALL_MODES = [AC_MODE.AUTO, AC_MODE.COOLING, AC_MODE.HEATING, AC_MODE.DRYING, AC_MODE.FAN];
+  const modeOptions = (device) =>
+    convertDevice(gladys, device)
+      .features.find((f) => f.external_id.endsWith(':mode'))
+      .supported_options.map((o) => o.value);
+
+  // A range without heat/fan, and one whose heat/fan strings are unknown.
+  assert.deepEqual(modeOptions(narrowed(['auto', 'cold', 'wet'])), ALL_MODES);
+  assert.deepEqual(
+    modeOptions(narrowed(['auto', 'cold', 'wet', 'heating', 'fan_only'])),
+    ALL_MODES,
+  );
+  // The list is published explicitly (never omitted): the core only re-syncs
+  // the options of a feature that carries some, so this is what replaces the
+  // narrowed list already stored on existing devices.
+  assert.deepEqual(modeOptions(AC_DEVICE), ALL_MODES);
+});
+
+test('the fan speed is still narrowed by the declared range', () => {
+  const device = convertDevice(gladys, {
+    ...AC_DEVICE,
+    properties: { properties: [] },
+    specifications: {
+      ...AC_DEVICE.specifications,
+      status: [
+        ...AC_DEVICE.specifications.status,
+        { code: 'windspeed', type: 'Enum', values: '{"range":["auto","low","mid","high"]}' },
+      ],
+    },
+  });
+  const windspeed = device.features.find((f) => f.external_id.endsWith(':windspeed'));
+  assert.deepEqual(
+    windspeed.supported_options.map((o) => o.value),
+    [AC_FAN_SPEED.AUTO, AC_FAN_SPEED.LOW, AC_FAN_SPEED.MID, AC_FAN_SPEED.HIGH],
+  );
+});
+
 test('convertDevice drops the fan-speed feature on a core older than 4.84.2', () => {
   const device = convertDevice(gladys, AC_DEVICE, { coreSupportsFirstClassTypes: false });
   const codes = device.features.map((f) => f.external_id.split(':').pop()).sort();

@@ -243,11 +243,20 @@ const GLADYS_AC_SWING_VERTICAL_TO_TUYA = {
 };
 
 // English fallback labels + vocabulary per AC enum feature type. AC models
-// vary a lot (a cold-only unit has no heat, many lack quiet/turbo): the spec
-// enum range is the per-device truth here — there is no curated per-variant
+// vary a lot (many lack quiet/turbo): for the fan speed and the swings the
+// spec enum range is the per-device truth — there is no curated per-variant
 // vocabulary like the pilot wire, the maps above cover every known alias.
 const AC_SUPPORTED_OPTION_SOURCES = {
+  // The MODE is the exception: it always offers the five Gladys modes.
+  // Narrowing it by the spec range (1.11.0 → 1.16.0) hid Heating and Fan on
+  // units that heat and ventilate fine (bench report, "Bureau TLT"): the
+  // range the cloud returns for `mode` is not reliable enough to REMOVE a
+  // mode, and a missing mode cannot be reached at all, whereas a mode the
+  // unit really lacks (a cold-only unit asked to heat) is simply refused by
+  // the device. Same five modes as before 1.11.0, published explicitly so the
+  // core replaces the narrowed list it stored.
   [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: {
+    narrowBySpecRange: false,
     vocabulary: TUYA_AC_MODE_TO_GLADYS,
     labels: {
       [AC_MODE.AUTO]: 'Auto',
@@ -293,15 +302,15 @@ const AC_SUPPORTED_OPTION_SOURCES = {
 };
 
 // Build the supported_options of an AC enum feature from the spec range (full
-// vocabulary without one); returns null for non-enum AC feature types (binary,
-// target temperature...).
+// vocabulary without one, or for a type that is never narrowed); returns null
+// for non-enum AC feature types (binary, target temperature...).
 export const buildAcSupportedOptions = (featureType, range) => {
   const source = AC_SUPPORTED_OPTION_SOURCES[featureType];
   if (!source) {
     return null;
   }
-  const tuyaValues =
-    Array.isArray(range) && range.length > 0 ? range : Object.keys(source.vocabulary);
+  const useRange = source.narrowBySpecRange !== false && Array.isArray(range) && range.length > 0;
+  const tuyaValues = useRange ? range : Object.keys(source.vocabulary);
   return buildSupportedOptionsFromVocabulary(source.vocabulary, tuyaValues, source.labels);
 };
 
