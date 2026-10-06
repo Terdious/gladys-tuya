@@ -24,6 +24,14 @@ const AC_FIRST_CLASS_TYPES = [
   DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL,
 ];
 
+// Fallback label of an enum value the mapping did not curate: "level_2" ->
+// "Level 2", "low" -> "Low", "1h" -> "1h". Only a display label: the value
+// sent to the device stays the raw string.
+const humanizeEnumValue = (value) => {
+  const text = String(value).replace(/_/g, ' ').trim();
+  return text.length > 0 ? text.charAt(0).toUpperCase() + text.slice(1) : String(value);
+};
+
 // Every discovery re-converts every device: warn once per unknown code per
 // process instead of re-printing the same 60-line wall on each scan.
 const warnedUnmanagedCodes = new Set();
@@ -96,14 +104,17 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     }
     return undefined;
   }
-  // tuyaEnum/selectOptions/fullLifeSeconds/jsonValueKey are mapping-only metadata
-  // (per-variant mode vocabulary, TEXT/SELECT option list, and the
+  // tuyaEnum/selectOptions/selectOptionsFromRange/selectLabels/
+  // fullLifeSeconds/jsonValueKey are mapping-only metadata (per-variant mode
+  // vocabulary, TEXT/SELECT option list or how to build it, and the
   // MAINTENANCE.LIFE_REMAINING full-life reference — all consumed by the
   // read/write pipeline, not the feature itself); they must not leak onto
   // the persisted feature.
   const {
     tuyaEnum: _tuyaEnum,
     selectOptions: _selectOptions,
+    selectOptionsFromRange: _selectOptionsFromRange,
+    selectLabels: _selectLabels,
     fullLifeSeconds: _fullLifeSeconds,
     jsonValueKey: _jsonValueKey,
     ...featuresCategoryAndType
@@ -243,6 +254,28 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     feature.supported_options = mappingEntry.selectOptions.map((option, index) => ({
       value: option.value,
       label: option.label,
+      sort_order: index,
+    }));
+  } else if (
+    feature.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
+    feature.type === DEVICE_FEATURE_TYPES.TEXT.SELECT &&
+    mappingEntry.selectOptionsFromRange === true
+  ) {
+    // A Tuya enum whose vocabulary differs from one product to the next
+    // (fan speeds, timers, modes): the options are the strings the device
+    // itself declares, in its order. The Gladys value IS that raw string, so
+    // a write sends back exactly what the device expects — no shared
+    // vocabulary to guess. Without a declared range there is nothing to
+    // offer: the feature is left out rather than published empty.
+    const range = Array.isArray(valuesObject.range) ? valuesObject.range.map(String) : [];
+    if (range.length === 0) {
+      collect('ignored', `${codeLower} (no declared enum range)`);
+      return undefined;
+    }
+    const labels = mappingEntry.selectLabels || {};
+    feature.supported_options = range.map((value, index) => ({
+      value,
+      label: labels[value] || humanizeEnumValue(value),
       sort_order: index,
     }));
   }

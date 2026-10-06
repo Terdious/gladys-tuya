@@ -106,3 +106,44 @@ test('the diagnostic adds the LAN DPS snapshot when the device is locally reacha
   // The credentials used to read it never reach the report.
   assert.doesNotMatch(report, /secret-local-key|192\.168\.1\.199/);
 });
+
+test('the diagnostic lists the declared enum ranges per source, so an option list can be explained from Gladys', async () => {
+  const self = createHandler([{ code: 'mode', value: 'heat' }]);
+  const report = await buildDeviceDiagnostic(self, {
+    id: 'ac1',
+    name: 'Bureau TLT',
+    specifications: {
+      category: 'kt',
+      functions: [
+        { code: 'mode', type: 'Enum', values: '{"range":["auto","cold","wet","heat","fan"]}' },
+      ],
+      status: [
+        { code: 'mode', type: 'Enum', values: '{"range":["auto","cold","wet"]}' },
+        { code: 'temp_set', type: 'Integer', values: '{"min":160,"max":880}' },
+      ],
+    },
+    thing_model: {
+      services: [
+        {
+          properties: [
+            {
+              code: 'mode',
+              typeSpec: { type: 'enum', range: ['auto', 'cold', 'wet', 'heat', 'fan'] },
+            },
+            { code: 'horizontal', typeSpec: { type: 'enum', range: ['off', 'same', 'opposite'] } },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.match(report, /Declared enum ranges:/);
+  // Identical sources are merged; a source that disagrees is shown apart.
+  assert.match(
+    report,
+    /mode: auto, cold, wet, heat, fan \(functions\+model\) \| auto, cold, wet \(status\)/,
+  );
+  assert.match(report, /horizontal: off, same, opposite \(model\)/);
+  // Non-enum specs (min/max) are not listed.
+  assert.doesNotMatch(report, /temp_set:/);
+});

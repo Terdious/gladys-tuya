@@ -16,6 +16,8 @@ import {
 } from '../../devices/airConditioner.js';
 // Mirror of the core PILOT_WIRE_MODE constant (server/utils/constants.js).
 import { PILOT_WIRE_MODE } from '../../devices/pilotThermostat.js';
+// Mirror of the core FAN_AIRFLOW_DIRECTION constant (server/utils/constants.js).
+import { FAN_AIRFLOW_DIRECTION } from '../../devices/fan.js';
 
 // Mirror of the core COVER_STATE constant (server/utils/constants.js).
 export const COVER_STATE = {
@@ -241,11 +243,20 @@ const GLADYS_AC_SWING_VERTICAL_TO_TUYA = {
 };
 
 // English fallback labels + vocabulary per AC enum feature type. AC models
-// vary a lot (a cold-only unit has no heat, many lack quiet/turbo): the spec
-// enum range is the per-device truth here — there is no curated per-variant
+// vary a lot (many lack quiet/turbo): for the fan speed and the swings the
+// spec enum range is the per-device truth — there is no curated per-variant
 // vocabulary like the pilot wire, the maps above cover every known alias.
-export const AC_SUPPORTED_OPTION_SOURCES = {
+const AC_SUPPORTED_OPTION_SOURCES = {
+  // The MODE is the exception: it always offers the five Gladys modes.
+  // Narrowing it by the spec range (1.11.0 → 1.16.0) hid Heating and Fan on
+  // units that heat and ventilate fine (bench report, "Bureau TLT"): the
+  // range the cloud returns for `mode` is not reliable enough to REMOVE a
+  // mode, and a missing mode cannot be reached at all, whereas a mode the
+  // unit really lacks (a cold-only unit asked to heat) is simply refused by
+  // the device. Same five modes as before 1.11.0, published explicitly so the
+  // core replaces the narrowed list it stored.
   [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: {
+    narrowBySpecRange: false,
     vocabulary: TUYA_AC_MODE_TO_GLADYS,
     labels: {
       [AC_MODE.AUTO]: 'Auto',
@@ -291,16 +302,34 @@ export const AC_SUPPORTED_OPTION_SOURCES = {
 };
 
 // Build the supported_options of an AC enum feature from the spec range (full
-// vocabulary without one); returns null for non-enum AC feature types (binary,
-// target temperature...).
+// vocabulary without one, or for a type that is never narrowed); returns null
+// for non-enum AC feature types (binary, target temperature...).
 export const buildAcSupportedOptions = (featureType, range) => {
   const source = AC_SUPPORTED_OPTION_SOURCES[featureType];
   if (!source) {
     return null;
   }
-  const tuyaValues =
-    Array.isArray(range) && range.length > 0 ? range : Object.keys(source.vocabulary);
+  const useRange = source.narrowBySpecRange !== false && Array.isArray(range) && range.length > 0;
+  const tuyaValues = useRange ? range : Object.keys(source.vocabulary);
   return buildSupportedOptionsFromVocabulary(source.vocabulary, tuyaValues, source.labels);
+};
+
+// Tuya fan airflow-direction vocabulary -> Gladys FAN_AIRFLOW_DIRECTION. The
+// documented `fan_direction` range is ["forward","reverse"]; `positive` /
+// `negative` are the two aliases seen on other firmwares. Unlike the fan speed
+// enum (see the `ignoredCodes` note in src/devices/fan.js), this code has a
+// single vocabulary across products, so a write can send the right string
+// without knowing the per-device spec range.
+const TUYA_FAN_DIRECTION_TO_GLADYS = {
+  forward: FAN_AIRFLOW_DIRECTION.FORWARD,
+  positive: FAN_AIRFLOW_DIRECTION.FORWARD,
+  reverse: FAN_AIRFLOW_DIRECTION.REVERSE,
+  negative: FAN_AIRFLOW_DIRECTION.REVERSE,
+};
+
+const GLADYS_FAN_DIRECTION_TO_TUYA = {
+  [FAN_AIRFLOW_DIRECTION.FORWARD]: 'forward',
+  [FAN_AIRFLOW_DIRECTION.REVERSE]: 'reverse',
 };
 
 export const writeValues = {
@@ -409,6 +438,22 @@ export const writeValues = {
     },
   },
 
+  [DEVICE_FEATURE_CATEGORIES.FAN]: {
+    // The speed DP is a plain integer (1..3 levels on the reported ventilation
+    // unit, 1..100 on a fan that really is a percentage): the Gladys value IS
+    // the device level, sent back as it is — honouring a declared scale like
+    // every other numeric DP.
+    [DEVICE_FEATURE_TYPES.FAN.SPEED]: (valueFromGladys, deviceFeature) => {
+      return unscaleValue(valueFromGladys, deviceFeature, 0);
+    },
+    // Returns undefined for a value outside the vocabulary: setValue rejects
+    // it instead of sending garbage to the device.
+    [DEVICE_FEATURE_TYPES.FAN.AIRFLOW_DIRECTION]: (valueFromGladys) => {
+      const parsedValue = parseInt(valueFromGladys, 10);
+      return GLADYS_FAN_DIRECTION_TO_TUYA[parsedValue];
+    },
+  },
+
   [DEVICE_FEATURE_CATEGORIES.CURTAIN]: {
     [DEVICE_FEATURE_TYPES.CURTAIN.STATE]: (valueFromGladys) => {
       if (valueFromGladys === COVER_STATE.OPEN) {
@@ -485,9 +530,36 @@ export const readValues = {
       return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
+  [DEVICE_FEATURE_CATEGORIES.FAN]: {
+    [DEVICE_FEATURE_TYPES.FAN.SPEED]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+    [DEVICE_FEATURE_TYPES.FAN.AIRFLOW_DIRECTION]: (valueFromDevice) => {
+      const normalized = String(valueFromDevice).trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(TUYA_FAN_DIRECTION_TO_GLADYS, normalized)
+        ? TUYA_FAN_DIRECTION_TO_GLADYS[normalized]
+        : null;
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.TEMPERATURE_SENSOR]: {
     [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
       return scaleValue(valueFromDevice, deviceFeature, 0);
+    },
+  },
+  // Ambient humidity (dehumidifier `humidity_indoor`), scale-aware like the
+  // temperatures.
+  [DEVICE_FEATURE_CATEGORIES.HUMIDITY_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
+  // Remaining time of a timer (dehumidifier `countdown_left`, in minutes).
+  [DEVICE_FEATURE_CATEGORIES.DURATION]: {
+    [DEVICE_FEATURE_TYPES.DURATION.INTEGER]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
     },
   },
   [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {

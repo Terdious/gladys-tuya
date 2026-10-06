@@ -19,6 +19,8 @@ import { videoDoorbell } from './videoDoorbell.js';
 import { camera } from './camera.js';
 import { pilotThermostat } from './pilotThermostat.js';
 import { petFeeder } from './petFeeder.js';
+import { fan } from './fan.js';
+import { dehumidifier } from './dehumidifier.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { vacuum } from './vacuum.js';
@@ -34,6 +36,10 @@ export const DEVICE_TYPE_DEFINITIONS = [
   camera,
   pilotThermostat,
   petFeeder,
+  // Before `fan`: a dehumidifier exposes `fan_speed_enum`, one of the fan
+  // detection codes; its `cs` category must win over a fan keyword in its name.
+  dehumidifier,
+  fan,
   smartSocket,
   smartMeter,
   vacuum,
