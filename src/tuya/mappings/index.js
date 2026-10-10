@@ -22,6 +22,7 @@ export const DEVICE_TYPES = {
   PILOT_THERMOSTAT: 'pilot-thermostat',
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',
+  TEMPERATURE_HUMIDITY_SENSOR: 'temperature-humidity-sensor',
   VACUUM: 'vacuum',
   UNKNOWN: 'unknown',
 };

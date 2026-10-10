@@ -17,7 +17,7 @@
 import { createLogger } from '@gladysassistant/integration-sdk';
 
 import { convertDevice } from './device/tuya.convertDevice.js';
-import { getIgnoredCloudCodes, normalizeCode } from './mappings/index.js';
+import { getCloudMapping, getIgnoredCloudCodes, normalizeCode } from './mappings/index.js';
 import { CLOUD_STRATEGY } from './cloud/tuya.cloudStrategy.js';
 import { readCloudValues, describeDpsSnapshot } from './tuya.poll.js';
 import { MEDIA_CODES } from './media/tuya.media.js';
@@ -144,6 +144,13 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
     mappedCodes.set(code, `${feature.category}/${feature.type}`);
   });
   const ignoredCodes = new Set(getIgnoredCloudCodes(deviceType, rawDevice.product_id));
+  // A code mapped as the duplicate of another DP (see `duplicateOf` in the
+  // device-type mappings) is reported as such, not as a gap.
+  const cloudMapping = getCloudMapping(deviceType, rawDevice.product_id);
+  const duplicateOf = (code) => {
+    const entry = cloudMapping[code];
+    return entry && typeof entry === 'object' && entry.duplicateOf ? entry.duplicateOf : null;
+  };
 
   const lines = [
     `Tuya device diagnostic — "${rawDevice.name}"`,
@@ -180,6 +187,8 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
         verdict = mappedCodes.get(code);
       } else if (ignoredCodes.has(normalized)) {
         verdict = 'ignored on purpose';
+      } else if (duplicateOf(normalized) && mappedCodes.has(duplicateOf(normalized))) {
+        verdict = `same DP as ${duplicateOf(normalized)}`;
       }
       lines.push(`  ${code} = ${formatValue(code, values[code])}  [${verdict}]`);
     });
