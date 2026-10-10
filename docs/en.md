@@ -13,6 +13,7 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 - **Pet feeders**: feed on demand, last amount fed, slow feed, light, battery (percentage or raw voltage plus the low-battery flag, depending on the model), scheduled meals.
 - **Fans and ventilation units** (category `fs`, e.g. the AV-TTW5-W heat-recovery unit): on/off, speed (the device's own levels, e.g. 1 to 3), light, child lock, airflow direction, horizontal/vertical swing, ambient temperature when the device measures one.
 - **Dehumidifiers** (category `cs`, e.g. Qlima D825A): on/off, current humidity, temperature, fan speed, timer and time left, mode, target humidity (when offered as steps), child lock. Speeds, timer durations and modes list exactly the values your model declares.
+- **Temperature & humidity sensors** (category `wsdcg`, e.g. Konyks Termo): temperature, humidity, low-battery flag (and battery percentage on the models that measure one). Battery devices sleep between two reports: they are served by the cloud, not the LAN.
 - **Robot vacuums** (Honiture Q6 Pro): start/stop, pause, dock, cleaning state, battery, suction power, water level, carpet boost, custom (room) mode, Y-mop wash, dust-collection frequency, main/side brush remaining life. Note: on this product, turning Pause OFF while the robot is fully stopped also starts a new cleaning cycle — it is not purely a pause toggle.
 - **Switches, lights and covers** through the generic mappings.
 

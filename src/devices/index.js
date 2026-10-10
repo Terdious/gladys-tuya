@@ -21,6 +21,7 @@ import { pilotThermostat } from './pilotThermostat.js';
 import { petFeeder } from './petFeeder.js';
 import { fan } from './fan.js';
 import { dehumidifier } from './dehumidifier.js';
+import { temperatureHumiditySensor } from './temperatureHumiditySensor.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { vacuum } from './vacuum.js';
@@ -40,6 +41,9 @@ export const DEVICE_TYPE_DEFINITIONS = [
   // detection codes; its `cs` category must win over a fan keyword in its name.
   dehumidifier,
   fan,
+  // After the AC and the pilot thermostat: `temp_current` is a detection code
+  // of this sensor too, and those types must keep claiming their devices first.
+  temperatureHumiditySensor,
   smartSocket,
   smartMeter,
   vacuum,

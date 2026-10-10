@@ -660,9 +660,19 @@ export const readValues = {
       return rawValue === null ? null : scaleValue(rawValue, deviceFeature, 0);
     },
   },
-  // The device's own low-battery verdict (pet feeder `battery_alarm`).
+  // The device's own low-battery verdict: a boolean flag (pet feeder
+  // `battery_alarm`), or a battery LEVEL enum translated through the mapping's
+  // tuyaEnum (wsdcg `battery_state`: low/middle/high). A level outside the
+  // declared vocabulary publishes nothing rather than a wrong flag.
   [DEVICE_FEATURE_CATEGORIES.BATTERY_LOW]: {
-    [DEVICE_FEATURE_TYPES.BATTERY_LOW.BINARY]: (valueFromDevice) => {
+    [DEVICE_FEATURE_TYPES.BATTERY_LOW.BINARY]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const tuyaEnum = mappingEntry && mappingEntry.tuyaEnum;
+      if (tuyaEnum && typeof tuyaEnum === 'object' && typeof valueFromDevice === 'string') {
+        const normalized = valueFromDevice.trim().toLowerCase();
+        return Object.prototype.hasOwnProperty.call(tuyaEnum, normalized)
+          ? tuyaEnum[normalized]
+          : null;
+      }
       return normalizeBoolean(valueFromDevice) ? 1 : 0;
     },
   },
