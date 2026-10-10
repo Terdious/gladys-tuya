@@ -103,7 +103,11 @@ export const FEATURE_NAMES_FR = {
   Max: 'Max',
   Low: 'Faible',
   Medium: 'Moyen',
-  High: 'Fort',
+  // "Élevé", not "Fort": "Strong" above is already "Fort", and a dehumidifier
+  // can declare both in one list (fan_speed_enum low/high/strong) — two
+  // identical "Fort" buttons otherwise. Reads naturally for the vacuum water
+  // level too (Faible / Moyen / Élevé).
+  High: 'Élevé',
   Never: 'Jamais',
   'After every clean': 'Après chaque nettoyage',
   'After 2 cleans': 'Après 2 nettoyages',
@@ -123,6 +127,11 @@ export const FEATURE_NAMES_FR = {
   'Timer remaining': 'Minuterie restante',
   'Target humidity': 'Humidité cible',
   Ionizer: 'Ioniseur',
+  // Dynamic SELECT labels (selectLabels, built from the device's range): the
+  // curated values the `cs` products declare. An uncurated value keeps its
+  // generic fallback ("level_2" -> "Level 2") and stays English in both langs.
+  Manual: 'Manuel',
+  Sleep: 'Sommeil',
 
   // --- Pilot-wire mode option labels (API fallback: the frontend renders its
   // own localized label for this first-class type from the numeric value —

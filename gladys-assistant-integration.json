@@ -256,8 +256,8 @@
         "fr": "Noms des fonctionnalités"
       },
       "description": {
-        "en": "Applies to newly discovered devices. This integration's feature names are auto-generated in English by default (repo-wide convention) — translate the ones this integration knows into French, or keep English. A feature not covered by the dictionary keeps its English name either way; you can always rename any feature afterwards in Gladys.",
-        "fr": "S'applique aux appareils nouvellement découverts. Les noms de fonctionnalités générés par cette intégration sont en anglais par défaut (convention du dépôt) — traduisez ceux que l'intégration connaît en français, ou gardez l'anglais. Une fonctionnalité absente du dictionnaire garde son nom anglais dans les deux cas ; vous pouvez toujours renommer une fonctionnalité ensuite dans Gladys."
+        "en": "Applies to the names of newly discovered devices. This integration's feature names are auto-generated in English by default (repo-wide convention) — translate the ones this integration knows into French, or keep English. On a device already created, option labels still follow the new language at the next discovery, but names do not. A feature not covered by the dictionary keeps its English name either way; you can always rename any feature afterwards in Gladys.",
+        "fr": "S'applique aux noms des appareils nouvellement découverts. Les noms de fonctionnalités générés par cette intégration sont en anglais par défaut (convention du dépôt) — traduisez ceux que l'intégration connaît en français, ou gardez l'anglais. Sur un appareil déjà créé, les labels d'options suivent la nouvelle langue à la découverte suivante, mais pas les noms. Une fonctionnalité absente du dictionnaire garde son nom anglais dans les deux cas ; vous pouvez toujours renommer une fonctionnalité ensuite dans Gladys."
       },
       "required": false,
       "default": "en",

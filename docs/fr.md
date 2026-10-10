@@ -113,9 +113,9 @@ Dans la configuration de l'intégration, lancez l'action **Diagnostic d'un appar
 
 ## Noms des fonctionnalités (langue) — optionnel
 
-Les noms de fonctionnalités générés automatiquement par cette intégration (ex. « Dock », « Suction power ») et les labels d'options sont en **anglais** par défaut, conformément à la convention de tous les types d'appareils qu'elle prend en charge — un nom réellement lu sur l'appareil lui-même (rare) reste tel quel quel que soit ce réglage. L'option de configuration **« Feature names »** permet de basculer les appareils nouvellement découverts en **français**, traduits via un petit dictionnaire intégré.
+Les noms de fonctionnalités générés automatiquement par cette intégration (ex. « Dock », « Suction power ») et les labels d'options sont en **anglais** par défaut, conformément à la convention de tous les types d'appareils qu'elle prend en charge — un nom réellement lu sur l'appareil lui-même (rare) reste tel quel quel que soit ce réglage. L'option de configuration **« Noms des fonctionnalités »** permet de basculer les appareils nouvellement découverts en **français**, traduits via un petit dictionnaire intégré.
 
-> **S'applique uniquement aux appareils nouvellement découverts.** Changer cette option ne renomme pas les fonctionnalités déjà créées dans Gladys — renommez-les à la main si vous le souhaitez, ou supprimez puis recréez l'appareil depuis l'onglet Découverte pour appliquer la nouvelle langue. Un nom/label que l'intégration ne sait pas encore traduire en français reste en anglais dans les deux cas, jamais deviné.
+> **Seuls les noms de fonctionnalités changent pour les appareils nouvellement découverts.** Changer cette option ne renomme pas les fonctionnalités déjà créées dans Gladys — renommez-les à la main si vous le souhaitez, ou supprimez puis recréez l'appareil depuis l'onglet Découverte pour appliquer la nouvelle langue. Les labels d'options font exception : sur un appareil existant, les labels des listes (ex. la puissance d'aspiration de l'aspirateur) suivent la nouvelle langue à la découverte suivante, car Gladys resynchronise alors les options de chaque appareil. Un nom/label que l'intégration ne sait pas encore traduire en français reste en anglais dans les deux cas, jamais deviné.
 
 ---
 

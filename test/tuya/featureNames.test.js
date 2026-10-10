@@ -9,8 +9,9 @@ import {
 import { FEATURE_NAMES_FR } from '../../src/i18n/featureNames.fr.js';
 import { translateFeatureName } from '../../src/i18n/translateFeatureName.js';
 
-// Collect every `name` and `selectOptions[].label` a CLOUD_MAPPINGS object
-// (a device type's, a variant's, or the global one) can produce.
+// Collect every `name`, `selectOptions[].label` and curated `selectLabels`
+// value a CLOUD_MAPPINGS object (a device type's, a variant's, or the global
+// one) can produce.
 function collectFromCloudMapping(cloudMapping, collected) {
   Object.values(cloudMapping || {}).forEach((entry) => {
     if (!entry || typeof entry !== 'object') {
@@ -24,6 +25,17 @@ function collectFromCloudMapping(cloudMapping, collected) {
       entry.selectOptions.forEach((option) => {
         if (option && typeof option.label === 'string') {
           collected.add(option.label);
+        }
+      });
+    }
+    // `selectOptionsFromRange` entries draw their labels from `selectLabels`
+    // (e.g. the dehumidifier's dynamic lists). Only the curated values are
+    // kept here; a value with no curated label falls back to a humanized form
+    // ("level_2" -> "Level 2") and is left untranslated on purpose.
+    if (entry.selectLabels && typeof entry.selectLabels === 'object') {
+      Object.values(entry.selectLabels).forEach((label) => {
+        if (typeof label === 'string') {
+          collected.add(label);
         }
       });
     }
