@@ -31,6 +31,10 @@ const humanizeEnumValue = (value) => {
   return text.length > 0 ? text.charAt(0).toUpperCase() + text.slice(1) : String(value);
 };
 
+// The temperature codes whose feature unit follows the device's own display
+// unit (temp_unit_convert / unit shadow property, see convertDevice).
+const TEMPERATURE_CODES = new Set(['temp_set', 'temp_current', 'va_temperature']);
+
 // Every discovery re-converts every device: warn once per unknown code per
 // process instead of re-printing the same 60-line wall on each scan.
 const warnedUnmanagedCodes = new Set();
@@ -62,6 +66,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // rejecting the whole discovery (there is no older-core equivalent to
     // downgrade to, unlike the doorbell/AC types above).
     coreSupportsTextSelect = true,
+    // Every code the device exposes (normalized). A mapping entry declaring
+    // `duplicateOf` is a second copy of another DP (the wsdcg sensors report
+    // the temperature as both `va_temperature` and `temp_current`): it only
+    // becomes a feature when the device does NOT expose the primary code.
+    deviceCodes,
     // Optional collector filled with what happened to each code, so the caller
     // can log a per-device discovery summary (mapped / ignored / unmanaged).
     // This is what makes an unsupported device reportable by a user: the
@@ -94,12 +103,20 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     }
     return undefined;
   }
+  if (
+    mappingEntry.duplicateOf &&
+    deviceCodes instanceof Set &&
+    deviceCodes.has(normalizeCode(mappingEntry.duplicateOf))
+  ) {
+    collect('ignored', `${codeLower} (same DP as ${mappingEntry.duplicateOf})`);
+    return undefined;
+  }
   // tuyaEnum/selectOptions/selectOptionsFromRange/selectLabels/
-  // fullLifeSeconds/jsonValueKey are mapping-only metadata (per-variant mode
-  // vocabulary, TEXT/SELECT option list or how to build it, and the
-  // MAINTENANCE.LIFE_REMAINING full-life reference — all consumed by the
-  // read/write pipeline, not the feature itself); they must not leak onto
-  // the persisted feature.
+  // fullLifeSeconds/jsonValueKey/duplicateOf are mapping-only metadata
+  // (per-variant mode vocabulary, TEXT/SELECT option list or how to build it,
+  // the MAINTENANCE.LIFE_REMAINING full-life reference, the primary code of a
+  // duplicate DP — all consumed by the conversion or the read/write pipeline,
+  // not the feature itself); they must not leak onto the persisted feature.
   const {
     tuyaEnum: _tuyaEnum,
     selectOptions: _selectOptions,
@@ -107,6 +124,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     selectLabels: _selectLabels,
     fullLifeSeconds: _fullLifeSeconds,
     jsonValueKey: _jsonValueKey,
+    duplicateOf: _duplicateOf,
     ...featuresCategoryAndType
   } = mappingEntry;
 
@@ -187,11 +205,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   }
   // Some devices report their temperatures in Fahrenheit (temp_unit_convert /
   // unit property): reflect the real device unit on the feature.
-  if (
-    temperatureUnit &&
-    (codeLower === 'temp_set' || codeLower === 'temp_current') &&
-    feature.unit !== undefined
-  ) {
+  if (temperatureUnit && TEMPERATURE_CODES.has(codeLower) && feature.unit !== undefined) {
     feature.unit = temperatureUnit;
   }
 

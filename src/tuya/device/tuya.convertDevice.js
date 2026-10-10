@@ -17,7 +17,12 @@ import { normalizeBoolean, normalizeTemperatureUnit } from '../utils/tuya.normal
 import { resolveCloudReadStrategy } from '../cloud/tuya.cloudStrategy.js';
 import { buildDeviceSelector } from '../utils/tuya.selector.js';
 import { convertFeature } from './tuya.convertFeature.js';
-import { getDeviceType, getIgnoredCloudCodes, DEVICE_TYPES } from '../mappings/index.js';
+import {
+  getDeviceType,
+  getIgnoredCloudCodes,
+  normalizeCode,
+  DEVICE_TYPES,
+} from '../mappings/index.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -265,6 +270,9 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
   // per-code warning is deduplicated for the whole process lifetime, so it is
   // never seen again after the first discovery).
   const report = { mapped: [], ignored: [], unmanaged: [] };
+  // Every code the device exposes: lets a mapping declared as a duplicate of
+  // another DP step aside when the primary code is there (see convertFeature).
+  const deviceCodes = new Set(Object.keys(groups).map((code) => normalizeCode(code)));
   const features = Object.values(groups).map((group) =>
     convertFeature(group, ids, {
       deviceType,
@@ -274,6 +282,7 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
       productId,
       coreSupportsFirstClassTypes,
       coreSupportsTextSelect,
+      deviceCodes,
       report,
     }),
   );
