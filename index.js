@@ -79,6 +79,9 @@ function buildDiscoveredDevices(tuyaDevices) {
     convertDevice(gladys, tuyaDevice, {
       coreSupportsFirstClassTypes,
       coreSupportsTextSelect: coreSupportsTextSelectFlag,
+      // Read live off `config` (not cached like the two core-capability flags
+      // above): a plain user choice, not something to re-detect on connect.
+      featureNamesLang: config.featureNames,
     }),
   );
 }
@@ -388,6 +391,7 @@ gladys.onConfigUpdated((newConfig) => {
     const credentialsChanged = buildConfigHash(config) !== previousHash;
     const localModeChanged = Boolean(previousConfig.localMode) !== Boolean(config.localMode);
     const pulsarChanged = Boolean(previousConfig.pulsarEnabled) !== Boolean(config.pulsarEnabled);
+    const featureNamesChanged = previousConfig.featureNames !== config.featureNames;
     // A discovery in flight means the cloud connection is healthy: saving an
     // unchanged config during it must not tear everything down.
     const effectivelyConnected =
@@ -422,6 +426,13 @@ gladys.onConfigUpdated((newConfig) => {
       // background discovery so the LAN scan is (re)applied per the new
       // preference (ON = cloud + UDP scan, OFF = cloud only).
       await discoverAndPublish();
+    }
+    if (featureNamesChanged && !localModeChanged) {
+      // Only the feature-name language changed (localModeChanged already
+      // rebuilds everything via discoverAndPublish). Re-publish the cached
+      // discovered list so the Discover screen switches language right away —
+      // buildDiscoveredDevices reads config.featureNames live, no cloud call.
+      await publishDiscoveredDevices(tuya.discoveredDevices);
     }
   });
   return configUpdateChain;
