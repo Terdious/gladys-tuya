@@ -1,9 +1,13 @@
+import { FEATURE_NAMES_DE } from './featureNames.de.js';
+import { FEATURE_NAMES_ES } from './featureNames.es.js';
 import { FEATURE_NAMES_FR } from './featureNames.fr.js';
 
 // One dictionary per non-English `feature_names` config value. Adding a
 // language later is one entry here + one dictionary file, no call-site change.
-const DICTIONARIES = {
+export const DICTIONARIES = {
   fr: FEATURE_NAMES_FR,
+  de: FEATURE_NAMES_DE,
+  es: FEATURE_NAMES_ES,
 };
 
 /**
@@ -14,7 +18,7 @@ const DICTIONARIES = {
  * produces something worse than the English original.
  * @param {string} value - The English string to translate (a feature `name`
  * or a `supported_options[].label`).
- * @param {string} lang - The configured `feature_names` language (`en`/`fr`).
+ * @param {string} lang - The configured `feature_names` language (`en`/`fr`/`de`/`es`).
  * @returns {string} The translated string, or `value` unchanged.
  * @example
  * translateFeatureName('Dock', 'fr'); // 'Retour à la base'

@@ -40,6 +40,8 @@ export const mapConnectionError = (error) => {
       message: {
         en: 'Invalid Access ID / Client ID: copy it again from the Overview tab of your Tuya cloud project.',
         fr: "Access ID / Client ID invalide : recopiez-le depuis l'onglet Overview de votre projet Tuya cloud.",
+        de: 'Ungültige Access ID / Client ID: kopieren Sie sie erneut aus dem Reiter Overview Ihres Tuya-Cloud-Projekts.',
+        es: 'Access ID / Client ID no válido: cópielo de nuevo desde la pestaña Overview de su proyecto Tuya cloud.',
       },
       disableAutoReconnect: true,
     };
@@ -55,6 +57,8 @@ export const mapConnectionError = (error) => {
       message: {
         en: 'Invalid Access Secret / Client Secret: copy it again from the Overview tab of your Tuya cloud project.',
         fr: "Access Secret / Client Secret invalide : recopiez-le depuis l'onglet Overview de votre projet Tuya cloud.",
+        de: 'Ungültiges Access Secret / Client Secret: kopieren Sie es erneut aus dem Reiter Overview Ihres Tuya-Cloud-Projekts.',
+        es: 'Access Secret / Client Secret no válido: cópielo de nuevo desde la pestaña Overview de su proyecto Tuya cloud.',
       },
       disableAutoReconnect: true,
     };
@@ -70,6 +74,8 @@ export const mapConnectionError = (error) => {
       message: {
         en: 'Wrong data center: pick the region your Tuya cloud project was created in.',
         fr: 'Mauvais data center : choisissez la région dans laquelle votre projet Tuya cloud a été créé.',
+        de: 'Falsches Rechenzentrum: wählen Sie die Region, in der Ihr Tuya-Cloud-Projekt erstellt wurde.',
+        es: 'Centro de datos incorrecto: elija la región en la que se creó su proyecto Tuya cloud.',
       },
       disableAutoReconnect: true,
     };
@@ -89,6 +95,12 @@ export const mapConnectionError = (error) => {
         fr:
           "L'essai gratuit du service Tuya « IoT Core » a expiré : tous les appels API de votre projet cloud sont rejetés. " +
           "Prolongez-le gratuitement sur iot.tuya.com (Cloud > Development > votre projet > Service API, ou Cloud > Cloud Services > IoT Core), puis redémarrez l'intégration.",
+        de:
+          'Die kostenlose Testphase des Tuya-Dienstes „IoT Core“ ist abgelaufen: jeder API-Aufruf Ihres Cloud-Projekts wird abgelehnt. ' +
+          'Verlängern Sie sie kostenlos auf iot.tuya.com (Cloud > Development > Ihr Projekt > Service API, oder Cloud > Cloud Services > IoT Core) und starten Sie die Integration dann neu.',
+        es:
+          'La prueba gratuita del servicio Tuya «IoT Core» ha caducado: se rechazan todas las llamadas API de su proyecto cloud. ' +
+          'Renuévela gratis en iot.tuya.com (Cloud > Development > su proyecto > Service API, o Cloud > Cloud Services > IoT Core) y reinicie la integración.',
       },
       disableAutoReconnect: true,
     };
@@ -105,6 +117,8 @@ export const mapConnectionError = (error) => {
       message: {
         en: 'Invalid app account UID, or the account is not linked: link your Smart Life / Tuya app account to the cloud project (Devices > Link Tuya App Account), then copy its UID.',
         fr: 'UID de compte applicatif invalide, ou compte non lié : liez votre compte Smart Life / Tuya au projet cloud (Devices > Link Tuya App Account), puis recopiez son UID.',
+        de: 'Ungültige App-Konto-UID oder Konto nicht verknüpft: verknüpfen Sie Ihr Smart Life / Tuya App-Konto mit dem Cloud-Projekt (Devices > Link Tuya App Account) und kopieren Sie dann dessen UID.',
+        es: 'UID de cuenta de la app no válido, o cuenta no vinculada: vincule su cuenta Smart Life / Tuya al proyecto cloud (Devices > Link Tuya App Account) y copie su UID.',
       },
       disableAutoReconnect: true,
     };
@@ -196,7 +210,9 @@ export async function connect(configuration) {
     // raw Tuya message rarely says what to do. Unknown errors keep the raw
     // message (better than nothing).
     this.lastErrorMessage =
-      mapped && mapped.message ? mapped.message : { en: message, fr: message };
+      mapped && mapped.message
+        ? mapped.message
+        : { en: message, fr: message, de: message, es: message };
     if (mapped && mapped.disableAutoReconnect) {
       this.autoReconnectAllowed = false;
     }

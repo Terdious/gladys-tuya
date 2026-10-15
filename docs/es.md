@@ -1,0 +1,135 @@
+# Integración Tuya para Gladys Assistant
+
+Controle sus dispositivos Tuya / Smart Life desde Gladys, a través de la **nube** y, cuando es posible, directamente por su **red local (LAN)**, para una experiencia más rápida e independiente de internet.
+
+## Dispositivos compatibles
+
+- **Enchufes inteligentes** (incluido el LSC Power Plug FR con medición de energía): encendido/apagado, bloqueo infantil, potencia, tensión, corriente, energía.
+- **Medidores de energía** (incluidos los trifásicos): potencia, tensión, corriente, energía importada/exportada.
+- **Aires acondicionados**: encendido/apagado, modo (auto / frío / calor / deshumidificación / ventilación), temperatura objetivo, temperatura ambiente, velocidad del ventilador y ambos ejes de oscilación.
+- **Termostatos de hilo piloto** (_fil pilote_ francés, familia RP5, Konyks eCosy): modo de calefacción, temperatura objetivo, temperatura ambiente, bloqueo infantil, energía.
+- **Cámaras** (incluidas las LSC): modo privacidad, detección de movimiento, sirena, seguimiento de movimiento, filtro de personas, grabación, volteo de imagen y un sensor de movimiento utilizable en sus escenas.
+- **Videoporteros**: timbre (una función de timbre dedicada), captura del visitante, detección de movimiento, grabación, LED de estado.
+- **Comederos para mascotas**: dispensar a demanda, última cantidad servida, dispensado lento, luz, batería (porcentaje o tensión bruta más el indicador de batería baja, según el modelo), comidas programadas.
+- **Ventiladores y unidades de ventilación** (categoría `fs`, p. ej. el recuperador de calor AV-TTW5-W): encendido/apagado, velocidad (los niveles propios del dispositivo, p. ej. 1 a 3), luz, bloqueo infantil, dirección del flujo de aire, oscilación horizontal/vertical, temperatura ambiente cuando el dispositivo la mide.
+- **Deshumidificadores** (categoría `cs`, p. ej. Qlima D825A): encendido/apagado, humedad actual, temperatura, velocidad del ventilador, temporizador y tiempo restante, modo, humedad objetivo (cuando se ofrece por pasos), bloqueo infantil. Las velocidades, duraciones del temporizador y modos muestran exactamente los valores que declara su modelo.
+- **Sensores de temperatura y humedad** (categoría `wsdcg`, p. ej. Konyks Termo): temperatura, humedad, indicador de batería baja (y porcentaje de batería en los modelos que lo miden). Los dispositivos a batería duermen entre dos informes: se sirven por la nube, no por la LAN.
+- **Purificadores de agua / ósmosis inversa** (categoría `js`, p. ej. The Box): TDS de entrada y de salida (ppm), vida restante de cada etapa de filtro (PP, CTO, RO) en porcentaje y en días, estado de funcionamiento. Los reinicios de "filtro sustituido" se quedan en la app Tuya (un clic por error borraría el desgaste real del filtro).
+- **Robots aspiradores** (Honiture Q6 Pro): inicio/parada, pausa, volver a la base, estado de limpieza, batería, potencia de aspiración, nivel de agua, refuerzo en alfombras, modo personalizado (por habitación), fregado en Y, frecuencia de vaciado del polvo, vida restante del cepillo principal/lateral. Nota: en este producto, desactivar Pausa con el robot completamente parado también inicia un nuevo ciclo de limpieza: no es un simple interruptor de pausa.
+- **Interruptores, luces y persianas** mediante los mapeos genéricos.
+
+> Las cámaras y los videoporteros exponen sus capturas, no un flujo de vídeo en directo: Tuya no publica ningún punto de acceso RTSP/ONVIF local estable.
+>
+> El timbre del videoportero y la velocidad del ventilador / oscilaciones del aire acondicionado requieren **Gladys 4.84.2 o posterior**. La potencia de aspiración / nivel de agua / frecuencia de vaciado del robot requieren **Gladys 4.86.1 o posterior**. En un Gladys más antiguo la integración sigue funcionando, sin esas funciones.
+>
+> Las nuevas instalaciones desde la tienda requieren **Gladys 4.86.1 o posterior**; una integración ya instalada sigue actualizándose en cualquier versión de Gladys.
+
+Cada dispositivo muestra una insignia **Local** o **Nube** para que siempre sepa cómo se comunica.
+
+---
+
+## 1. Crear un proyecto Tuya IoT Cloud
+
+La integración necesita un proyecto Tuya IoT Cloud (gratuito) para llegar a sus dispositivos.
+
+1. Vaya a la [Tuya IoT Platform](https://iot.tuya.com/) e inicie sesión (cree una cuenta si es necesario).
+2. Abra **Cloud → Development** y haga clic en **Create Cloud Project**.
+   - Póngale cualquier nombre.
+   - **Industry / Development method**: mantenga los valores por defecto (Smart Home).
+   - **Data Center**: elija la región más cercana (p. ej. _Central Europe_ o _Western Europe_ para España). **Recuerde esta elección**: seleccionará la misma región en Gladys.
+3. Una vez creado, abra el proyecto. En la pestaña **Overview**, anote el **Access ID / Client ID** y el **Access Secret / Client Secret**.
+4. Abra la pestaña **Service API** y compruebe que **IoT Core** está autorizado (suscríbase si no lo está: es gratuito).
+
+> ⚠️ **La prueba de IoT Core caduca.** Tuya ofrece este servicio como prueba gratuita (un mes, renovable después por seis meses más sin coste). Cuando caduca, Tuya rechaza **todas** las llamadas API de su proyecto y todos sus dispositivos quedan desconectados en Gladys, con el mensaje _"IoT Core service subscription has expired"_.
+>
+> Para renovarla: **Cloud → Development → su proyecto → Service API** (o **Cloud → Cloud Services → IoT Core**) y después **Extend Trial Period**. Es gratuito y surte efecto de inmediato. Póngase un recordatorio: hay que renovarla cada seis meses.
+
+## 2. Vincular su cuenta de la app Smart Life / Tuya
+
+Sus dispositivos deben pertenecer a una cuenta de la app Tuya que el proyecto pueda ver.
+
+1. En el proyecto, abra **Devices → Link Tuya App Account → Add App Account**.
+2. Escanee el código QR con su app **Smart Life** o **Tuya Smart** (Yo → icono de escaneo arriba a la derecha).
+3. De vuelta en la plataforma, abra **Devices → Link Tuya App Account**: sus dispositivos aparecen ahora.
+4. Anote el **App account UID** (mostrado junto a la cuenta vinculada).
+
+## 3. Rellenar la configuración en Gladys
+
+En la pantalla de configuración de la integración, rellene:
+
+| Campo                          | Dónde encontrarlo                                            |
+| ------------------------------ | ------------------------------------------------------------ |
+| **Endpoint**                   | La región de Data Center elegida en el paso 1                |
+| **Client ID**                  | Overview del proyecto → Access ID / Client ID                |
+| **Client Secret**              | Overview del proyecto → Access Secret / Client Secret        |
+| **UID de la cuenta de la app** | Devices → Link Tuya App Account → UID de la cuenta vinculada |
+
+Guarde. El estado **Conexión** en la parte inferior de la pantalla debería pasar a **Conectado**. Si muestra un error, el mensaje le indica qué corregir (credenciales incorrectas, región equivocada…).
+
+## 4. Descubrir sus dispositivos
+
+Abra la pestaña **Descubrir**, deje que Gladys liste sus dispositivos Tuya y cree los que desee. Cada dispositivo aparece con sus funciones y una insignia Local/Nube.
+
+---
+
+## Modo local (LAN)
+
+El control local es más rápido y sigue funcionando sin internet. Se activa con el interruptor **«Preferir la conexión local (LAN) cuando esté disponible»** (activado por defecto).
+
+- Cuando está activado, Gladys intenta llegar a cada dispositivo en su red; si lo consigue, el dispositivo muestra una insignia **Local** y su estado se actualiza **al instante**. Si no, el dispositivo pasa automáticamente a la **Nube**.
+- El control local requiere que Gladys conozca la dirección IP y el protocolo de cada dispositivo. La mayoría de los dispositivos los encuentra automáticamente el escaneo de red durante el descubrimiento.
+- Un dispositivo que _podría_ funcionar en local (su IP es conocida y la preferencia está activada) pero que funciona ahora por la nube mantiene una insignia **Nube** con un **punto naranja**: pase el ratón por encima para ver por qué (dispositivo aparcado tras fallos, datos LAN incompletos…). Un dispositivo solo-nube sigue con una insignia Nube azul normal.
+
+### Un dispositivo sigue en la Nube aunque esté en su LAN
+
+Algunos dispositivos no los encuentra el escaneo automático (otra subred, dormidos durante el escaneo…). Puede añadirlos a mano:
+
+1. Abra la pantalla **Configuración** → acción **Detectar el protocolo local (IP manual)**.
+2. Introduzca el dispositivo (su nombre en Gladys o su ID de Tuya) y su **dirección IP**.
+3. Ejecútela. Si tiene éxito, el dispositivo pasa a local en el siguiente ciclo.
+
+> Consejo: asigne a sus dispositivos Tuya una IP fija (reserva DHCP) en su router para que sigan siendo accesibles.
+
+---
+
+## Eventos cloud en tiempo real (Pulsar) — opcional
+
+Para los dispositivos usados **a través de la nube**, Gladys puede recibir sus cambios de estado **al instante** (en ~1–2 s) en lugar de esperar al siguiente sondeo. Para ello usa el **Message Service** de Tuya (también llamado Pulsar). Los dispositivos ya controlados en local ya tienen respuesta instantánea y no lo necesitan.
+
+Dos pasos para activarlo:
+
+1. **En la Tuya IoT Platform**: abra su proyecto → **Service API** → suscríbase a **Message Service** (gratuito). Sin él, la conexión se rechaza y Gladys registra un mensaje explícito.
+2. **En Gladys**: active el interruptor **«Eventos cloud en tiempo real (Pulsar)»** en la configuración y guarde.
+
+> Un dispositivo solo informa por Pulsar de lo que realmente envía a la nube Tuya: algunos su estado completo, otros solo una parte (p. ej. encendido/apagado), otros nada; estos simplemente mantienen la actualización cloud habitual. Es un comportamiento del dispositivo/firmware, no una limitación de Gladys.
+
+---
+
+## Informar de un dispositivo no compatible
+
+Un dispositivo creado sin ninguna función (o con una sola) expone códigos Tuya que la integración aún no conoce, algo habitual entre variantes de un mismo modelo.
+
+En la configuración de la integración, ejecute la acción **Diagnóstico de un dispositivo**, escriba el nombre del dispositivo tal como aparece en Gladys y copie el resultado en una issue de GitHub. El informe enumera cada código que envía el dispositivo, su valor y lo que la integración hace con él. No contiene ni clave local, ni dirección IP, ni ID de dispositivo Tuya: puede pegarse públicamente tal cual.
+
+---
+
+## Nombres de las funciones (idioma) — opcional
+
+Los nombres de funciones generados automáticamente por esta integración (p. ej. "Dock", "Suction power") y las etiquetas de opciones están en **inglés** por defecto, conforme a la convención de todos los tipos de dispositivos que soporta; un nombre realmente leído del propio dispositivo (poco frecuente) se mantiene tal cual sea cual sea este ajuste. La opción de configuración **«Nombres de las funciones»** permite pasar los dispositivos recién descubiertos a **francés**, **alemán** o **español**, traducidos mediante un pequeño diccionario integrado.
+
+> **Los nombres de funciones solo cambian para los dispositivos recién descubiertos.** Cambiar esta opción no renombra las funciones ya creadas en Gladys: renómbrelas a mano si lo desea, o elimine el dispositivo y vuelva a añadirlo desde la pestaña Descubrir para aplicar el nuevo idioma. Las etiquetas de opciones son la excepción: en un dispositivo existente, las etiquetas de las listas (p. ej. la potencia de aspiración del robot) siguen el nuevo idioma en el siguiente descubrimiento, porque Gladys vuelve a sincronizar entonces las opciones de cada dispositivo. Un nombre/etiqueta que la integración todavía no sabe traducir se queda en inglés en todos los casos, nunca se adivina.
+
+---
+
+## Acciones útiles
+
+- **Detectar el protocolo local (IP manual)**: activa el modo local para un dispositivo que el escaneo no encontró (ver arriba).
+- **Diagnóstico de un dispositivo**: genera el informe de lo que expone un dispositivo (ver arriba).
+- **Desconectarse de la nube Tuya**: deja de comunicarse con la nube hasta que vuelva a guardar la configuración.
+
+## Solución de problemas
+
+- **La conexión muestra un error** → compruebe las cuatro credenciales y que el **Endpoint** corresponde al Data Center de su proyecto.
+- **Un dispositivo no tiene estado / control** → compruebe su insignia. En la Nube sin respuesta, el dispositivo puede estar desconectado en la app Tuya.
+- **Los eventos cloud en tiempo real no arrancan** → asegúrese de que **Message Service** está suscrito en su proyecto Tuya (un 401 en los registros significa que no lo está).
+- **Los registros** están disponibles en la pestaña **Registros** de la integración.

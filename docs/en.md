@@ -115,9 +115,9 @@ In the integration configuration, run the **Device diagnostic** action, type the
 
 ## Feature names (language) — optional
 
-This integration's auto-generated feature names (e.g. "Dock", "Suction power") and option labels default to **English**, matching the convention of every device type it supports — a name actually read from the device itself (rare) is kept as-is regardless of this setting. The **"Feature names"** configuration option lets you switch newly discovered devices to **French** instead, translated through a small built-in dictionary.
+This integration's auto-generated feature names (e.g. "Dock", "Suction power") and option labels default to **English**, matching the convention of every device type it supports — a name actually read from the device itself (rare) is kept as-is regardless of this setting. The **"Feature names"** configuration option lets you switch newly discovered devices to **French**, **German** or **Spanish** instead, translated through a small built-in dictionary.
 
-> **Feature names only change for newly discovered devices.** Changing this option does not rename features already created in Gladys — rename them by hand there if you want, or delete and re-add the device from the Discover screen to pick up the new language. Option labels are the exception: on an existing device, the lists' labels (e.g. the vacuum's suction power) follow the new language at the next discovery, because Gladys re-syncs each device's options then. A feature name/label this integration does not yet have a French translation for is kept in English either way, never guessed.
+> **Feature names only change for newly discovered devices.** Changing this option does not rename features already created in Gladys — rename them by hand there if you want, or delete and re-add the device from the Discover screen to pick up the new language. Option labels are the exception: on an existing device, the lists' labels (e.g. the vacuum's suction power) follow the new language at the next discovery, because Gladys re-syncs each device's options then. A feature name/label this integration does not yet have a translation for is kept in English either way, never guessed.
 
 ---
 

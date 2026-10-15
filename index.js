@@ -151,6 +151,8 @@ async function connectTuya() {
     reportConnectionStatus(false, {
       en: 'Not configured yet: fill in the Tuya cloud credentials.',
       fr: 'Pas encore configuré : renseignez les identifiants du cloud Tuya.',
+      de: 'Noch nicht konfiguriert: geben Sie die Zugangsdaten der Tuya-Cloud ein.',
+      es: 'Aún no configurado: introduzca las credenciales de la nube Tuya.',
     });
     return;
   }
@@ -169,10 +171,14 @@ async function connectTuya() {
     const reason = tuya.lastErrorMessage || {
       en: tuya.lastError || 'unknown error',
       fr: tuya.lastError || 'erreur inconnue',
+      de: tuya.lastError || 'unbekannter Fehler',
+      es: tuya.lastError || 'error desconocido',
     };
     reportConnectionStatus(false, {
       en: `Tuya cloud connection failed: ${reason.en}`,
-      fr: `Connexion au cloud Tuya échouée : ${reason.fr}`,
+      fr: `Connexion au cloud Tuya échouée : ${reason.fr || reason.en}`,
+      de: `Verbindung zur Tuya-Cloud fehlgeschlagen: ${reason.de || reason.en}`,
+      es: `Error de conexión con la nube Tuya: ${reason.es || reason.en}`,
     });
   }
 }
@@ -276,6 +282,8 @@ gladys.onAction('detect_protocol', async (fields) => {
   return {
     en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,
     fr: `Protocole ${version} détecté sur ${ip} — appareil mis à jour, mode local prêt.`,
+    de: `Protokoll ${version} unter ${ip} erkannt — Gerät aktualisiert, lokaler Modus bereit.`,
+    es: `Protocolo ${version} detectado en ${ip}: dispositivo actualizado, modo local listo.`,
   };
 });
 
@@ -330,7 +338,7 @@ gladys.onAction('device_diagnostic', async (fields) => {
   const report = await buildDeviceDiagnostic(tuya, rawDevice);
   // Also in the logs: a user who cannot copy from the UI still has it.
   logger.info(`[Tuya][diagnostic]\n${report}`);
-  return { en: report, fr: report };
+  return { en: report, fr: report, de: report, es: report };
 });
 
 // --- Action: manual cloud disconnect ------------------------------------------
@@ -343,10 +351,14 @@ gladys.onAction('disconnect', async () => {
   reportConnectionStatus(false, {
     en: 'Disconnected manually. Save the configuration to reconnect.',
     fr: 'Déconnecté manuellement. Enregistrez la configuration pour vous reconnecter.',
+    de: 'Manuell getrennt. Speichern Sie die Konfiguration, um die Verbindung wiederherzustellen.',
+    es: 'Desconectado manualmente. Guarde la configuración para volver a conectarse.',
   });
   return {
     en: 'Disconnected from the Tuya cloud. Save the configuration to reconnect.',
     fr: 'Déconnecté du cloud Tuya. Enregistrez la configuration pour vous reconnecter.',
+    de: 'Von der Tuya-Cloud getrennt. Speichern Sie die Konfiguration, um die Verbindung wiederherzustellen.',
+    es: 'Desconectado de la nube Tuya. Guarde la configuración para volver a conectarse.',
   };
 });
 

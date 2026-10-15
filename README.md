@@ -39,6 +39,24 @@ mirror the core Tuya service setup:
 - **App account UID**: UID of the Smart Life app account linked to the project;
 - **Smart Life username** (optional): email or phone of the Smart Life account.
 
+## Translations
+
+Everything a user reads ships in the four languages of the Gladys UI —
+**English, French, German and Spanish** — and must stay that way:
+
+| Surface                                 | Where                                                    |
+| --------------------------------------- | -------------------------------------------------------- |
+| Manifest (description, config, actions) | `gladys-assistant-integration.json` (`en/fr/de/es`)      |
+| Runtime messages (status, actions)      | `{ en, fr, de, es }` literals in `index.js` and `src/`   |
+| Feature names / option labels           | `src/i18n/featureNames.{fr,de,es}.js` (English = source) |
+| User documentation                      | `docs/{en,fr,de,es}.md` (same sections in every file)    |
+
+`npm test` enforces it (`test/i18n.test.js`, `test/tuya/featureNames.test.js`):
+a new manifest text, runtime message, feature name or option label missing a
+language — or a docs page whose sections drift from `docs/en.md` — fails CI.
+When you add a device type, add its new names/labels to the three dictionaries
+in the same PR.
+
 ## Run it locally
 
 ```bash
