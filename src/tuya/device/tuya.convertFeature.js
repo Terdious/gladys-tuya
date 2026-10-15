@@ -112,7 +112,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     return undefined;
   }
   // tuyaEnum/selectOptions/selectOptionsFromRange/selectLabels/
-  // fullLifeSeconds/jsonValueKey/duplicateOf are mapping-only metadata
+  // fullLifeSeconds/percentRemaining/jsonValueKey/duplicateOf are mapping-only metadata
   // (per-variant mode vocabulary, TEXT/SELECT option list or how to build it,
   // the MAINTENANCE.LIFE_REMAINING full-life reference, the primary code of a
   // duplicate DP — all consumed by the conversion or the read/write pipeline,
@@ -125,6 +125,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     fullLifeSeconds: _fullLifeSeconds,
     jsonValueKey: _jsonValueKey,
     duplicateOf: _duplicateOf,
+    percentRemaining: _percentRemaining,
     ...featuresCategoryAndType
   } = mappingEntry;
 
