@@ -24,6 +24,7 @@ export const DEVICE_TYPES = {
   SMART_SOCKET: 'smart-socket',
   TEMPERATURE_HUMIDITY_SENSOR: 'temperature-humidity-sensor',
   VACUUM: 'vacuum',
+  WATER_PURIFIER: 'water-purifier',
   UNKNOWN: 'unknown',
 };
 

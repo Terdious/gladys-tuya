@@ -22,6 +22,7 @@ import { petFeeder } from './petFeeder.js';
 import { fan } from './fan.js';
 import { dehumidifier } from './dehumidifier.js';
 import { temperatureHumiditySensor } from './temperatureHumiditySensor.js';
+import { waterPurifier } from './waterPurifier.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { vacuum } from './vacuum.js';
@@ -44,6 +45,7 @@ export const DEVICE_TYPE_DEFINITIONS = [
   // After the AC and the pilot thermostat: `temp_current` is a detection code
   // of this sensor too, and those types must keep claiming their devices first.
   temperatureHumiditySensor,
+  waterPurifier,
   smartSocket,
   smartMeter,
   vacuum,

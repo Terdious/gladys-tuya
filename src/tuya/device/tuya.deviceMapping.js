@@ -627,11 +627,18 @@ export const readValues = {
     // Honiture Q6 Pro main brush cross-check in src/devices/vacuum.js).
     // Without a confirmed reference, a mapping must leave this DPS unwired
     // rather than guess one.
+    // A mapping declaring `percentRemaining` reads a DP that already IS the
+    // remaining life in percent (water purifier filter stages): the value is
+    // only clamped to 0..100.
     [DEVICE_FEATURE_TYPES.MAINTENANCE.LIFE_REMAINING]: (
       valueFromDevice,
       deviceFeature,
       mappingEntry,
     ) => {
+      if (mappingEntry && mappingEntry.percentRemaining === true) {
+        const percent = Number(valueFromDevice);
+        return Number.isFinite(percent) ? Math.min(100, Math.max(0, Math.round(percent))) : null;
+      }
       const fullLifeSeconds = mappingEntry && mappingEntry.fullLifeSeconds;
       const elapsedSeconds = Number(valueFromDevice);
       if (!fullLifeSeconds || !Number.isFinite(elapsedSeconds)) {

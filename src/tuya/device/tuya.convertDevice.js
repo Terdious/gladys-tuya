@@ -66,10 +66,19 @@ const mergeFeatureValues = (currentValues, nextValues) => {
 
   if (currentParsed && nextParsed) {
     // Keep existing keys first, enrich missing metadata from the new source.
-    return {
+    const merged = {
       ...nextParsed,
       ...currentParsed,
     };
+    // An enum range is the UNION of what every source declares: the status
+    // spec, the function spec and the thing model of one firmware can list
+    // different subsets (issue #54: `water_intake` only in the thing model),
+    // and a value missing from the options would show raw, or not be
+    // selectable at all.
+    if (Array.isArray(currentParsed.range) && Array.isArray(nextParsed.range)) {
+      merged.range = [...new Set([...currentParsed.range, ...nextParsed.range])];
+    }
+    return merged;
   }
   if (currentParsed) {
     return currentParsed;
