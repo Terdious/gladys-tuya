@@ -233,23 +233,33 @@ const DEGRADED_MESSAGES = {
   local_cooldown: {
     en: 'Local unreachable: parked on the cloud after repeated failures. It will retry automatically.',
     fr: 'Local injoignable : basculé sur le cloud après des échecs répétés. Nouvelle tentative automatique.',
+    de: 'Lokal nicht erreichbar: nach wiederholten Fehlern auf die Cloud umgestellt. Neuer Versuch erfolgt automatisch.',
+    es: 'Local inaccesible: se ha pasado a la nube tras varios fallos. Se reintentará automáticamente.',
   },
   local_poll_failed: {
     en: 'Local session failed, falling back to the cloud.',
     fr: 'La session locale a échoué, repli sur le cloud.',
+    de: 'Lokale Sitzung fehlgeschlagen, Rückfall auf die Cloud.',
+    es: 'La sesión local ha fallado, se usa la nube.',
   },
   invalid_local_payload: {
     en: 'The device returned an invalid local response, falling back to the cloud.',
     fr: 'L’appareil a renvoyé une réponse locale invalide, repli sur le cloud.',
+    de: 'Das Gerät hat eine ungültige lokale Antwort gesendet, Rückfall auf die Cloud.',
+    es: 'El dispositivo ha devuelto una respuesta local no válida, se usa la nube.',
   },
   incomplete_local_config: {
     en: 'Local mode is on but this device has no usable LAN info — using the cloud. Set its IP with the "Detect local protocol" action.',
     fr: 'Le mode local est activé mais cet appareil n’a pas d’info réseau exploitable — cloud utilisé. Renseignez son IP via l’action « Détecter le protocole local ».',
+    de: 'Der lokale Modus ist aktiv, aber für dieses Gerät fehlen brauchbare Netzwerkdaten — die Cloud wird verwendet. Geben Sie seine IP über die Aktion „Lokales Protokoll erkennen“ an.',
+    es: 'El modo local está activado pero este dispositivo no tiene datos de red utilizables: se usa la nube. Indique su IP con la acción «Detectar el protocolo local».',
   },
 };
 const DEGRADED_DEFAULT_MESSAGE = {
   en: 'Local mode is on but this device is running over the cloud.',
   fr: 'Le mode local est activé mais cet appareil fonctionne via le cloud.',
+  de: 'Der lokale Modus ist aktiv, aber dieses Gerät läuft über die Cloud.',
+  es: 'El modo local está activado pero este dispositivo funciona a través de la nube.',
 };
 
 /**

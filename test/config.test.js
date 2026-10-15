@@ -70,9 +70,11 @@ test('normalizeConfig reads feature_names, defaulting to English', () => {
   assert.equal(normalizeConfig().featureNames, 'en');
   assert.equal(normalizeConfig({ feature_names: 'fr' }).featureNames, 'fr');
   assert.equal(normalizeConfig({ feature_names: 'en' }).featureNames, 'en');
+  assert.equal(normalizeConfig({ feature_names: 'de' }).featureNames, 'de');
+  assert.equal(normalizeConfig({ feature_names: 'es' }).featureNames, 'es');
   // An unrecognized/removed language never becomes a silent guess: fall back
   // to English, same as an unset option.
-  assert.equal(normalizeConfig({ feature_names: 'de' }).featureNames, 'en');
+  assert.equal(normalizeConfig({ feature_names: 'it' }).featureNames, 'en');
   assert.equal(normalizeConfig({ feature_names: '' }).featureNames, 'en');
 });
 

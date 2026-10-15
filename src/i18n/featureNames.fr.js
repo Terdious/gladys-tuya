@@ -133,6 +133,23 @@ export const FEATURE_NAMES_FR = {
   Manual: 'Manuel',
   Sleep: 'Sommeil',
 
+  // --- Water purifier (waterPurifier.js) ------------------------------------
+  'Inlet TDS': 'TDS entrée',
+  'Outlet TDS': 'TDS sortie',
+  'PP filter life': 'Vie du filtre PP',
+  'CTO filter life': 'Vie du filtre CTO',
+  'RO filter life': 'Vie du filtre RO',
+  'PP filter days left': 'Jours restants filtre PP',
+  'CTO filter days left': 'Jours restants filtre CTO',
+  'RO filter days left': 'Jours restants filtre RO',
+  Status: 'État de fonctionnement',
+  // Status labels (selectLabels, built from the device's range).
+  Purifying: 'Purification',
+  'Water intake': 'Arrivée d’eau',
+  Standby: 'En veille',
+  Flushing: 'Rinçage',
+  Sterilizing: 'Stérilisation',
+
   // --- Pilot-wire mode option labels (API fallback: the frontend renders its
   // own localized label for this first-class type from the numeric value —
   // see the comment above PILOT_WIRE_MODE_LABELS in tuya.deviceMapping.js;
@@ -151,7 +168,9 @@ export const FEATURE_NAMES_FR = {
   // pilot-wire above — see AC_SUPPORTED_OPTION_SOURCES) ---------------------
   Auto: 'Auto',
   Cooling: 'Froid',
-  Heating: 'Chaud',
+  // « Chauffage », the word the Gladys UI itself uses for this AC mode (and the
+  // water purifier's `heating` status label shares the key).
+  Heating: 'Chauffage',
   Drying: 'Déshumidification',
   Fan: 'Ventilation',
   'Low-mid': 'Faible-moyen',

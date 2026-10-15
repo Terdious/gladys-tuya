@@ -4,7 +4,9 @@
   "name": "Tuya",
   "description": {
     "en": "Tuya / Smart Life sockets, meters, ACs, heaters, cameras, doorbells, feeders, vacuums (cloud + LAN).",
-    "fr": "Prises, compteurs, clims, fil pilote, caméras, sonnettes, aspirateurs Tuya / Smart Life (cloud+LAN)."
+    "fr": "Prises, compteurs, clims, fil pilote, caméras, sonnettes, aspirateurs Tuya / Smart Life (cloud+LAN).",
+    "de": "Tuya / Smart Life: Steckdosen, Zähler, Klimageräte, Heizungen, Kameras, Sauger (Cloud + LAN).",
+    "es": "Tuya / Smart Life: enchufes, medidores, A/A, calefactores, cámaras, aspiradores (nube + LAN)."
   },
   "version": "1.19.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.19.0",
@@ -23,11 +25,15 @@
       "key": "detect_protocol",
       "label": {
         "en": "Detect local protocol (manual IP)",
-        "fr": "Détecter le protocole local (IP manuelle)"
+        "fr": "Détecter le protocole local (IP manuelle)",
+        "de": "Lokales Protokoll erkennen (manuelle IP)",
+        "es": "Detectar el protocolo local (IP manual)"
       },
       "description": {
         "en": "For a device the LAN scan did not find: enter its IP to detect the local protocol version and enable local mode.",
-        "fr": "Pour un appareil non trouvé par le scan LAN : saisissez son IP pour détecter la version de protocole locale et activer le mode local."
+        "fr": "Pour un appareil non trouvé par le scan LAN : saisissez son IP pour détecter la version de protocole locale et activer le mode local.",
+        "de": "Für ein Gerät, das der LAN-Scan nicht gefunden hat: geben Sie seine IP ein, um die lokale Protokollversion zu erkennen und den lokalen Modus zu aktivieren.",
+        "es": "Para un dispositivo que el escaneo LAN no ha encontrado: introduzca su IP para detectar la versión del protocolo local y activar el modo local."
       },
       "timeout_seconds": 60,
       "fields": [
@@ -36,11 +42,15 @@
           "type": "string",
           "label": {
             "en": "Device (name or Tuya ID)",
-            "fr": "Appareil (nom ou identifiant Tuya)"
+            "fr": "Appareil (nom ou identifiant Tuya)",
+            "de": "Gerät (Name oder Tuya-ID)",
+            "es": "Dispositivo (nombre o ID de Tuya)"
           },
           "description": {
             "en": "The device name as shown in Gladys, or its Tuya ID.",
-            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya."
+            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya.",
+            "de": "Der Gerätename wie in Gladys angezeigt, oder seine Tuya-ID.",
+            "es": "El nombre del dispositivo tal como aparece en Gladys, o su ID de Tuya."
           },
           "required": true
         },
@@ -49,7 +59,9 @@
           "type": "string",
           "label": {
             "en": "Device IP address",
-            "fr": "Adresse IP de l'appareil"
+            "fr": "Adresse IP de l'appareil",
+            "de": "IP-Adresse des Geräts",
+            "es": "Dirección IP del dispositivo"
           },
           "required": true
         }
@@ -59,11 +71,15 @@
       "key": "device_diagnostic",
       "label": {
         "en": "Device diagnostic (report an unsupported device)",
-        "fr": "Diagnostic d'un appareil (signaler un appareil non supporté)"
+        "fr": "Diagnostic d'un appareil (signaler un appareil non supporté)",
+        "de": "Gerätediagnose (nicht unterstütztes Gerät melden)",
+        "es": "Diagnóstico de un dispositivo (informar de un dispositivo no compatible)"
       },
       "description": {
         "en": "Lists what this device reports to Tuya and what the integration does with each code. Copy the result into a GitHub issue to get a missing device supported. It contains no local key, IP address nor Tuya id.",
-        "fr": "Liste ce que cet appareil remonte à Tuya et ce que l'intégration fait de chaque code. Copiez le résultat dans une issue GitHub pour faire supporter un appareil manquant. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya."
+        "fr": "Liste ce que cet appareil remonte à Tuya et ce que l'intégration fait de chaque code. Copiez le résultat dans une issue GitHub pour faire supporter un appareil manquant. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya.",
+        "de": "Listet auf, was dieses Gerät an Tuya meldet und was die Integration mit jedem Code macht. Kopieren Sie das Ergebnis in ein GitHub-Issue, damit ein fehlendes Gerät unterstützt wird. Es enthält weder lokalen Schlüssel noch IP-Adresse noch Tuya-ID.",
+        "es": "Enumera lo que este dispositivo envía a Tuya y lo que la integración hace con cada código. Copie el resultado en una issue de GitHub para que se añada un dispositivo que falta. No contiene ni clave local, ni dirección IP, ni ID de Tuya."
       },
       "timeout_seconds": 60,
       "fields": [
@@ -72,11 +88,15 @@
           "type": "string",
           "label": {
             "en": "Device (name or Tuya ID)",
-            "fr": "Appareil (nom ou identifiant Tuya)"
+            "fr": "Appareil (nom ou identifiant Tuya)",
+            "de": "Gerät (Name oder Tuya-ID)",
+            "es": "Dispositivo (nombre o ID de Tuya)"
           },
           "description": {
             "en": "The device name as shown in Gladys, or its Tuya ID.",
-            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya."
+            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya.",
+            "de": "Der Gerätename wie in Gladys angezeigt, oder seine Tuya-ID.",
+            "es": "El nombre del dispositivo tal como aparece en Gladys, o su ID de Tuya."
           },
           "required": true
         }
@@ -86,11 +106,15 @@
       "key": "disconnect",
       "label": {
         "en": "Disconnect from the Tuya cloud",
-        "fr": "Se déconnecter du cloud Tuya"
+        "fr": "Se déconnecter du cloud Tuya",
+        "de": "Von der Tuya-Cloud trennen",
+        "es": "Desconectarse de la nube Tuya"
       },
       "description": {
         "en": "Stop talking to the Tuya cloud (local sessions are released too). Save the configuration to reconnect.",
-        "fr": "Coupe la connexion au cloud Tuya (les sessions locales sont aussi libérées). Enregistrez la configuration pour vous reconnecter."
+        "fr": "Coupe la connexion au cloud Tuya (les sessions locales sont aussi libérées). Enregistrez la configuration pour vous reconnecter.",
+        "de": "Beendet die Verbindung zur Tuya-Cloud (lokale Sitzungen werden ebenfalls freigegeben). Speichern Sie die Konfiguration, um sich erneut zu verbinden.",
+        "es": "Corta la conexión con la nube Tuya (las sesiones locales también se liberan). Guarde la configuración para volver a conectarse."
       },
       "timeout_seconds": 30,
       "fields": []
@@ -102,18 +126,24 @@
       "type": "section",
       "label": {
         "en": "Getting started",
-        "fr": "Pour commencer"
+        "fr": "Pour commencer",
+        "de": "Erste Schritte",
+        "es": "Primeros pasos"
       },
       "description": {
         "en": "This integration talks to your devices through a Tuya IoT Cloud project. Create one (free) on the Tuya IoT Platform, subscribe the \"IoT Core\" service, link your Smart Life / Tuya app account, then copy the four values below. The full step-by-step is in the Documentation link above.",
-        "fr": "Cette intégration communique avec vos appareils via un projet Tuya IoT Cloud. Créez-en un (gratuit) sur la Tuya IoT Platform, souscrivez au service \"IoT Core\", liez votre compte de l'application Smart Life / Tuya, puis reportez les quatre valeurs ci-dessous. Le pas à pas complet est dans le lien Documentation ci-dessus."
+        "fr": "Cette intégration communique avec vos appareils via un projet Tuya IoT Cloud. Créez-en un (gratuit) sur la Tuya IoT Platform, souscrivez au service \"IoT Core\", liez votre compte de l'application Smart Life / Tuya, puis reportez les quatre valeurs ci-dessous. Le pas à pas complet est dans le lien Documentation ci-dessus.",
+        "de": "Diese Integration kommuniziert über ein Tuya-IoT-Cloud-Projekt mit Ihren Geräten. Erstellen Sie (kostenlos) eines auf der Tuya IoT Platform, abonnieren Sie den Dienst \"IoT Core\", verknüpfen Sie Ihr Smart Life / Tuya App-Konto und übertragen Sie dann die vier Werte unten. Die vollständige Schritt-für-Schritt-Anleitung finden Sie über den Dokumentationslink oben.",
+        "es": "Esta integración se comunica con sus dispositivos a través de un proyecto Tuya IoT Cloud. Cree uno (gratis) en la Tuya IoT Platform, suscríbase al servicio \"IoT Core\", vincule su cuenta de la app Smart Life / Tuya y copie los cuatro valores de abajo. El paso a paso completo está en el enlace Documentación de arriba."
       },
       "links": [
         {
           "url": "https://iot.tuya.com/",
           "label": {
             "en": "Tuya IoT Platform",
-            "fr": "Tuya IoT Platform"
+            "fr": "Tuya IoT Platform",
+            "de": "Tuya IoT Platform",
+            "es": "Tuya IoT Platform"
           }
         }
       ]
@@ -123,11 +153,15 @@
       "type": "select",
       "label": {
         "en": "Endpoint",
-        "fr": "Endpoint"
+        "fr": "Endpoint",
+        "de": "Endpoint",
+        "es": "Endpoint"
       },
       "description": {
         "en": "Tuya data center region of your cloud project.",
-        "fr": "Région du data center Tuya de votre projet cloud."
+        "fr": "Région du data center Tuya de votre projet cloud.",
+        "de": "Region des Tuya-Rechenzentrums Ihres Cloud-Projekts.",
+        "es": "Región del centro de datos Tuya de su proyecto cloud."
       },
       "required": true,
       "options": [
@@ -135,42 +169,54 @@
           "value": "china",
           "label": {
             "en": "China",
-            "fr": "China"
+            "fr": "Chine (China)",
+            "de": "China",
+            "es": "China"
           }
         },
         {
           "value": "westernAmerica",
           "label": {
             "en": "Western America",
-            "fr": "Western America"
+            "fr": "Amérique de l’Ouest (Western America)",
+            "de": "Westamerika (Western America)",
+            "es": "América occidental (Western America)"
           }
         },
         {
           "value": "easternAmerica",
           "label": {
             "en": "Eastern America",
-            "fr": "Eastern America"
+            "fr": "Amérique de l’Est (Eastern America)",
+            "de": "Ostamerika (Eastern America)",
+            "es": "América oriental (Eastern America)"
           }
         },
         {
           "value": "centralEurope",
           "label": {
             "en": "Central Europe",
-            "fr": "Central Europe"
+            "fr": "Europe centrale (Central Europe)",
+            "de": "Mitteleuropa (Central Europe)",
+            "es": "Europa central (Central Europe)"
           }
         },
         {
           "value": "westernEurope",
           "label": {
             "en": "Western Europe",
-            "fr": "Western Europe"
+            "fr": "Europe de l’Ouest (Western Europe)",
+            "de": "Westeuropa (Western Europe)",
+            "es": "Europa occidental (Western Europe)"
           }
         },
         {
           "value": "india",
           "label": {
             "en": "India",
-            "fr": "India"
+            "fr": "Inde (India)",
+            "de": "Indien (India)",
+            "es": "India"
           }
         }
       ]
@@ -180,11 +226,15 @@
       "type": "string",
       "label": {
         "en": "Client ID",
-        "fr": "Client ID"
+        "fr": "Client ID",
+        "de": "Client ID",
+        "es": "Client ID"
       },
       "description": {
         "en": "Access ID / Client ID of your Tuya IoT cloud project.",
-        "fr": "Access ID / Client ID de votre projet cloud Tuya IoT."
+        "fr": "Access ID / Client ID de votre projet cloud Tuya IoT.",
+        "de": "Access ID / Client ID Ihres Tuya-IoT-Cloud-Projekts.",
+        "es": "Access ID / Client ID de su proyecto cloud Tuya IoT."
       },
       "required": true
     },
@@ -193,11 +243,15 @@
       "type": "secret",
       "label": {
         "en": "Client Secret",
-        "fr": "Client Secret"
+        "fr": "Client Secret",
+        "de": "Client Secret",
+        "es": "Client Secret"
       },
       "description": {
         "en": "Access Secret / Client Secret of your Tuya IoT cloud project.",
-        "fr": "Access Secret / Client Secret de votre projet cloud Tuya IoT."
+        "fr": "Access Secret / Client Secret de votre projet cloud Tuya IoT.",
+        "de": "Access Secret / Client Secret Ihres Tuya-IoT-Cloud-Projekts.",
+        "es": "Access Secret / Client Secret de su proyecto cloud Tuya IoT."
       },
       "required": true
     },
@@ -206,11 +260,15 @@
       "type": "string",
       "label": {
         "en": "App account UID",
-        "fr": "App account User ID"
+        "fr": "UID du compte de l’application",
+        "de": "App-Konto-UID",
+        "es": "UID de la cuenta de la app"
       },
       "description": {
         "en": "UID of the Smart Life / Tuya app account linked to your cloud project.",
-        "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud."
+        "fr": "UID du compte de l'application Smart Life / Tuya lié à votre projet cloud.",
+        "de": "UID des mit Ihrem Cloud-Projekt verknüpften Smart Life / Tuya App-Kontos.",
+        "es": "UID de la cuenta de la app Smart Life / Tuya vinculada a su proyecto cloud."
       },
       "required": true
     },
@@ -219,18 +277,24 @@
       "type": "section",
       "label": {
         "en": "Real-time cloud events (optional)",
-        "fr": "Événements cloud en temps réel (optionnel)"
+        "fr": "Événements cloud en temps réel (optionnel)",
+        "de": "Echtzeit-Cloud-Ereignisse (optional)",
+        "es": "Eventos cloud en tiempo real (opcional)"
       },
       "description": {
         "en": "For devices used over the cloud, Gladys can receive their state changes instantly instead of waiting for the next poll. This needs the \"Message Service\" subscribed on your Tuya IoT project, then the toggle below turned on. Devices already controlled locally already get instant feedback and do not need this.",
-        "fr": "Pour les appareils utilisés via le cloud, Gladys peut recevoir leurs changements d'état instantanément au lieu d'attendre le prochain relevé. Cela nécessite d'avoir souscrit au \"Message Service\" sur votre projet Tuya IoT, puis d'activer l'option ci-dessous. Les appareils déjà pilotés en local ont déjà un retour instantané et n'en ont pas besoin."
+        "fr": "Pour les appareils utilisés via le cloud, Gladys peut recevoir leurs changements d'état instantanément au lieu d'attendre le prochain relevé. Cela nécessite d'avoir souscrit au \"Message Service\" sur votre projet Tuya IoT, puis d'activer l'option ci-dessous. Les appareils déjà pilotés en local ont déjà un retour instantané et n'en ont pas besoin.",
+        "de": "Für Geräte, die über die Cloud genutzt werden, kann Gladys deren Zustandsänderungen sofort empfangen, statt auf die nächste Abfrage zu warten. Dazu muss der \"Message Service\" in Ihrem Tuya-IoT-Projekt abonniert und dann der Schalter unten aktiviert sein. Lokal gesteuerte Geräte erhalten bereits eine sofortige Rückmeldung und brauchen dies nicht.",
+        "es": "Para los dispositivos usados a través de la nube, Gladys puede recibir sus cambios de estado al instante en lugar de esperar al siguiente sondeo. Para ello hay que suscribirse al \"Message Service\" en su proyecto Tuya IoT y activar la opción de abajo. Los dispositivos ya controlados en local ya tienen respuesta instantánea y no lo necesitan."
       },
       "links": [
         {
           "url": "https://iot.tuya.com/",
           "label": {
             "en": "Tuya IoT Platform",
-            "fr": "Tuya IoT Platform"
+            "fr": "Tuya IoT Platform",
+            "de": "Tuya IoT Platform",
+            "es": "Tuya IoT Platform"
           }
         }
       ]
@@ -240,11 +304,15 @@
       "type": "boolean",
       "label": {
         "en": "Real-time cloud events (Pulsar)",
-        "fr": "Événements cloud en temps réel (Pulsar)"
+        "fr": "Événements cloud en temps réel (Pulsar)",
+        "de": "Echtzeit-Cloud-Ereignisse (Pulsar)",
+        "es": "Eventos cloud en tiempo real (Pulsar)"
       },
       "description": {
         "en": "Instant cloud state feedback via the Tuya Message Service. Requires 'Message Service' enabled on your Tuya IoT project.",
-        "fr": "Retour d'état cloud instantané via le Tuya Message Service. Nécessite 'Message Service' activé sur votre projet Tuya IoT."
+        "fr": "Retour d'état cloud instantané via le Tuya Message Service. Nécessite 'Message Service' activé sur votre projet Tuya IoT.",
+        "de": "Sofortige Cloud-Zustandsrückmeldung über den Tuya Message Service. Erfordert einen aktivierten 'Message Service' in Ihrem Tuya-IoT-Projekt.",
+        "es": "Respuesta de estado cloud instantánea mediante el Tuya Message Service. Requiere tener 'Message Service' activado en su proyecto Tuya IoT."
       },
       "required": false
     },
@@ -253,11 +321,15 @@
       "type": "select",
       "label": {
         "en": "Feature names",
-        "fr": "Noms des fonctionnalités"
+        "fr": "Noms des fonctionnalités",
+        "de": "Namen der Funktionen",
+        "es": "Nombres de las funciones"
       },
       "description": {
-        "en": "Applies to the names of newly discovered devices. This integration's feature names are auto-generated in English by default (repo-wide convention) — translate the ones this integration knows into French, or keep English. On a device already created, option labels still follow the new language at the next discovery, but names do not. A feature not covered by the dictionary keeps its English name either way; you can always rename any feature afterwards in Gladys.",
-        "fr": "S'applique aux noms des appareils nouvellement découverts. Les noms de fonctionnalités générés par cette intégration sont en anglais par défaut (convention du dépôt) — traduisez ceux que l'intégration connaît en français, ou gardez l'anglais. Sur un appareil déjà créé, les labels d'options suivent la nouvelle langue à la découverte suivante, mais pas les noms. Une fonctionnalité absente du dictionnaire garde son nom anglais dans les deux cas ; vous pouvez toujours renommer une fonctionnalité ensuite dans Gladys."
+        "en": "Applies to the names of newly discovered devices. This integration's feature names are auto-generated in English by default (repo-wide convention) — translate the ones this integration knows into French, German or Spanish, or keep English. On a device already created, option labels still follow the new language at the next discovery, but names do not. A feature not covered by the dictionary keeps its English name either way; you can always rename any feature afterwards in Gladys.",
+        "fr": "S'applique aux noms des appareils nouvellement découverts. Les noms de fonctionnalités générés par cette intégration sont en anglais par défaut (convention du dépôt) — traduisez ceux que l'intégration connaît en français, allemand ou espagnol, ou gardez l'anglais. Sur un appareil déjà créé, les labels d'options suivent la nouvelle langue à la découverte suivante, mais pas les noms. Une fonctionnalité absente du dictionnaire garde son nom anglais dans tous les cas ; vous pouvez toujours renommer une fonctionnalité ensuite dans Gladys.",
+        "de": "Gilt für die Namen neu erkannter Geräte. Die Funktionsnamen dieser Integration werden standardmäßig auf Englisch erzeugt (Konvention des Repos) — übersetzen Sie die, die die Integration kennt, ins Französische, Deutsche oder Spanische, oder behalten Sie Englisch. Bei einem bereits angelegten Gerät folgen die Optionsbezeichnungen der neuen Sprache bei der nächsten Erkennung, die Namen jedoch nicht. Eine Funktion, die nicht im Wörterbuch steht, behält in jedem Fall ihren englischen Namen; Sie können jede Funktion danach jederzeit in Gladys umbenennen.",
+        "es": "Se aplica a los nombres de los dispositivos recién descubiertos. Los nombres de funciones de esta integración se generan en inglés por defecto (convención del repositorio): traduzca los que la integración conoce al francés, alemán o español, o mantenga el inglés. En un dispositivo ya creado, las etiquetas de opciones siguen el nuevo idioma en el siguiente descubrimiento, pero los nombres no. Una función que no está en el diccionario conserva su nombre inglés en todos los casos; siempre puede renombrar cualquier función después en Gladys."
       },
       "required": false,
       "default": "en",
@@ -266,14 +338,36 @@
           "value": "en",
           "label": {
             "en": "English",
-            "fr": "Anglais"
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
           }
         },
         {
           "value": "fr",
           "label": {
             "en": "French",
-            "fr": "Français"
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
           }
         }
       ]

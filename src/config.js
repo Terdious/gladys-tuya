@@ -18,7 +18,7 @@ import { TUYA_ENDPOINTS } from './tuya/constants.js';
 // [a-z0-9_] keys): normalizeConfig maps them to these internal names.
 // Languages the `feature_names` config option accepts; anything else falls
 // back to 'en' (see normalizeConfig below).
-export const SUPPORTED_FEATURE_NAMES_LANGS = ['en', 'fr'];
+export const SUPPORTED_FEATURE_NAMES_LANGS = ['en', 'fr', 'de', 'es'];
 
 export const DEFAULT_CONFIG = {
   endpoint: '', // Tuya data center region key (see TUYA_ENDPOINTS)
