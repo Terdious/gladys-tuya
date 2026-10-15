@@ -201,6 +201,33 @@ test('convertDevice names/labels are plain English strings (repo convention: aut
   assert.equal(byCode.power_go.name, 'Cleaning');
 });
 
+test('convertDevice translates names/labels to French when featureNamesLang is "fr" (feature_names config option, issue #41)', () => {
+  const gladys = createFakeGladys();
+  const device = convertDevice(gladys, HONITURE_Q6_PRO_DEVICE, { featureNamesLang: 'fr' });
+  const byCode = Object.fromEntries(
+    device.features.map((f) => [f.external_id.split(':').pop(), f]),
+  );
+  assert.equal(byCode.charge_switch.name, 'Retour à la base');
+  assert.equal(byCode.robot_state.name, 'État');
+  assert.equal(byCode.power_go.name, 'Nettoyage');
+  // supported_options[].label is translated too (TEXT/SELECT: no core-side
+  // localization exists for it, unlike a first-class enum type).
+  assert.equal(byCode.fan_mode.supported_options.find((o) => o.value === 'strong').label, 'Fort');
+  // external_id/selector are derived from the Tuya `code`, never the
+  // translated name: switching the language later cannot break scenes or
+  // history.
+  assert.ok(byCode.charge_switch.external_id.endsWith(':charge_switch'));
+});
+
+test('convertDevice defaults featureNamesLang to English (no option passed)', () => {
+  const gladys = createFakeGladys();
+  const device = convertDevice(gladys, HONITURE_Q6_PRO_DEVICE);
+  const byCode = Object.fromEntries(
+    device.features.map((f) => [f.external_id.split(':').pop(), f]),
+  );
+  assert.equal(byCode.charge_switch.name, 'Dock');
+});
+
 test('convertDevice drops fan_mode/water_mode/dust_collection_num on a core older than 4.86.1 (no downgrade path for TEXT/SELECT)', () => {
   const gladys = createFakeGladys();
   const device = convertDevice(gladys, HONITURE_Q6_PRO_DEVICE, { coreSupportsTextSelect: false });

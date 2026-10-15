@@ -55,7 +55,7 @@ const getPilotWireTuyaEnum = (mappingEntry) =>
 // English fallback labels for pilot-wire supported options: the frontend
 // renders its own localized label from the option value, these only keep the
 // API payload human-readable.
-const PILOT_WIRE_MODE_LABELS = {
+export const PILOT_WIRE_MODE_LABELS = {
   [PILOT_WIRE_MODE.OFF]: 'Off',
   [PILOT_WIRE_MODE.FROST_PROTECTION]: 'Frost Protection',
   [PILOT_WIRE_MODE.ECO]: 'Eco',
@@ -246,7 +246,7 @@ const GLADYS_AC_SWING_VERTICAL_TO_TUYA = {
 // vary a lot (many lack quiet/turbo): for the fan speed and the swings the
 // spec enum range is the per-device truth — there is no curated per-variant
 // vocabulary like the pilot wire, the maps above cover every known alias.
-const AC_SUPPORTED_OPTION_SOURCES = {
+export const AC_SUPPORTED_OPTION_SOURCES = {
   // The MODE is the exception: it always offers the five Gladys modes.
   // Narrowing it by the spec range (1.11.0 → 1.16.0) hid Heating and Fan on
   // units that heat and ventilate fine (bench report, "Bureau TLT"): the
