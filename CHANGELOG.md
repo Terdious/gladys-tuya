@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-10-16
+
 ### Changed
 
 - The "Detect local protocol" and "Device diagnostic" actions offer the device in a **list** of the devices created in Gladys, instead of a text field. A second, optional field still accepts a name or Tuya ID for a device not created in Gladys.
