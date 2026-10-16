@@ -14,11 +14,15 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 - `CHANGELOG.md`, published as GitHub Release notes by the Release workflow.
 
+### Fixed
+
+- Air conditioners whose panel displays °F (#52): the ambient temperature is no longer divided by 10 on models sending whole degrees (the scale the device declares is now kept), and the setpoint / ambient temperature are no longer labelled °F while the device sends Celsius (when the device also exposes the `temp_set_f` / `temp_current_f` twins). Delete and re-discover an AC created before this version to pick up the correct unit; its scale is corrected at the next discovery.
+
 ## [1.20.0] - 2026-10-16
 
 ### Added
 
-- "Feature names" configuration option: the auto-generated feature names and option labels of newly discovered devices in English, French, German or Spanish (#43, thanks @spenceur).
+- "Feature names" configuration option: the auto-generated feature names and option labels of newly discovered devices in English, French, German or Spanish (#43, thanks @vincentBesseau).
 - Every user-facing text in English, French, German and Spanish: manifest (description, configuration, actions), connection statuses, degraded-badge tooltips, action results, and the user documentation (`docs/de.md`, `docs/es.md`).
 - Tests that fail CI when a text, feature name or documentation page misses one of the four languages.
 

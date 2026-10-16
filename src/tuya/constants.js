@@ -45,6 +45,11 @@ export const DEVICE_PARAM_NAME = {
   // storing the type as a param makes the runtime re-resolution (scale
   // restore, variant mappings) independent of the name/category heuristics.
   DEVICE_TYPE: 'DEVICE_TYPE',
+  // Same reason for the scale of the temperature codes: the spec scale is per
+  // model (an AC can send 24 or 245 for the same 24.x degrees), so the one
+  // read at discovery is stored as JSON ({"temp_current":0,...}) and wins
+  // over the device-type default at poll/setValue time (issue #52).
+  TEMPERATURE_SCALES: 'TEMPERATURE_SCALES',
 };
 
 // Type segment used to build every device external id:

@@ -286,6 +286,8 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
   // per-code warning is deduplicated for the whole process lifetime, so it is
   // never seen again after the first discovery).
   const report = { mapped: [], ignored: [], unmanaged: [] };
+  // Spec scale of each temperature code, persisted below (issue #52).
+  const temperatureScales = {};
   // Every code the device exposes: lets a mapping declared as a duplicate of
   // another DP step aside when the primary code is there (see convertFeature).
   const deviceCodes = new Set(Object.keys(groups).map((code) => normalizeCode(code)));
@@ -301,8 +303,15 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
       featureNamesLang,
       deviceCodes,
       report,
+      temperatureScales,
     }),
   );
+  if (Object.keys(temperatureScales).length > 0) {
+    params.push({
+      name: DEVICE_PARAM_NAME.TEMPERATURE_SCALES,
+      value: JSON.stringify(temperatureScales),
+    });
+  }
   const filteredFeatures = features.filter((feature) => feature);
   logger.info(
     `[Tuya][discovery] "${name}" id=${id || 'unknown'} type=${deviceType} product_id=${

@@ -8,6 +8,7 @@ import {
   createLogger,
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
+  DEVICE_FEATURE_UNITS,
 } from '@gladysassistant/integration-sdk';
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
@@ -39,6 +40,27 @@ const TEMPERATURE_CODES = new Set(['temp_set', 'temp_current', 'va_temperature']
 // Every discovery re-converts every device: warn once per unknown code per
 // process instead of re-printing the same 60-line wall on each scan.
 const warnedUnmanagedCodes = new Set();
+
+/**
+ * @description The unit a temperature code is really expressed in (issue #52).
+ * `temp_unit_convert` is only the unit the device panel displays: a device
+ * that also exposes `<code>_f` keeps `<code>` in Celsius whatever the panel
+ * shows. Without that twin, the panel unit is kept (models with a single DP
+ * that follows the panel), then the mapping default. The spec `unit` is not
+ * used: it is declared once per product and cannot follow a runtime switch.
+ * @param {string} codeLower - The normalized Tuya code.
+ * @param {object} context - `mappingUnit`, `temperatureUnit`, `deviceCodes`.
+ * @returns {string} A Gladys temperature unit.
+ * @example
+ * resolveTemperatureUnit('temp_current', { mappingUnit: 'celsius', deviceCodes });
+ */
+const resolveTemperatureUnit = (codeLower, context) => {
+  const { mappingUnit, temperatureUnit, deviceCodes } = context;
+  if (deviceCodes instanceof Set && deviceCodes.has(`${codeLower}_f`)) {
+    return DEVICE_FEATURE_UNITS.CELSIUS;
+  }
+  return temperatureUnit || mappingUnit;
+};
 
 /**
  * @description Transforms Tuya feature as Gladys feature.
@@ -86,6 +108,9 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // This is what makes an unsupported device reportable by a user: the
     // per-code warning below is deduplicated for the whole process lifetime.
     report,
+    // Optional collector receiving the spec scale of each temperature code
+    // ({ temp_current: 0 }); convertDevice persists it as a device param.
+    temperatureScales,
   } = options;
   const collect = (bucket, value) => {
     if (report && Array.isArray(report[bucket])) {
@@ -213,11 +238,20 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   }
   if ('scale' in valuesObject) {
     feature.scale = valuesObject.scale;
+    if (
+      temperatureScales &&
+      TEMPERATURE_CODES.has(codeLower) &&
+      Number.isInteger(Number(valuesObject.scale))
+    ) {
+      temperatureScales[codeLower] = Number(valuesObject.scale);
+    }
   }
-  // Some devices report their temperatures in Fahrenheit (temp_unit_convert /
-  // unit property): reflect the real device unit on the feature.
-  if (temperatureUnit && TEMPERATURE_CODES.has(codeLower) && feature.unit !== undefined) {
-    feature.unit = temperatureUnit;
+  if (TEMPERATURE_CODES.has(codeLower) && feature.unit !== undefined) {
+    feature.unit = resolveTemperatureUnit(codeLower, {
+      mappingUnit: feature.unit,
+      temperatureUnit,
+      deviceCodes,
+    });
   }
 
   // Scaled target temperatures declare their bounds in device units (an AC
