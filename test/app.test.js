@@ -62,9 +62,10 @@ function createStubTuya(cloudDevices = [rawSocket('dev1', 'Prise salon')]) {
       calls.push('discoverDevices');
       return this.cloudDevices.map((device) => ({ ...device }));
     },
+    scanResult: {},
     async localScan() {
       calls.push('localScan');
-      return { devices: {} };
+      return { devices: this.scanResult };
     },
     async closeAllLocalSessions() {
       calls.push('closeAllLocalSessions');
@@ -330,4 +331,84 @@ test('shutdown is bounded when the teardown hangs', async () => {
   const started = Date.now();
   await gladys.fake.shutdown();
   assert.ok(Date.now() - started < 1000);
+});
+
+// --- Background LAN re-scan (issue #7) ----------------------------------------
+
+const createdSocket = (params = []) => ({
+  external_id: 'ext:tuya:device:dev1',
+  selector: 'prise-salon',
+  name: 'Prise salon',
+  device_type: 'smart-socket',
+  features: [{ external_id: 'ext:tuya:device:dev1:switch_1' }],
+  params: [{ name: 'DEVICE_ID', value: 'dev1' }, ...params],
+});
+
+test('LAN re-scan: a created device found later gets its ip/protocol persisted (#7)', async () => {
+  const { gladys, tuya, app } = await setup({ devices: [createdSocket()] });
+  const scansBefore = count(tuya.calls, 'localScan');
+  tuya.scanResult = { dev1: { ip: '192.168.1.77', version: '3.4' } };
+  await app.rescanLan();
+  assert.equal(count(tuya.calls, 'localScan'), scansBefore + 1);
+  const [socket] = gladys.fake.discoveredDevices;
+  assert.equal(paramOf(socket, 'IP_ADDRESS'), '192.168.1.77');
+  assert.equal(paramOf(socket, 'PROTOCOL_VERSION'), '3.4');
+  // No cloud discovery for that: only the LAN scan.
+  assert.equal(count(tuya.calls, 'discoverDevices'), 1);
+});
+
+test('LAN re-scan: nothing new on the LAN, nothing republished', async () => {
+  const { gladys, app } = await setup({ devices: [createdSocket()] });
+  const published = gladys.fake.bodies('POST', '/discovered_device').length;
+  await app.rescanLan();
+  assert.equal(gladys.fake.bodies('POST', '/discovered_device').length, published);
+});
+
+test('LAN re-scan: skipped when every LAN-capable device already has its LAN info', async () => {
+  const known = createdSocket([
+    { name: 'IP_ADDRESS', value: '192.168.1.20' },
+    { name: 'PROTOCOL_VERSION', value: '3.3' },
+  ]);
+  const { tuya, app } = await setup({ devices: [known] });
+  const scansBefore = count(tuya.calls, 'localScan');
+  await app.rescanLan();
+  assert.equal(count(tuya.calls, 'localScan'), scansBefore);
+});
+
+test('LAN re-scan: skipped for a device type without LAN mapping (battery sensor)', async () => {
+  const sensor = {
+    external_id: 'ext:tuya:device:termo1',
+    selector: 'termo',
+    name: 'Termo',
+    device_type: 'temperature-humidity-sensor',
+    features: [{ external_id: 'ext:tuya:device:termo1:va_temperature' }],
+    params: [{ name: 'DEVICE_ID', value: 'termo1' }],
+  };
+  const { tuya, app } = await setup({ devices: [sensor] });
+  const scansBefore = count(tuya.calls, 'localScan');
+  await app.rescanLan();
+  assert.equal(count(tuya.calls, 'localScan'), scansBefore);
+});
+
+test('LAN re-scan: skipped when local mode is off', async () => {
+  const { tuya, app } = await setup({
+    config: { ...CONFIG, GLADYS_PREFER_LOCAL: false },
+    devices: [createdSocket()],
+  });
+  await app.rescanLan();
+  assert.equal(count(tuya.calls, 'localScan'), 0);
+});
+
+test('LAN re-scan: runs on its own timer after connect, stops on shutdown', async () => {
+  const { gladys, tuya } = await setup({
+    devices: [createdSocket()],
+    options: { lanRescanIntervalMs: 20 },
+  });
+  const scansAfterConnect = count(tuya.calls, 'localScan');
+  await new Promise((resolve) => setTimeout(resolve, 70));
+  assert.ok(count(tuya.calls, 'localScan') > scansAfterConnect);
+  await gladys.fake.shutdown();
+  const scansAtShutdown = count(tuya.calls, 'localScan');
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(count(tuya.calls, 'localScan'), scansAtShutdown);
 });
