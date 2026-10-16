@@ -85,7 +85,7 @@ Le contrôle local est plus rapide et continue de fonctionner sans internet. Il 
 Certains appareils ne sont pas trouvés par le scan automatique (sous-réseau différent, en veille pendant le scan…). Vous pouvez les ajouter à la main :
 
 1. Ouvrez l'écran **Configuration** → action **Détecter le protocole local (IP manuelle)**.
-2. Saisissez l'appareil (son nom dans Gladys ou son identifiant Tuya) et son **adresse IP**.
+2. Choisissez l'appareil dans la liste (ou, s'il n'est pas encore créé dans Gladys, saisissez son nom ou son identifiant Tuya) et saisissez son **adresse IP**.
 3. Exécutez. En cas de succès, l'appareil passe en local au cycle suivant.
 
 > Astuce : attribuez une IP fixe (réservation DHCP) à vos appareils Tuya sur votre box pour qu'ils restent joignables.
@@ -109,7 +109,7 @@ Deux étapes pour l'activer :
 
 Un appareil créé sans fonctionnalité (ou avec une seule) expose des codes Tuya que l'intégration ne connaît pas encore — c'est fréquent sur les variantes d'un même modèle.
 
-Dans la configuration de l'intégration, lancez l'action **Diagnostic d'un appareil**, saisissez le nom de l'appareil tel qu'il apparaît dans Gladys, et copiez le résultat dans une issue GitHub. Le rapport liste chaque code remonté par l'appareil, sa valeur et ce que l'intégration en fait. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya : il peut être collé publiquement tel quel.
+Dans la configuration de l'intégration, lancez l'action **Diagnostic d'un appareil**, choisissez l'appareil dans la liste (ou saisissez son nom ou son identifiant Tuya s'il n'est pas créé dans Gladys), et copiez le résultat dans une issue GitHub. Le rapport liste chaque code remonté par l'appareil, sa valeur et ce que l'intégration en fait. Il ne contient ni clé locale, ni adresse IP, ni identifiant Tuya : il peut être collé publiquement tel quel.
 
 ---
 

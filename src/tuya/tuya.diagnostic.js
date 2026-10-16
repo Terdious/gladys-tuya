@@ -75,21 +75,55 @@ const parseSpecValues = (values) => {
  * @example
  * describeDeclaredRanges({ specifications: { functions: [{ code: 'mode', values: '{"range":["auto"]}' }] } });
  */
-export const describeDeclaredRanges = (rawDevice) => {
+export const describeDeclaredRanges = (rawDevice) =>
+  describeDeclared(rawDevice, (spec) =>
+    spec && Array.isArray(spec.range) ? spec.range.map(String).join(', ') : null,
+  );
+
+/**
+ * @description List the numeric specs (min..max, scale, step, unit) the cloud
+ * declares for each code, per source. The scale and unit are what a new
+ * device type needs to publish the right value (24 vs 2.4) in the right unit.
+ * @param {object} rawDevice - The raw discovered Tuya device.
+ * @returns {Array<string>} One line per code, sources merged when identical.
+ * @example
+ * describeDeclaredValueSpecs({ specifications: { status: [{ code: 'temp', values: '{"min":0,"max":50,"scale":0}' }] } });
+ */
+export const describeDeclaredValueSpecs = (rawDevice) =>
+  describeDeclared(rawDevice, (spec) => {
+    if (!spec || (typeof spec.min !== 'number' && typeof spec.max !== 'number')) {
+      return null;
+    }
+    const parts = [`${spec.min}..${spec.max}`];
+    if (spec.scale !== undefined) {
+      parts.push(`scale ${spec.scale}`);
+    }
+    if (spec.step !== undefined) {
+      parts.push(`step ${spec.step}`);
+    }
+    if (spec.unit) {
+      parts.push(`unit ${spec.unit}`);
+    }
+    return parts.join(', ');
+  });
+
+// Per code, one formatted line of what each source (specification functions /
+// status, thing model) declares, identical sources merged.
+const describeDeclared = (rawDevice, format) => {
   const byCode = new Map();
-  const add = (code, source, range) => {
-    if (!code || !Array.isArray(range)) {
+  const add = (code, source, spec) => {
+    const text = code ? format(spec) : null;
+    if (!text) {
       return;
     }
     const sources = byCode.get(code) || [];
-    sources.push({ source, range: range.map(String) });
+    sources.push({ source, text });
     byCode.set(code, sources);
   };
   const specifications = (rawDevice && rawDevice.specifications) || {};
   ['functions', 'status'].forEach((source) => {
     (Array.isArray(specifications[source]) ? specifications[source] : []).forEach((entry) => {
-      const values = parseSpecValues(entry && entry.values);
-      add(entry && entry.code, source, values && values.range);
+      add(entry && entry.code, source, parseSpecValues(entry && entry.values));
     });
   });
   const services =
@@ -98,24 +132,16 @@ export const describeDeclaredRanges = (rawDevice) => {
       : [];
   services.forEach((service) => {
     (Array.isArray(service && service.properties) ? service.properties : []).forEach((property) => {
-      add(
-        property && property.code,
-        'model',
-        property && property.typeSpec && property.typeSpec.range,
-      );
+      add(property && property.code, 'model', property && property.typeSpec);
     });
   });
 
   return [...byCode.keys()].sort().map((code) => {
-    const sources = byCode.get(code);
     const distinct = new Map();
-    sources.forEach(({ source, range }) => {
-      const key = JSON.stringify(range);
-      distinct.set(key, [...(distinct.get(key) || []), source]);
+    byCode.get(code).forEach(({ source, text }) => {
+      distinct.set(text, [...(distinct.get(text) || []), source]);
     });
-    const parts = [...distinct.entries()].map(
-      ([key, names]) => `${JSON.parse(key).join(', ')} (${names.join('+')})`,
-    );
+    const parts = [...distinct.entries()].map(([text, names]) => `${text} (${names.join('+')})`);
     return `${code}: ${parts.join(' | ')}`;
   });
 };
@@ -210,6 +236,11 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
   if (ranges.length > 0) {
     lines.push('', 'Declared enum ranges:');
     ranges.forEach((line) => lines.push(`  ${line}`));
+  }
+  const valueSpecs = describeDeclaredValueSpecs(rawDevice);
+  if (valueSpecs.length > 0) {
+    lines.push('', 'Declared value specs:');
+    valueSpecs.forEach((line) => lines.push(`  ${line}`));
   }
 
   // LAN view, when the device is locally reachable: the DPS indexes are

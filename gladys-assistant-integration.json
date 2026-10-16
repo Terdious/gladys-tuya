@@ -39,20 +39,38 @@
       "fields": [
         {
           "key": "device",
-          "type": "string",
+          "type": "select",
+          "source": "devices",
+          "required": false,
           "label": {
-            "en": "Device (name or Tuya ID)",
-            "fr": "Appareil (nom ou identifiant Tuya)",
-            "de": "Gerät (Name oder Tuya-ID)",
-            "es": "Dispositivo (nombre o ID de Tuya)"
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
           },
           "description": {
-            "en": "The device name as shown in Gladys, or its Tuya ID.",
-            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya.",
-            "de": "Der Gerätename wie in Gladys angezeigt, oder seine Tuya-ID.",
-            "es": "El nombre del dispositivo tal como aparece en Gladys, o su ID de Tuya."
+            "en": "Pick the device in the list of devices created in Gladys.",
+            "fr": "Choisissez l’appareil dans la liste des appareils créés dans Gladys.",
+            "de": "Wählen Sie das Gerät aus der Liste der in Gladys angelegten Geräte.",
+            "es": "Elija el dispositivo en la lista de dispositivos creados en Gladys."
+          }
+        },
+        {
+          "key": "device_ref",
+          "type": "string",
+          "required": false,
+          "label": {
+            "en": "…or a device not created in Gladys (name or Tuya ID)",
+            "fr": "…ou un appareil non créé dans Gladys (nom ou identifiant Tuya)",
+            "de": "…oder ein nicht in Gladys angelegtes Gerät (Name oder Tuya-ID)",
+            "es": "…o un dispositivo no creado en Gladys (nombre o ID de Tuya)"
           },
-          "required": true
+          "description": {
+            "en": "Only when the device is not in the list above: its name in the Tuya app, or its Tuya ID.",
+            "fr": "Seulement si l’appareil n’est pas dans la liste ci-dessus : son nom dans l’application Tuya, ou son identifiant Tuya.",
+            "de": "Nur wenn das Gerät nicht in der Liste oben steht: sein Name in der Tuya-App oder seine Tuya-ID.",
+            "es": "Solo si el dispositivo no está en la lista de arriba: su nombre en la app Tuya, o su ID de Tuya."
+          }
         },
         {
           "key": "ip",
@@ -85,20 +103,38 @@
       "fields": [
         {
           "key": "device",
-          "type": "string",
+          "type": "select",
+          "source": "devices",
+          "required": false,
           "label": {
-            "en": "Device (name or Tuya ID)",
-            "fr": "Appareil (nom ou identifiant Tuya)",
-            "de": "Gerät (Name oder Tuya-ID)",
-            "es": "Dispositivo (nombre o ID de Tuya)"
+            "en": "Device",
+            "fr": "Appareil",
+            "de": "Gerät",
+            "es": "Dispositivo"
           },
           "description": {
-            "en": "The device name as shown in Gladys, or its Tuya ID.",
-            "fr": "Le nom de l'appareil tel qu'affiché dans Gladys, ou son identifiant Tuya.",
-            "de": "Der Gerätename wie in Gladys angezeigt, oder seine Tuya-ID.",
-            "es": "El nombre del dispositivo tal como aparece en Gladys, o su ID de Tuya."
+            "en": "Pick the device in the list of devices created in Gladys.",
+            "fr": "Choisissez l’appareil dans la liste des appareils créés dans Gladys.",
+            "de": "Wählen Sie das Gerät aus der Liste der in Gladys angelegten Geräte.",
+            "es": "Elija el dispositivo en la lista de dispositivos creados en Gladys."
+          }
+        },
+        {
+          "key": "device_ref",
+          "type": "string",
+          "required": false,
+          "label": {
+            "en": "…or a device not created in Gladys (name or Tuya ID)",
+            "fr": "…ou un appareil non créé dans Gladys (nom ou identifiant Tuya)",
+            "de": "…oder ein nicht in Gladys angelegtes Gerät (Name oder Tuya-ID)",
+            "es": "…o un dispositivo no creado en Gladys (nombre o ID de Tuya)"
           },
-          "required": true
+          "description": {
+            "en": "Only when the device is not in the list above: its name in the Tuya app, or its Tuya ID.",
+            "fr": "Seulement si l’appareil n’est pas dans la liste ci-dessus : son nom dans l’application Tuya, ou son identifiant Tuya.",
+            "de": "Nur wenn das Gerät nicht in der Liste oben steht: sein Name in der Tuya-App oder seine Tuya-ID.",
+            "es": "Solo si el dispositivo no está en la lista de arriba: su nombre en la app Tuya, o su ID de Tuya."
+          }
         }
       ]
     },

@@ -85,7 +85,7 @@ El control local es más rápido y sigue funcionando sin internet. Se activa con
 Algunos dispositivos no los encuentra el escaneo automático (otra subred, dormidos durante el escaneo…). Puede añadirlos a mano:
 
 1. Abra la pantalla **Configuración** → acción **Detectar el protocolo local (IP manual)**.
-2. Introduzca el dispositivo (su nombre en Gladys o su ID de Tuya) y su **dirección IP**.
+2. Elija el dispositivo en la lista (o, si aún no está creado en Gladys, escriba su nombre o su ID de Tuya) e introduzca su **dirección IP**.
 3. Ejecútela. Si tiene éxito, el dispositivo pasa a local en el siguiente ciclo.
 
 > Consejo: asigne a sus dispositivos Tuya una IP fija (reserva DHCP) en su router para que sigan siendo accesibles.
@@ -109,7 +109,7 @@ Dos pasos para activarlo:
 
 Un dispositivo creado sin ninguna función (o con una sola) expone códigos Tuya que la integración aún no conoce, algo habitual entre variantes de un mismo modelo.
 
-En la configuración de la integración, ejecute la acción **Diagnóstico de un dispositivo**, escriba el nombre del dispositivo tal como aparece en Gladys y copie el resultado en una issue de GitHub. El informe enumera cada código que envía el dispositivo, su valor y lo que la integración hace con él. No contiene ni clave local, ni dirección IP, ni ID de dispositivo Tuya: puede pegarse públicamente tal cual.
+En la configuración de la integración, ejecute la acción **Diagnóstico de un dispositivo**, elija el dispositivo en la lista (o escriba su nombre o su ID de Tuya si no está creado en Gladys) y copie el resultado en una issue de GitHub. El informe enumera cada código que envía el dispositivo, su valor y lo que la integración hace con él. No contiene ni clave local, ni dirección IP, ni ID de dispositivo Tuya: puede pegarse públicamente tal cual.
 
 ---
 

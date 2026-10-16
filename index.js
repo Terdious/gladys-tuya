@@ -237,16 +237,27 @@ gladys.onScanRequest(async () => {
 });
 
 // --- Action: manual-IP protocol detection ------------------------------------
+// The device targeted by an action: picked in the list of created devices
+// (`device`, a Gladys external id), or typed for a device not created in
+// Gladys (`device_ref`: name or Tuya id; `device_id` is its pre-1.23 key).
+const getActionDeviceRef = (fields) =>
+  String(
+    (fields && fields.device) ||
+      (fields && fields.device_ref) ||
+      (fields && fields.device_id) ||
+      '',
+  ).trim();
+
 // For a device the UDP scan did not find, the user types its Tuya id + IP in
 // the Configuration screen (manifest `actions`): the integration probes the
 // local protocol versions, and on success persists ip/protocol on the device
 // through the re-publish params upsert of the core. The resolved message is
 // shown under the action button.
 gladys.onAction('detect_protocol', async (fields) => {
-  const deviceRef = String((fields && fields.device) || (fields && fields.device_id) || '').trim();
+  const deviceRef = getActionDeviceRef(fields);
   const ip = String((fields && fields.ip) || '').trim();
   if (!deviceRef || !ip) {
-    throw new Error('device and ip are required');
+    throw new Error('Pick a device in the list (or type its name or Tuya id) and its IP address');
   }
   // A discovery in flight would race this action (it rebuilds the shared
   // discovered list): join it first — it also proves the cloud is healthy.
@@ -323,9 +334,9 @@ gladys.onDeviceCreated(async (device) => {
 // diagnostic line is printed once per device per container start: a user who
 // opens the logs later never finds it. This rebuilds the report on demand.
 gladys.onAction('device_diagnostic', async (fields) => {
-  const deviceRef = String((fields && fields.device) || '').trim();
+  const deviceRef = getActionDeviceRef(fields);
   if (!deviceRef) {
-    throw new Error('device is required');
+    throw new Error('Pick a device in the list, or type its name or Tuya id');
   }
   if (discoveryInFlight) {
     await discoveryInFlight;

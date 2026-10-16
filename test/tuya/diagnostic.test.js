@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildDeviceDiagnostic, formatValue } from '../../src/tuya/tuya.diagnostic.js';
+import {
+  buildDeviceDiagnostic,
+  describeDeclaredValueSpecs,
+  formatValue,
+} from '../../src/tuya/tuya.diagnostic.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
 
 // The F14-W variant reported on the forum: it exposes `feed_record` /
@@ -144,6 +148,27 @@ test('the diagnostic lists the declared enum ranges per source, so an option lis
     /mode: auto, cold, wet, heat, fan \(functions\+model\) \| auto, cold, wet \(status\)/,
   );
   assert.match(report, /horizontal: off, same, opposite \(model\)/);
-  // Non-enum specs (min/max) are not listed.
-  assert.doesNotMatch(report, /temp_set:/);
+  // Non-enum specs (min/max) are not enum ranges: they get their own section.
+  const enumSection = report.split('Declared enum ranges:')[1].split('\n\n')[0];
+  assert.doesNotMatch(enumSection, /temp_set:/);
+  assert.match(report, /Declared value specs:\n {2}temp_set: 160\.\.880 \(status\)/);
+});
+
+test('the diagnostic lists the declared value specs (range, scale, step, unit)', () => {
+  const lines = describeDeclaredValueSpecs({
+    specifications: {
+      functions: [
+        { code: 'manual_irri_time', values: '{"unit":"min","min":1,"max":60,"scale":0,"step":1}' },
+      ],
+      status: [
+        { code: 'manual_irri_time', values: '{"unit":"min","min":1,"max":60,"scale":0,"step":1}' },
+        { code: 'battery_percentage', values: '{"unit":"%","min":0,"max":100,"scale":0,"step":1}' },
+        { code: 'work_state', values: '{"range":["auto","manual"]}' },
+      ],
+    },
+  });
+  assert.deepEqual(lines, [
+    'battery_percentage: 0..100, scale 0, step 1, unit % (status)',
+    'manual_irri_time: 1..60, scale 0, step 1, unit min (functions+status)',
+  ]);
 });

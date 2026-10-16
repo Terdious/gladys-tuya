@@ -85,7 +85,7 @@ Die lokale Steuerung ist schneller und funktioniert auch ohne Internet. Sie wird
 Manche Geräte findet der automatische Scan nicht (anderes Subnetz, während des Scans im Ruhezustand…). Sie können sie von Hand hinzufügen:
 
 1. Öffnen Sie den Bildschirm **Konfiguration** → Aktion **Lokales Protokoll erkennen (manuelle IP)**.
-2. Geben Sie das Gerät (seinen Namen in Gladys oder seine Tuya-ID) und seine **IP-Adresse** ein.
+2. Wählen Sie das Gerät in der Liste (oder, falls es noch nicht in Gladys angelegt ist, geben Sie seinen Namen oder seine Tuya-ID ein) und geben Sie seine **IP-Adresse** ein.
 3. Führen Sie sie aus. Bei Erfolg wechselt das Gerät im nächsten Zyklus auf lokal.
 
 > Tipp: Geben Sie Ihren Tuya-Geräten in Ihrem Router eine feste IP (DHCP-Reservierung), damit sie erreichbar bleiben.
@@ -109,7 +109,7 @@ Zwei Schritte zur Aktivierung:
 
 Ein Gerät, das ohne Funktion (oder mit nur einer) erstellt wird, meldet Tuya-Codes, die die Integration noch nicht kennt — häufig bei Varianten desselben Modells.
 
-Führen Sie in der Konfiguration der Integration die Aktion **Gerätediagnose** aus, geben Sie den Gerätenamen wie in Gladys angezeigt ein und kopieren Sie das Ergebnis in ein GitHub-Issue. Der Bericht listet jeden Code, den das Gerät meldet, seinen Wert und was die Integration damit macht. Er enthält weder lokalen Schlüssel noch IP-Adresse noch Tuya-Geräte-ID: er kann so wie er ist öffentlich eingefügt werden.
+Führen Sie in der Konfiguration der Integration die Aktion **Gerätediagnose** aus, wählen Sie das Gerät in der Liste (oder geben Sie seinen Namen oder seine Tuya-ID ein, falls es nicht in Gladys angelegt ist) und kopieren Sie das Ergebnis in ein GitHub-Issue. Der Bericht listet jeden Code, den das Gerät meldet, seinen Wert und was die Integration damit macht. Er enthält weder lokalen Schlüssel noch IP-Adresse noch Tuya-Geräte-ID: er kann so wie er ist öffentlich eingefügt werden.
 
 ---
 
