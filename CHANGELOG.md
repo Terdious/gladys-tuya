@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-10-16
+
 ### Added
 
 - Water valves / irrigation controllers (category `sfkzq`, e.g. R2601): open/close, valve state, instant water flow (converted to m³/h), battery, child lock, watering mode, manual watering duration (#28). A valve already created (as an unknown device, with only its switch) gets the new features with the **Update** button of the Discover tab, or by deleting and re-creating it.
