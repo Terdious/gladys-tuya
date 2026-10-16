@@ -429,6 +429,57 @@ export const buildAcSupportedOptions = (featureType, range) => {
   }));
 };
 
+// Mirror of the core CAMERA_MOVE constant (server/utils/constants.js, spec
+// docs/specs/camera-ptz-control.md): the values of a `camera.move` feature.
+// STOP is always supported and never listed as an option.
+export const CAMERA_MOVE = {
+  STOP: 0,
+  PAN_LEFT: 1,
+  PAN_RIGHT: 2,
+  TILT_UP: 3,
+  TILT_DOWN: 4,
+  ZOOM_IN: 5,
+  ZOOM_OUT: 6,
+};
+
+// Tuya `ptz_control` (standard `sp` instruction set): the 8 directions as
+// "0".."7", clockwise from up (0 up, 2 right, 4 down, 6 left; the odd values
+// are the diagonals, which the Gladys v1 contract does not model). Both LSC
+// PTZ diagnostics (issue #26) declare exactly this range.
+export const TUYA_PTZ_DIRECTION_BY_MOVE = {
+  [CAMERA_MOVE.TILT_UP]: '0',
+  [CAMERA_MOVE.PAN_RIGHT]: '2',
+  [CAMERA_MOVE.TILT_DOWN]: '4',
+  [CAMERA_MOVE.PAN_LEFT]: '6',
+};
+
+// English labels of the movement options (the front draws arrows; labels only
+// show in label-based surfaces such as the scene editor).
+export const CAMERA_MOVE_LABELS = {
+  [CAMERA_MOVE.PAN_LEFT]: 'Pan left',
+  [CAMERA_MOVE.PAN_RIGHT]: 'Pan right',
+  [CAMERA_MOVE.TILT_UP]: 'Tilt up',
+  [CAMERA_MOVE.TILT_DOWN]: 'Tilt down',
+};
+
+/**
+ * @description The movements a Tuya PTZ camera supports: the Gladys moves
+ * whose Tuya direction is in the `ptz_control` range it declares (the four
+ * pan/tilt moves when it declares no range).
+ * @param {Array} [range] - The declared `ptz_control` enum range.
+ * @returns {Array} supported_options of the `camera.move` feature.
+ * @example
+ * buildCameraMoveSupportedOptions(['0', '2', '4', '6']);
+ */
+export const buildCameraMoveSupportedOptions = (range) => {
+  const declared = Array.isArray(range) && range.length > 0 ? range.map(String) : null;
+  return Object.entries(TUYA_PTZ_DIRECTION_BY_MOVE)
+    .filter(([, direction]) => !declared || declared.includes(direction))
+    .map(([move]) => Number(move))
+    .sort((a, b) => a - b)
+    .map((move, index) => ({ value: move, label: CAMERA_MOVE_LABELS[move], sort_order: index }));
+};
+
 // Tuya fan airflow-direction vocabulary -> Gladys FAN_AIRFLOW_DIRECTION. The
 // documented `fan_direction` range is ["forward","reverse"]; `positive` /
 // `negative` are the two aliases seen on other firmwares. Unlike the fan speed

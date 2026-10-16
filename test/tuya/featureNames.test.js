@@ -5,6 +5,7 @@ import { DEVICE_TYPE_DEFINITIONS, globalCloudMapping } from '../../src/devices/i
 import {
   PILOT_WIRE_MODE_LABELS,
   AC_SUPPORTED_OPTION_SOURCES,
+  CAMERA_MOVE_LABELS,
 } from '../../src/tuya/device/tuya.deviceMapping.js';
 import { DICTIONARIES, translateFeatureName } from '../../src/i18n/translateFeatureName.js';
 import { SUPPORTED_FEATURE_NAMES_LANGS } from '../../src/config.js';
@@ -70,6 +71,10 @@ function collectAllFeatureNames(optionLists = []) {
     Object.values(source.labels).forEach((label) => collected.add(label));
     optionLists.push(Object.values(source.labels));
   });
+
+  // Camera PTZ moves (camera.move supported_options, issue #26).
+  Object.values(CAMERA_MOVE_LABELS).forEach((label) => collected.add(label));
+  optionLists.push(Object.values(CAMERA_MOVE_LABELS));
 
   // The doorbell-downgrade BUTTON option (pre-4.84.2 core) — see the
   // "Ring" literal in convertFeature.js.

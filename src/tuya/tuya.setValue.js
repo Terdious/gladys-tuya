@@ -4,10 +4,18 @@
 // LOCAL_OVERRIDE and its local parameters are complete; the cloud command is
 // the fallback, as in the core service.
 
-import { createLogger } from '@gladysassistant/integration-sdk';
+import {
+  createLogger,
+  DEVICE_FEATURE_CATEGORIES,
+  DEVICE_FEATURE_TYPES,
+} from '@gladysassistant/integration-sdk';
 
 import { API, DEVICE_PARAM_NAME } from './constants.js';
-import { writeValues } from './device/tuya.deviceMapping.js';
+import {
+  CAMERA_MOVE,
+  TUYA_PTZ_DIRECTION_BY_MOVE,
+  writeValues,
+} from './device/tuya.deviceMapping.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
@@ -20,6 +28,12 @@ import { getFeatureWithFallbackScale, resolveFeatureMappingEntry } from './tuya.
 const logger = createLogger({ name: 'tuya' });
 
 const FEEDBACK_POLL_DELAY_MS = 1000;
+
+// PTZ watchdog (camera-ptz-control spec, "Safety rule"): a Tuya `ptz_control`
+// keeps turning until `ptz_stop`. Every move is bounded: if no stop arrives
+// (lost release, a lone value sent by a scene), the camera is stopped after
+// this delay — short on purpose, so a lone value behaves like a step.
+const PTZ_WATCHDOG_MS = 2000;
 
 // After a successful command, re-read the device shortly after so Gladys
 // shows the confirmed state (has_feedback), as the core PR8 does. The poll is
@@ -59,6 +73,14 @@ export async function setValue(device, deviceFeature, value) {
     throw new Error(`Tuya device external_id is invalid: "${externalId}" have no command`);
   }
 
+  if (
+    deviceFeature.category === DEVICE_FEATURE_CATEGORIES.CAMERA &&
+    deviceFeature.type === DEVICE_FEATURE_TYPES.CAMERA.MOVE
+  ) {
+    await movePtz(this, device, topic, value);
+    return;
+  }
+
   const writeCategory = writeValues[deviceFeature.category];
   const writeFn = writeCategory ? writeCategory[deviceFeature.type] : null;
   // The feature is passed along for scale-aware transforms (e.g. an AC target
@@ -79,6 +101,25 @@ export async function setValue(device, deviceFeature, value) {
   }
   logger.debug(`Change value for devices ${topic}/${command} to value ${transformedValue}...`);
 
+  await sendCommand(this, device, topic, command, transformedValue);
+}
+
+/**
+ * @description Send one command (Tuya code + device value) over the LAN when
+ * the device is locally reachable, the cloud otherwise.
+ * @param {object} self - The Tuya handler.
+ * @param {object} device - The Gladys device.
+ * @param {string} topic - The Tuya device id.
+ * @param {string} command - The Tuya code.
+ * @param {*} value - The value, already in the device vocabulary.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.feedback] - Poll the device right after, to
+ * publish the resulting state (off for command-only codes like PTZ).
+ * @returns {Promise<void>} Resolves once sent.
+ * @example
+ * await sendCommand(handler, device, 'dev1', 'switch_1', true);
+ */
+async function sendCommand(self, device, topic, command, value, { feedback = true } = {}) {
   const params = device.params || [];
   const ipAddress = getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS);
   const localKey = getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY);
@@ -92,8 +133,8 @@ export async function setValue(device, deviceFeature, value) {
   // Also honour the poll circuit breaker: if local polling parked this device
   // (repeated timeouts), send the command straight over the cloud instead of
   // hanging on a doomed 3s local connect.
-  const localModeEnabled = Boolean(this.config && this.config.localMode === true);
-  const localParked = this.localCircuit && isLocalInCooldown(this.localCircuit, topic, Date.now());
+  const localModeEnabled = Boolean(self.config && self.config.localMode === true);
+  const localParked = self.localCircuit && isLocalInCooldown(self.localCircuit, topic, Date.now());
   const hasLocalConfig = Boolean(
     ipAddress && localKey && protocolVersion && localModeEnabled && !localParked,
   );
@@ -105,23 +146,23 @@ export async function setValue(device, deviceFeature, value) {
   // it: a parallel one-shot connect would fight our own socket. On any
   // session failure the command falls through to the shared cloud block.
   const hasSession = Boolean(
-    this.localSessions &&
-    this.localSessions.has(topic) &&
-    typeof this.localSessionSet === 'function',
+    self.localSessions &&
+    self.localSessions.has(topic) &&
+    typeof self.localSessionSet === 'function',
   );
   if (hasLocalConfig && localDps !== null && hasSession) {
     try {
-      if (typeof this.ensureLocalSession === 'function') {
+      if (typeof self.ensureLocalSession === 'function') {
         // (Re)join the session first: a session that is reconnecting must not
         // be raced with a competing connect (single local slot).
-        await this.ensureLocalSession({
+        await self.ensureLocalSession({
           deviceId: topic,
           ip: ipAddress,
           localKey,
           protocolVersion,
         });
       }
-      const done = await this.localSessionSet(topic, localDps, transformedValue);
+      const done = await self.localSessionSet(topic, localDps, value);
       if (done) {
         // No feedback poll here: the persistent session pushes the DPS
         // change (~1s) on its own.
@@ -136,7 +177,7 @@ export async function setValue(device, deviceFeature, value) {
     const isProtocol34 = protocolVersion === '3.4';
     const isProtocol35 = protocolVersion === '3.5';
     const isNewGenProtocol = isProtocol34 || isProtocol35;
-    const apiClasses = this.localApiClasses || localApiClasses;
+    const apiClasses = self.localApiClasses || localApiClasses;
     const TuyaLocalApi = isNewGenProtocol ? apiClasses.TuyAPINewGen : apiClasses.TuyAPI;
     const tuyaOptions = {
       id: topic,
@@ -166,14 +207,8 @@ export async function setValue(device, deviceFeature, value) {
         // Bound both steps: a stalled handshake (device slot held by another
         // controller) must fall back to the cloud, not hang the command.
         await withTimeout(tuyaLocal.connect(), 5000, 'Local set connect timeout');
-        await withTimeout(
-          tuyaLocal.set({ dps: localDps, set: transformedValue }),
-          3000,
-          'Local set timeout',
-        );
-        logger.debug(
-          `[Tuya][setValue][local] device=${topic} dps=${localDps} value=${transformedValue}`,
-        );
+        await withTimeout(tuyaLocal.set({ dps: localDps, set: value }), 3000, 'Local set timeout');
+        logger.debug(`[Tuya][setValue][local] device=${topic} dps=${localDps} value=${value}`);
         return true;
       } catch (e) {
         logger.warn(`[Tuya][setValue][local] failed, fallback to cloud`, e);
@@ -188,30 +223,76 @@ export async function setValue(device, deviceFeature, value) {
 
     const localSuccess = await runLocalSet();
     if (localSuccess) {
-      scheduleFeedbackPoll(this, device, 'local command');
+      if (feedback) {
+        scheduleFeedbackPoll(self, device, 'local command');
+      }
       return;
     }
   }
 
-  if (!this.connector || typeof this.connector.request !== 'function') {
+  if (!self.connector || typeof self.connector.request !== 'function') {
     logger.warn(
       `[Tuya][setValue][cloud] connector unavailable for device=${topic} (cloud disconnected); local set did not succeed and no fallback is possible`,
     );
     return;
   }
 
-  const response = await this.connector.request({
+  const response = await self.connector.request({
     method: 'POST',
     path: `${API.VERSION_1_0}/devices/${topic}/commands`,
     body: {
       commands: [
         {
           code: command,
-          value: transformedValue,
+          value: value,
         },
       ],
     },
   });
   logger.debug(`[Tuya][setValue] ${JSON.stringify(response)}`);
-  scheduleFeedbackPoll(this, device, 'cloud command');
+  if (feedback) {
+    scheduleFeedbackPoll(self, device, 'cloud command');
+  }
+}
+
+/**
+ * @description Move a Tuya PTZ camera (issue #26): `camera.move` value 1-4 ->
+ * `ptz_control` direction, bounded by the watchdog; 0 -> `ptz_stop`. A new
+ * move replaces the running one (and its watchdog).
+ * @param {object} self - The Tuya handler.
+ * @param {object} device - The Gladys device.
+ * @param {string} topic - The Tuya device id.
+ * @param {number|string} value - The CAMERA_MOVE value.
+ * @returns {Promise<void>} Resolves once the command is sent.
+ * @example
+ * await movePtz(handler, device, 'cam1', CAMERA_MOVE.PAN_LEFT);
+ */
+async function movePtz(self, device, topic, value) {
+  const move = parseInt(value, 10);
+  if (!self.ptzWatchdogs) {
+    self.ptzWatchdogs = new Map();
+  }
+  clearTimeout(self.ptzWatchdogs.get(topic));
+  self.ptzWatchdogs.delete(topic);
+
+  if (move === CAMERA_MOVE.STOP) {
+    await sendCommand(self, device, topic, 'ptz_stop', true, { feedback: false });
+    return;
+  }
+  const direction = TUYA_PTZ_DIRECTION_BY_MOVE[move];
+  if (direction === undefined) {
+    throw new Error(`Tuya: camera move "${value}" is not supported on device "${topic}"`);
+  }
+  await sendCommand(self, device, topic, 'ptz_control', direction, { feedback: false });
+  const watchdogMs = Number.isFinite(self.ptzWatchdogMs) ? self.ptzWatchdogMs : PTZ_WATCHDOG_MS;
+  const timer = setTimeout(() => {
+    self.ptzWatchdogs.delete(topic);
+    sendCommand(self, device, topic, 'ptz_stop', true, { feedback: false }).catch((e) => {
+      logger.warn(`[Tuya][ptz] watchdog stop failed for device=${topic}`, e);
+    });
+  }, watchdogMs);
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
+  self.ptzWatchdogs.set(topic, timer);
 }

@@ -13,7 +13,11 @@ import {
 
 import { getFeatureMapping, getIgnoredCloudCodes, normalizeCode } from '../mappings/index.js';
 import { buildFeatureSelector } from '../utils/tuya.selector.js';
-import { buildAcSupportedOptions, buildPilotWireSupportedOptions } from './tuya.deviceMapping.js';
+import {
+  buildAcSupportedOptions,
+  buildCameraMoveSupportedOptions,
+  buildPilotWireSupportedOptions,
+} from './tuya.deviceMapping.js';
 import { translateFeatureName } from '../../i18n/translateFeatureName.js';
 
 const logger = createLogger({ name: 'tuya' });
@@ -197,8 +201,11 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
   // outright rather than published unsupported.
   if (
     !coreSupportsTextSelect &&
-    featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
-    featuresCategoryAndType.type === DEVICE_FEATURE_TYPES.TEXT.SELECT
+    ((featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.TEXT &&
+      featuresCategoryAndType.type === DEVICE_FEATURE_TYPES.TEXT.SELECT) ||
+      // The camera PTZ `move` type appeared in Gladys 4.86.0.
+      (featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.CAMERA &&
+        featuresCategoryAndType.type === DEVICE_FEATURE_TYPES.CAMERA.MOVE))
   ) {
     collect('ignored', `${codeLower} (needs Gladys >= 4.86.1)`);
     return undefined;
@@ -287,6 +294,13 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // enum range intersected with the device vocabulary (variants may lack
     // Off/Thermostat — writing them is rejected anyway).
     feature.supported_options = buildPilotWireSupportedOptions(mappingEntry, valuesObject.range);
+  }
+  if (
+    feature.category === DEVICE_FEATURE_CATEGORIES.CAMERA &&
+    feature.type === DEVICE_FEATURE_TYPES.CAMERA.MOVE
+  ) {
+    // PTZ (issue #26): the pan/tilt moves the declared ptz_control range allows.
+    feature.supported_options = buildCameraMoveSupportedOptions(valuesObject.range);
   }
   if (feature.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING) {
     // Same restriction for the AC enums (mode / fan speed / swings): models
