@@ -8,8 +8,11 @@
 #   2. writes it into `package.json`, `package-lock.json` AND the manifest
 #      (`gladys-assistant-integration.json`: both `version` and the
 #      `docker_image` tag, so the indexer and the image stay in lockstep);
-#   3. commits the bump and pushes the `vX.Y.Z` tag;
-#   4. calls build.yml to publish the multi-arch image (`:X.Y.Z` + `:latest`).
+#   3. moves the "Unreleased" section of CHANGELOG.md under the new version
+#      (the release is refused when that section is empty);
+#   4. commits the bump, pushes the `vX.Y.Z` tag and publishes the GitHub
+#      Release with that changelog section as its notes;
+#   5. calls build.yml to publish the multi-arch image (`:X.Y.Z` + `:latest`).
 #
 # Why call build.yml instead of relying on the tag push: a tag pushed with the
 # default GITHUB_TOKEN does NOT trigger other workflows, so we invoke the build
@@ -34,7 +37,7 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # commit the version bump and push the tag
+      contents: write # commit the version bump, push the tag, create the release
     outputs:
       version: ${{ steps.bump.outputs.version }}
     steps:
@@ -77,6 +80,16 @@ jobs:
 
           echo "version=${new_version}" >> "$GITHUB_OUTPUT"
 
+      # Fails (before anything is pushed) when the Unreleased section is empty:
+      # every pull request adds its user-facing changes there.
+      - name: Move the Unreleased changelog section under the new version
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          set -euo pipefail
+          node scripts/release-changelog.mjs "$VERSION" "$RUNNER_TEMP/release-notes.md"
+          npx --yes prettier@3 --write CHANGELOG.md
+
       # Note: if the branch you release from is protected against direct pushes,
       # GitHub rejects the push below (the default GITHUB_TOKEN cannot bypass
       # branch protection). Allow GitHub Actions to bypass the rule, or release
@@ -89,12 +102,23 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add package.json package-lock.json gladys-assistant-integration.json
+          git add package.json package-lock.json gladys-assistant-integration.json CHANGELOG.md
           git commit -m "chore(release): ${VERSION}"
           git tag -a "v${VERSION}" -m "Release ${VERSION}"
 
           git push origin "HEAD:${GITHUB_REF_NAME}"
           git push origin "v${VERSION}"
+
+      - name: Publish the GitHub Release
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --verify-tag
 
   # Build and publish the image for the version we just tagged.
   build:
