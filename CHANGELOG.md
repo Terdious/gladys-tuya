@@ -10,6 +10,18 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Changed
+
+- Integration SDK 0.15.0 (additive: poll frequencies, state deduplication and
+  the latest Gladys device constants).
+- Node.js 22 or later is required for development (Node 20 is end-of-life);
+  the image keeps running Node 24.
+
+### Security
+
+- `qs` 6.16.1 (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g), a dependency of the
+  Tuya cloud client.
+
 ## [1.22.0] - 2026-10-16
 
 ### Added
