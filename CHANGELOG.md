@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-10-16
+
 ### Changed
 
 - Local devices still read their LAN states every 10 s, but their cloud reads (features without a local mapping, fallback while the LAN fails or is parked) are throttled to one every 25–30 s, sparing the Tuya cloud API quota. Cloud-only devices keep their 30 s cadence (#6).

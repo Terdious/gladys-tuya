@@ -8,8 +8,8 @@
     "de": "Tuya / Smart Life: Steckdosen, Zähler, Klimageräte, Heizungen, Kameras, Sauger (Cloud + LAN).",
     "es": "Tuya / Smart Life: enchufes, medidores, A/A, calefactores, cámaras, aspiradores (nube + LAN)."
   },
-  "version": "1.24.0",
-  "docker_image": "ghcr.io/terdious/gladys-tuya:1.24.0",
+  "version": "1.24.1",
+  "docker_image": "ghcr.io/terdious/gladys-tuya:1.24.1",
   "gladys_version": ">=4.86.1",
   "categories": ["protocols", "energy", "climate"],
   "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/master/cover.png",
