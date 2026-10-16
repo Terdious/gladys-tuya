@@ -80,6 +80,7 @@ El control local es más rápido y sigue funcionando sin internet. Se activa con
 - Cuando está activado, Gladys intenta llegar a cada dispositivo en su red; si lo consigue, el dispositivo muestra una insignia **Local** y su estado se actualiza **al instante**. Si no, el dispositivo pasa automáticamente a la **Nube**.
 - El control local requiere que Gladys conozca la dirección IP y el protocolo de cada dispositivo. La mayoría de los dispositivos los encuentra automáticamente el escaneo de red durante el descubrimiento.
 - Un dispositivo que _podría_ funcionar en local (su IP es conocida y la preferencia está activada) pero que funciona ahora por la nube mantiene una insignia **Nube** con un **punto naranja**: pase el ratón por encima para ver por qué (dispositivo aparcado tras fallos, datos LAN incompletos…). Un dispositivo solo-nube sigue con una insignia Nube azul normal.
+- Un dispositivo local se lee cada 10 s por la LAN; lo que solo informa por la nube (funciones sin correspondencia local, o todo mientras la LAN falla) se actualiza como máximo cada 30 s, para ahorrar la cuota de la nube Tuya.
 
 ### Un dispositivo sigue en la Nube aunque esté en su LAN
 

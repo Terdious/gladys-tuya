@@ -844,6 +844,26 @@ export function emitCloudCodeStates(self, device, values, pending = []) {
   return { handled, changed };
 }
 
+// Issue #6: a local-capable device is polled at the fast local cadence (10 s),
+// but its cloud reads — the features its LAN mapping does not cover, or the
+// fallback while the LAN is failing/parked — do not need that pace: they are
+// throttled to one per CLOUD_MIN_INTERVAL_MS per device, which spares the
+// Tuya cloud API quota. Below the 30 s cloud cadence on purpose, so a
+// cloud-only device polled every 30 s is never skipped by scheduler jitter.
+export const CLOUD_MIN_INTERVAL_MS = 25 * 1000;
+
+const isCloudReadDue = (self, topic, now) => {
+  const last = self.lastCloudReadAt ? self.lastCloudReadAt.get(topic) : undefined;
+  return last === undefined || now - last >= CLOUD_MIN_INTERVAL_MS;
+};
+
+const markCloudRead = (self, topic, now) => {
+  if (!self.lastCloudReadAt) {
+    self.lastCloudReadAt = new Map();
+  }
+  self.lastCloudReadAt.set(topic, now);
+};
+
 /**
  * @description Poll values of a Tuya device (local mode first when the device
  * opted in through LOCAL_OVERRIDE, with cloud fallback).
@@ -1016,13 +1036,18 @@ async function pollDevice(device, topic) {
 
         fallbackReason = 'partial_local_mapping';
         try {
-          cloudSummary = await pollCloudFeatures(
-            this,
-            device,
-            pendingCloudFeatures,
-            topic,
-            pending,
-          );
+          if (isCloudReadDue(this, topic, Date.now())) {
+            markCloudRead(this, topic, Date.now());
+            cloudSummary = await pollCloudFeatures(
+              this,
+              device,
+              pendingCloudFeatures,
+              topic,
+              pending,
+            );
+          } else {
+            fallbackReason = 'partial_local_mapping+cloud_throttled';
+          }
         } catch (e) {
           logger.warn(
             `[Tuya][poll] local poll succeeded but cloud fallback failed for ${topic}`,
@@ -1095,6 +1120,19 @@ async function pollDevice(device, topic) {
       `[Tuya][poll] device=${topic} mode=${modeUsed} local_handled=${localHandled} local_changed=${localChanged} cloud_handled=0 cloud_changed=0 cloud_missing=0 fallback=${fallbackReason}`,
     );
     return;
+  }
+
+  // Local-capable device whose LAN read failed (or is parked): the cloud
+  // fallback follows the throttled cloud pace, the badge stays as it was.
+  if (useLocal && !isCloudReadDue(this, topic, Date.now())) {
+    await finish();
+    logger.debug(
+      `[Tuya][poll] device=${topic} mode=none local_handled=${localHandled} cloud fallback throttled (#6) fallback=${fallbackReason}`,
+    );
+    return;
+  }
+  if (useLocal) {
+    markCloudRead(this, topic, Date.now());
   }
 
   try {

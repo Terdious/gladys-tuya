@@ -80,6 +80,7 @@ Die lokale Steuerung ist schneller und funktioniert auch ohne Internet. Sie wird
 - Wenn er an ist, versucht Gladys jedes Gerät in Ihrem Netzwerk zu erreichen; gelingt das, zeigt das Gerät ein Abzeichen **Lokal** und sein Zustand aktualisiert sich **sofort**. Andernfalls weicht das Gerät automatisch auf die **Cloud** aus.
 - Die lokale Steuerung erfordert, dass Gladys IP-Adresse und Protokoll jedes Geräts kennt. Die meisten Geräte werden beim Entdecken automatisch vom Netzwerkscan gefunden.
 - Ein Gerät, das lokal laufen _könnte_ (IP bekannt und Präferenz aktiv), aber gerade über die Cloud läuft, behält ein Abzeichen **Cloud** mit einem **orangen Punkt** — fahren Sie mit der Maus darüber, um den Grund zu sehen (Gerät nach Fehlern geparkt, LAN-Daten unvollständig…). Ein reines Cloud-Gerät bleibt ein einfaches blaues Cloud-Abzeichen.
+- Ein lokales Gerät wird alle 10 s über das LAN gelesen; was es nur über die Cloud meldet (Funktionen ohne lokale Zuordnung, oder alles, solange das LAN ausfällt), wird höchstens alle 30 s aktualisiert, um das Kontingent der Tuya-Cloud zu schonen.
 
 ### Ein Gerät bleibt in der Cloud, obwohl es in Ihrem LAN ist
 

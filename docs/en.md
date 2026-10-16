@@ -80,6 +80,7 @@ Local control is faster and keeps working without internet. It is enabled by the
 - When on, Gladys tries to reach each device on your network; if it can, the device shows a **Local** badge and its state updates **instantly**. If it cannot, the device automatically falls back to the **Cloud**.
 - Local control needs Gladys to know each device's IP address and protocol. Most devices are found automatically by the network scan during discovery.
 - A device that _could_ run locally (its IP is known and the preference is on) but is currently running over the cloud keeps a **Cloud** badge with an **orange dot** — hover it to see why (device parked after failures, LAN info incomplete…). A genuine cloud-only device stays a plain blue Cloud badge.
+- A local device is read every 10 s over the LAN; what it can only report through the cloud (features without a local mapping, or everything while the LAN fails) is refreshed every 30 s at most, to spare the Tuya cloud quota.
 
 ### A device stays on Cloud even though it is on your LAN
 
