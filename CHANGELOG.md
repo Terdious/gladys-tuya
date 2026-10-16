@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Water valves / irrigation controllers (category `sfkzq`, e.g. R2601): open/close, valve state, instant water flow (converted to m³/h), battery, child lock, watering mode, manual watering duration (#28). A valve already created (as an unknown device, with only its switch) gets the new features with the **Update** button of the Discover tab, or by deleting and re-creating it.
+
 ### Changed
 
 - A short loss of the connection to Gladys (core restart, network blip) no longer reconnects the Tuya cloud nor re-runs a full discovery and LAN scan when nothing changed: the status and the known devices are simply re-sent (#21).

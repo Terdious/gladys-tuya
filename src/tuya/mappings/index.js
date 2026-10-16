@@ -25,6 +25,7 @@ export const DEVICE_TYPES = {
   TEMPERATURE_HUMIDITY_SENSOR: 'temperature-humidity-sensor',
   VACUUM: 'vacuum',
   WATER_PURIFIER: 'water-purifier',
+  WATER_VALVE: 'water-valve',
   UNKNOWN: 'unknown',
 };
 

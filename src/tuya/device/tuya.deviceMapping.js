@@ -741,6 +741,22 @@ export const readValues = {
       return Number.isFinite(parsedValue) ? parsedValue : null;
     },
   },
+  [DEVICE_FEATURE_CATEGORIES.WATER_VALVE]: {
+    [DEVICE_FEATURE_TYPES.WATER_VALVE.VALVE_WORK_STATE]: (valueFromDevice) => {
+      return normalizeBoolean(valueFromDevice) ? 1 : 0;
+    },
+    // Gladys expects m³/h; a mapping declaring `litersPerMinute` reads a DP in
+    // L/min (the Tuya valves), converted here (1 L/min = 0.06 m³/h).
+    [DEVICE_FEATURE_TYPES.WATER_VALVE.FLOW]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const flow = scaleValue(valueFromDevice, deviceFeature, 0);
+      if (!Number.isFinite(flow)) {
+        return null;
+      }
+      return mappingEntry && mappingEntry.litersPerMinute
+        ? Math.round(flow * 0.06 * 10000) / 10000
+        : flow;
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.TEXT]: {
     [DEVICE_FEATURE_TYPES.TEXT.SELECT]: (valueFromDevice) => {
       return valueFromDevice;
