@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-16
+
 ### Added
 
 - `CHANGELOG.md`, published as GitHub Release notes by the Release workflow.
