@@ -131,12 +131,16 @@ jobs:
 
           # Retry a push up to 3 times (a transient failure once left a version
           # commit on master without its tag, 1.22.0).
+          # git's own error is surfaced as an annotation (readable from the
+          # API, unlike the raw log).
           push() {
             for attempt in 1 2 3; do
-              if git push "$@"; then
+              if out="$(git push "$@" 2>&1)"; then
+                echo "$out"
                 return 0
               fi
-              echo "::warning::push failed (attempt ${attempt}/3)"
+              echo "$out"
+              echo "::warning::push failed (attempt ${attempt}/3): $(echo "$out" | tail -n 4 | tr '\n' ' ')"
               sleep $((attempt * 10))
             done
             return 1
@@ -153,7 +157,13 @@ jobs:
               exit 1
             fi
             git tag -a "$tag" -m "Release ${VERSION}" "$commit"
-            push origin "refs/tags/${tag}"
+            if ! push origin "refs/tags/${tag}"; then
+              # Fallback through the REST API (a lightweight tag on the same
+              # commit): another path than the git protocol.
+              echo "::warning::git push of ${tag} failed, creating it through the API"
+              GH_TOKEN="${{ github.token }}" gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+                -f ref="refs/tags/${tag}" -f sha="$commit"
+            fi
             exit 0
           fi
 
