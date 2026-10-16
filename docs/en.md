@@ -85,7 +85,7 @@ Local control is faster and keeps working without internet. It is enabled by the
 Some devices are not found by the automatic scan (different subnet, asleep during the scan…). You can add them by hand:
 
 1. Open the **Configuration** screen → **Detect local protocol (manual IP)** action.
-2. Enter the device (its Gladys name or its Tuya ID) and its **IP address**.
+2. Pick the device in the list (or, if it is not created in Gladys yet, type its name or Tuya ID) and enter its **IP address**.
 3. Run it. On success, the device switches to local on the next cycle.
 
 > Tip: give your Tuya devices a fixed IP (DHCP reservation) on your router so they stay reachable.
@@ -109,7 +109,7 @@ Two steps to enable it:
 
 A device created with no feature (or a single one) exposes Tuya codes the integration does not know yet — common across variants of the same model.
 
-In the integration configuration, run the **Device diagnostic** action, type the device name as shown in Gladys, and copy the result into a GitHub issue. The report lists every code the device reports, its value and what the integration does with it. It carries no local key, IP address nor Tuya device id: it can be pasted publicly as-is.
+In the integration configuration, run the **Device diagnostic** action, pick the device in the list (or type its name or Tuya ID if it is not created in Gladys), and copy the result into a GitHub issue. The report lists every code the device reports, its value and what the integration does with it. It carries no local key, IP address nor Tuya device id: it can be pasted publicly as-is.
 
 ---
 

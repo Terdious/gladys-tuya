@@ -47,3 +47,12 @@ test('rejects a device reference matching nothing', async () => {
   const tuya = createFakeTuya([{ id: 'dev1', name: 'Socket' }]);
   await assert.rejects(() => resolveTuyaDeviceRef(tuya, 'unknown'), /not found/);
 });
+
+test('resolves the Gladys external id picked in the device list (source: "devices")', async () => {
+  const tuya = createFakeTuya([
+    { id: 'bf7a93550662670e3agpni', name: 'Vanne Brumisateur' },
+    { id: 'dev2', name: 'Socket' },
+  ]);
+  const resolved = await resolveTuyaDeviceRef(tuya, 'ext:tuya:device:bf7a93550662670e3agpni');
+  assert.equal(resolved.name, 'Vanne Brumisateur');
+});

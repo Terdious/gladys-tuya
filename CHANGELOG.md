@@ -10,6 +10,11 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Changed
+
+- The "Detect local protocol" and "Device diagnostic" actions offer the device in a **list** of the devices created in Gladys, instead of a text field. A second, optional field still accepts a name or Tuya ID for a device not created in Gladys.
+- Device diagnostic: a new "Declared value specs" section lists the range, scale, step and unit each numeric code declares (what a new device type needs to publish the right value in the right unit).
+
 ## [1.22.1] - 2026-10-16
 
 ### Changed

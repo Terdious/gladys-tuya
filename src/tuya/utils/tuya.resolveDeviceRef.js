@@ -1,14 +1,28 @@
-// Resolve a Configuration-screen "device" action field (Tuya id or Gladys
-// display name) to its raw discovered Tuya device. Used by every action
-// that lets the user target one device by typing its name or id
-// (e.g. `detect_protocol`).
+// Resolve a Configuration-screen "device" action field to its raw discovered
+// Tuya device. Used by every action that targets one device
+// (`detect_protocol`, `device_diagnostic`): the value is either the Gladys
+// external id picked in the device list (`source: "devices"`), or a Tuya id /
+// display name typed for a device not created in Gladys.
+
+import { DEVICE_EXTERNAL_ID_TYPE } from '../constants.js';
+
+// `ext:<selector>:device:<tuyaDeviceId>` -> the Tuya device id.
+const tuyaIdFromExternalId = (deviceRef) => {
+  if (!deviceRef.startsWith('ext:')) {
+    return null;
+  }
+  const parts = deviceRef.split(':');
+  const typeIndex = parts.indexOf(DEVICE_EXTERNAL_ID_TYPE);
+  return typeIndex >= 0 && parts[typeIndex + 1] ? parts[typeIndex + 1] : null;
+};
 
 /**
  * @description Resolve a device reference (Tuya id or display name) to its
  * raw discovered Tuya device, refreshing the cloud discovery cache first when
  * it is empty.
  * @param {object} tuya - The TuyaHandler instance.
- * @param {string} deviceRef - Tuya device id, or the device name as shown in Gladys.
+ * @param {string} deviceRef - Gladys external id, Tuya device id, or the device
+ * name as shown in Gladys.
  * @returns {Promise<object>} The matching raw Tuya device.
  * @example
  * const rawDevice = await resolveTuyaDeviceRef(tuya, 'Living room socket');
@@ -21,7 +35,8 @@ export async function resolveTuyaDeviceRef(tuya, deviceRef) {
   }
   // Resolve by Tuya id first, then by display name (the name the user actually
   // sees on the device card — nobody knows the Tuya id by heart).
-  let rawDevice = tuya.discoveredDevices.find((d) => d && d.id === deviceRef);
+  const wantedId = tuyaIdFromExternalId(deviceRef) || deviceRef;
+  let rawDevice = tuya.discoveredDevices.find((d) => d && d.id === wantedId);
   if (!rawDevice) {
     const wanted = deviceRef.toLowerCase();
     const byName = tuya.discoveredDevices.filter(
