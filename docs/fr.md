@@ -84,7 +84,7 @@ Le contrôle local est plus rapide et continue de fonctionner sans internet. Il 
 
 ### Un appareil reste en Cloud alors qu'il est sur votre réseau
 
-Certains appareils ne sont pas trouvés par le scan automatique (sous-réseau différent, en veille pendant le scan…). Vous pouvez les ajouter à la main :
+Certains appareils ne sont pas trouvés par le scan automatique (sous-réseau différent, en veille pendant le scan…). Tant qu'un appareil créé et pilotable en local n'a pas d'IP, l'intégration **relance d'elle-même un scan du réseau toutes les 15 minutes** et le passe en local dès qu'il répond : un appareil simplement en veille n'a besoin de rien d'autre. Pour un appareil sur un autre sous-réseau (jamais joignable par le scan), ajoutez-le à la main :
 
 1. Ouvrez l'écran **Configuration** → action **Détecter le protocole local (IP manuelle)**.
 2. Choisissez l'appareil dans la liste (ou, s'il n'est pas encore créé dans Gladys, saisissez son nom ou son identifiant Tuya) et saisissez son **adresse IP**.

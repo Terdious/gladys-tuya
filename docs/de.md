@@ -84,7 +84,7 @@ Die lokale Steuerung ist schneller und funktioniert auch ohne Internet. Sie wird
 
 ### Ein Gerät bleibt in der Cloud, obwohl es in Ihrem LAN ist
 
-Manche Geräte findet der automatische Scan nicht (anderes Subnetz, während des Scans im Ruhezustand…). Sie können sie von Hand hinzufügen:
+Manche Geräte findet der automatische Scan nicht (anderes Subnetz, während des Scans im Ruhezustand…). Solange ein angelegtes, lokal steuerbares Gerät keine IP hat, **wiederholt die Integration alle 15 Minuten von selbst einen LAN-Scan** und schaltet es auf lokal um, sobald es antwortet — ein Gerät, das nur im Ruhezustand war, braucht nichts weiter. Für ein Gerät in einem anderen Subnetz (für den Scan nie erreichbar) fügen Sie es von Hand hinzu:
 
 1. Öffnen Sie den Bildschirm **Konfiguration** → Aktion **Lokales Protokoll erkennen (manuelle IP)**.
 2. Wählen Sie das Gerät in der Liste (oder, falls es noch nicht in Gladys angelegt ist, geben Sie seinen Namen oder seine Tuya-ID ein) und geben Sie seine **IP-Adresse** ein.

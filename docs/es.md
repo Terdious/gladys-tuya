@@ -84,7 +84,7 @@ El control local es más rápido y sigue funcionando sin internet. Se activa con
 
 ### Un dispositivo sigue en la Nube aunque esté en su LAN
 
-Algunos dispositivos no los encuentra el escaneo automático (otra subred, dormidos durante el escaneo…). Puede añadirlos a mano:
+Algunos dispositivos no los encuentra el escaneo automático (otra subred, dormidos durante el escaneo…). Mientras un dispositivo creado que puede funcionar en local no tenga IP, la integración **repite sola un escaneo de la LAN cada 15 minutos** y lo pasa a local en cuanto responde: un dispositivo que solo estaba dormido no necesita nada más. Para un dispositivo en otra subred (nunca alcanzable por el escaneo), añádalo a mano:
 
 1. Abra la pantalla **Configuración** → acción **Detectar el protocolo local (IP manual)**.
 2. Elija el dispositivo en la lista (o, si aún no está creado en Gladys, escriba su nombre o su ID de Tuya) e introduzca su **dirección IP**.

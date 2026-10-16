@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Automatic LAN re-scan: while a created device that can run locally still has no IP (asleep or silent during the discovery scan), a LAN scan is retried every 15 minutes in the background; a device that answers gets its IP/protocol stored and switches to local on the next poll, with no user action (#7).
+
 ## [1.24.1] - 2026-10-16
 
 ### Changed

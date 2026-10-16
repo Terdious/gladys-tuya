@@ -8,7 +8,10 @@
 
 import { logger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig, isConfigured } from './config.js';
-import { STATUS } from './tuya/constants.js';
+import { DEVICE_PARAM_NAME, STATUS } from './tuya/constants.js';
+import { getParamValue } from './tuya/utils/tuya.deviceParams.js';
+import { getFeatureCode, getTuyaDeviceId } from './tuya/utils/tuya.externalId.js';
+import { getLocalDpsFromCode } from './tuya/device/tuya.localMapping.js';
 import { buildConfigHash } from './tuya/utils/tuya.config.js';
 import { convertDevice } from './tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './tuya/local/tuya.localScan.js';
@@ -24,6 +27,10 @@ import { resolveTuyaDeviceRef } from './tuya/utils/tuya.resolveDeviceRef.js';
 // Longest wait for the Tuya teardown on shutdown.
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
+// Background LAN re-scan (issue #7): how often a scan is retried while some
+// created, LAN-capable device still has no local IP.
+const LAN_RESCAN_INTERVAL_MS = 15 * 60 * 1000;
+
 /**
  * @description Register every handler of the integration on the SDK client.
  * @param {object} gladys - The SDK client (GladysIntegration, or its test fake).
@@ -31,13 +38,16 @@ const SHUTDOWN_TIMEOUT_MS = 5000;
  * @param {object} [options] - Options.
  * @param {number} [options.shutdownTimeoutMs] - Longest wait for the Tuya
  * teardown on shutdown.
+ * @param {number} [options.lanRescanIntervalMs] - Period of the background
+ * LAN re-scan.
  * @returns {object} Internals exposed for the tests.
  * @example
  * createTuyaIntegration(new GladysIntegration(), new TuyaHandler(gladys));
  */
 
 export function createTuyaIntegration(gladys, tuya, options = {}) {
-  const { shutdownTimeoutMs = SHUTDOWN_TIMEOUT_MS } = options;
+  const { shutdownTimeoutMs = SHUTDOWN_TIMEOUT_MS, lanRescanIntervalMs = LAN_RESCAN_INTERVAL_MS } =
+    options;
   // Current configuration (hot-reloaded via onConfigUpdated).
   let config = normalizeConfig();
 
@@ -245,6 +255,87 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
       discoveryInFlight = null;
     });
     return discoveryInFlight;
+  }
+
+  // --- Background LAN re-scan (issue #7) ---------------------------------------
+  // The UDP scan of a discovery misses devices that were asleep or silent at
+  // that moment. While some created device that COULD run locally still has
+  // no LAN info, a scan is retried in the background: a device found is merged
+  // into the cached list and republished, so the core stores its ip/protocol
+  // and the next poll goes local — no user action. The Tuya cloud only knows
+  // the PUBLIC IP of a device, so the scan is the only way to learn the LAN one.
+
+  // Created devices with no LAN info whose features have a local mapping
+  // (battery devices with an empty LAN mapping never answer: not waited for).
+  function createdDevicesMissingLan() {
+    return (gladys.devices || []).filter((device) => {
+      const params = (device && device.params) || [];
+      if (
+        getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS) &&
+        getParamValue(params, DEVICE_PARAM_NAME.PROTOCOL_VERSION)
+      ) {
+        return false;
+      }
+      return (device.features || []).some((feature) => {
+        const code = getFeatureCode(feature);
+        return code ? getLocalDpsFromCode(code, device) !== null : false;
+      });
+    });
+  }
+
+  async function rescanLan() {
+    if (
+      config.localMode !== true ||
+      tuya.status !== STATUS.CONNECTED ||
+      discoveryInFlight ||
+      !Array.isArray(tuya.discoveredDevices) ||
+      tuya.discoveredDevices.length === 0
+    ) {
+      return;
+    }
+    const missingIds = new Set();
+    createdDevicesMissingLan().forEach((device) => {
+      try {
+        missingIds.add(getTuyaDeviceId(device));
+      } catch {
+        // not a Tuya external id: ignore
+      }
+    });
+    if (missingIds.size === 0) {
+      return;
+    }
+    await withDeviceListLock(async () => {
+      const scan = await tuya.localScan({ timeoutSeconds: 10 });
+      const found = Object.keys((scan && scan.devices) || {}).filter((id) => missingIds.has(id));
+      if (found.length === 0) {
+        logger.debug(
+          `[Tuya][lanRescan] ${missingIds.size} device(s) still without LAN info, none answered`,
+        );
+        return;
+      }
+      tuya.discoveredDevices = enrichFromCreatedDevices(
+        applyLocalScanResults(tuya.discoveredDevices, scan.devices, config.localMode),
+        gladys.devices,
+        config.localMode,
+      );
+      await publishDiscoveredDevices(tuya.discoveredDevices);
+      logger.info(
+        `[Tuya][lanRescan] found ${found.length} device(s) on the LAN: ${found.join(', ')}`,
+      );
+    });
+  }
+
+  let lanRescanTimer = null;
+  function startLanRescan() {
+    if (lanRescanTimer) {
+      return;
+    }
+    lanRescanTimer = setInterval(() => {
+      rescanLan().catch((err) => logger.warn('[Tuya][lanRescan] LAN re-scan failed', err));
+    }, lanRescanIntervalMs);
+    if (typeof lanRescanTimer.unref === 'function') {
+      lanRescanTimer.unref();
+    }
   }
 
   // --- Discovery: Gladys asks for the list of devices --------------------------
@@ -509,6 +600,7 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
       // 2) Connect to the Tuya cloud and publish the devices.
       await connectTuya();
       tuya.startReconnect();
+      startLanRescan();
       await discoverAndPublish();
     } catch (err) {
       logger.error('Post-connection initialization failed', err);
@@ -527,6 +619,8 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   // shutdown (issue #21).
   gladys.handleShutdown(async (signal) => {
     logger.info(`Received ${signal} -> graceful shutdown`);
+    clearInterval(lanRescanTimer);
+    lanRescanTimer = null;
     let timeoutId;
     await Promise.race([
       tuya.disconnect(),
@@ -540,6 +634,7 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   return {
     getConfig: () => config,
     discoverAndPublish,
+    rescanLan,
     resolveDevice,
     mergeParams,
   };

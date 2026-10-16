@@ -84,7 +84,7 @@ Local control is faster and keeps working without internet. It is enabled by the
 
 ### A device stays on Cloud even though it is on your LAN
 
-Some devices are not found by the automatic scan (different subnet, asleep during the scan…). You can add them by hand:
+Some devices are not found by the automatic scan (different subnet, asleep during the scan…). While a created device that can run locally still has no IP, the integration **retries a LAN scan on its own every 15 minutes** and switches it to local as soon as it answers — a device that was only asleep needs nothing more. For a device on another subnet (never reachable by the scan), add it by hand:
 
 1. Open the **Configuration** screen → **Detect local protocol (manual IP)** action.
 2. Pick the device in the list (or, if it is not created in Gladys yet, type its name or Tuya ID) and enter its **IP address**.
