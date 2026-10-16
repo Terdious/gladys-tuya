@@ -156,6 +156,15 @@ jobs:
               echo "::error::no \"chore(release): ${VERSION}\" commit to tag"
               exit 1
             fi
+            # GitHub refuses a GITHUB_TOKEN ref whose workflow files differ
+            # from the default branch ("without `workflows` permission"). When
+            # nothing that goes into the image (see the Dockerfile COPY lines)
+            # changed since the version commit, tag the branch head instead:
+            # same shipped code, current workflows.
+            if git diff --quiet "$commit" HEAD -- Dockerfile index.js src docs \
+              gladys-assistant-integration.json package.json package-lock.json; then
+              commit="$(git rev-parse HEAD)"
+            fi
             git tag -a "$tag" -m "Release ${VERSION}" "$commit"
             if ! push origin "refs/tags/${tag}"; then
               # Fallback through the REST API (a lightweight tag on the same
