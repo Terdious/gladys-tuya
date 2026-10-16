@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-10-16
+
 ### Added
 
 - Air conditioners that spell their values their own way, e.g. the MEDION P502 camping AC (needs for which the `gladys-tuya-medion` fork was made):
