@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-10-16
+
 ### Changed
 
 - Integration SDK 0.15.0 (additive: poll frequencies, state deduplication and
