@@ -111,6 +111,9 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     // Optional collector receiving the spec scale of each temperature code
     // ({ temp_current: 0 }); convertDevice persists it as a device param.
     temperatureScales,
+    // Optional collector receiving the declared range of each AC enum code
+    // ({ mode: ['COOL', ...] }); convertDevice persists it as a device param.
+    acEnumRanges,
   } = options;
   const collect = (bucket, value) => {
     if (report && Array.isArray(report[bucket])) {
@@ -289,6 +292,9 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     const acSupportedOptions = buildAcSupportedOptions(feature.type, valuesObject.range);
     if (acSupportedOptions) {
       feature.supported_options = acSupportedOptions;
+      if (acEnumRanges && Array.isArray(valuesObject.range) && valuesObject.range.length > 0) {
+        acEnumRanges[codeLower] = valuesObject.range.map(String);
+      }
     }
   }
   if (

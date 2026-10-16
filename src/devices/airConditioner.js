@@ -87,6 +87,10 @@ const cloudMapping = {
     // in Celsius and Gladys converts them to the user's unit.
     'temp_set_f',
     'temp_current_f',
+    // Celsius/Fahrenheit display switch and countdown timer of the MEDION P502
+    // camping AC (non-standard codes): no Gladys feature for either.
+    'c_f',
+    'timer',
     'unit',
     'heat',
     'heat8',
@@ -145,6 +149,13 @@ const cloudMapping = {
     min: AC_SWING_VERTICAL.OFF,
     max: AC_SWING_VERTICAL.POSITION_5,
   },
+  // A plain on/off louver swing (`Shake`, MEDION P502 camping AC): no axis is
+  // documented, so a switch rather than one of the two AC swing types.
+  shake: {
+    name: 'Swing',
+    category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+    type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+  },
 };
 
 // LAN mapping (ported from lib/mappings/local/air-conditioner.js): strict, so
@@ -152,7 +163,6 @@ const cloudMapping = {
 const localMapping = {
   strict: true,
   ignoredDps: [
-    '8',
     '9',
     '12',
     '13',
@@ -190,6 +200,9 @@ const localMapping = {
     windspeed: 5,
     horizontal: 106,
     vertical: 107,
+    // MEDION P502 `Shake`, confirmed on the device by the gladys-tuya-medion
+    // fork. Only read for a device exposing the `shake` code.
+    shake: 8,
   },
 };
 

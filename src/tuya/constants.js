@@ -50,6 +50,12 @@ export const DEVICE_PARAM_NAME = {
   // read at discovery is stored as JSON ({"temp_current":0,...}) and wins
   // over the device-type default at poll/setValue time (issue #52).
   TEMPERATURE_SCALES: 'TEMPERATURE_SCALES',
+  // And for the enum vocabulary of the AC mode / fan speed / swings: firmwares
+  // spell the same values differently ("cold" vs "COOL", "low"/"high" vs
+  // "1"/"2"), so the range the device declares is stored as JSON
+  // ({"mode":["COOL","FAN",...],"windspeed":["1","2"]}) to read AND write
+  // its own spelling.
+  AC_ENUM_RANGES: 'AC_ENUM_RANGES',
 };
 
 // Type segment used to build every device external id:
