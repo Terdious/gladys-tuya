@@ -150,7 +150,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     return undefined;
   }
   // tuyaEnum/selectOptions/selectOptionsFromRange/selectLabels/
-  // fullLifeSeconds/percentRemaining/jsonValueKey/duplicateOf are mapping-only metadata
+  // fullLifeSeconds/percentRemaining/jsonValueKey/duplicateOf/litersPerMinute are mapping-only metadata
   // (per-variant mode vocabulary, TEXT/SELECT option list or how to build it,
   // the MAINTENANCE.LIFE_REMAINING full-life reference, the primary code of a
   // duplicate DP — all consumed by the conversion or the read/write pipeline,
@@ -164,6 +164,7 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
     jsonValueKey: _jsonValueKey,
     duplicateOf: _duplicateOf,
     percentRemaining: _percentRemaining,
+    litersPerMinute: _litersPerMinute,
     ...featuresCategoryAndType
   } = mappingEntry;
 
@@ -182,8 +183,10 @@ export function convertFeature(tuyaFunctions, ids, options = {}) {
       // scene value selector shows "Ring", not the full generic button list.
       downgradeSupportedOptions = [{ value: 1, label: 'Ring', sort_order: 0 }];
     } else if (
-      featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
-      AC_FIRST_CLASS_TYPES.includes(featuresCategoryAndType.type)
+      (featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING &&
+        AC_FIRST_CLASS_TYPES.includes(featuresCategoryAndType.type)) ||
+      // The WATER_VALVE category appeared in Gladys 4.84.1.
+      featuresCategoryAndType.category === DEVICE_FEATURE_CATEGORIES.WATER_VALVE
     ) {
       collect('ignored', `${codeLower} (needs Gladys >= 4.84.2)`);
       return undefined;

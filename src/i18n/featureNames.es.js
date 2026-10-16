@@ -118,6 +118,12 @@ export const FEATURE_NAMES_ES = {
   Manual: 'Manual',
   Sleep: 'Modo noche',
 
+  // --- Water valve (waterValve.js) ---
+  Valve: 'Válvula',
+  'Valve open': 'Válvula abierta',
+  'Water flow': 'Caudal de agua',
+  'Manual watering duration': 'Duración del riego manual',
+  'Watering mode': 'Modo de riego',
   // --- Water purifier (waterPurifier.js) ------------------------------------
   'Inlet TDS': 'TDS de entrada',
   'Outlet TDS': 'TDS de salida',

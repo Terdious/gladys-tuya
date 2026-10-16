@@ -23,6 +23,7 @@ import { fan } from './fan.js';
 import { dehumidifier } from './dehumidifier.js';
 import { temperatureHumiditySensor } from './temperatureHumiditySensor.js';
 import { waterPurifier } from './waterPurifier.js';
+import { waterValve } from './waterValve.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { vacuum } from './vacuum.js';
@@ -46,6 +47,7 @@ export const DEVICE_TYPE_DEFINITIONS = [
   // of this sensor too, and those types must keep claiming their devices first.
   temperatureHumiditySensor,
   waterPurifier,
+  waterValve,
   smartSocket,
   smartMeter,
   vacuum,
