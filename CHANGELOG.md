@@ -10,6 +10,15 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Air conditioners that spell their values their own way, e.g. the MEDION P502 camping AC (needs for which the `gladys-tuya-medion` fork was made):
+  - modes are read and written case-insensitively, in the device's own spelling (`COOL`, `DRY`…);
+  - a fan speed declared as bare levels (`"1"`/`"2"`) is offered as Low / High (3 to 5 levels are spread the same way);
+  - the `Shake` louver swing is exposed as a "Swing" switch (DPS 8 on the LAN).
+
+  The enum values each AC declares are stored at discovery (`AC_ENUM_RANGES` device param): re-run a discovery (or delete and re-create the AC) for an existing device to pick them up. Without them, the behaviour is unchanged.
+
 ## [1.21.0] - 2026-10-16
 
 ### Added

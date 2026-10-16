@@ -6,7 +6,7 @@ Controle sus dispositivos Tuya / Smart Life desde Gladys, a través de la **nube
 
 - **Enchufes inteligentes** (incluido el LSC Power Plug FR con medición de energía): encendido/apagado, bloqueo infantil, potencia, tensión, corriente, energía.
 - **Medidores de energía** (incluidos los trifásicos): potencia, tensión, corriente, energía importada/exportada.
-- **Aires acondicionados**: encendido/apagado, modo (auto / frío / calor / deshumidificación / ventilación), temperatura objetivo, temperatura ambiente, velocidad del ventilador y ambos ejes de oscilación.
+- **Aires acondicionados**: encendido/apagado, modo (auto / frío / calor / deshumidificación / ventilación), temperatura objetivo, temperatura ambiente, velocidad del ventilador y ambos ejes de oscilación. También se admiten los modelos con su propio vocabulario (p. ej. el aire acondicionado de camping MEDION P502: modos en mayúsculas, ventilador de dos velocidades, oscilación encendida/apagada).
 - **Termostatos de hilo piloto** (_fil pilote_ francés, familia RP5, Konyks eCosy): modo de calefacción, temperatura objetivo, temperatura ambiente, bloqueo infantil, energía.
 - **Cámaras** (incluidas las LSC): modo privacidad, detección de movimiento, sirena, seguimiento de movimiento, filtro de personas, grabación, volteo de imagen y un sensor de movimiento utilizable en sus escenas.
 - **Videoporteros**: timbre (una función de timbre dedicada), captura del visitante, detección de movimiento, grabación, LED de estado.

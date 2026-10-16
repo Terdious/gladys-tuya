@@ -301,6 +301,104 @@ export const AC_SUPPORTED_OPTION_SOURCES = {
   },
 };
 
+// The Tuya string each Gladys AC value is written as when the device declares
+// no range (or none of its values matches): the most common spelling.
+const AC_DEFAULT_TUYA_VALUES = {
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: GLADYS_AC_MODE_TO_TUYA,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: GLADYS_AC_FAN_SPEED_TO_TUYA,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: GLADYS_AC_SWING_HORIZONTAL_TO_TUYA,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: GLADYS_AC_SWING_VERTICAL_TO_TUYA,
+};
+
+// Fan speeds declared as bare levels ("1","2"... e.g. the MEDION P502 camping
+// AC): spread over the Gladys scale by count, lowest level first.
+const AC_FAN_SPEED_LEVELS = {
+  1: [AC_FAN_SPEED.MID],
+  2: [AC_FAN_SPEED.LOW, AC_FAN_SPEED.HIGH],
+  3: [AC_FAN_SPEED.LOW, AC_FAN_SPEED.MID, AC_FAN_SPEED.HIGH],
+  4: [AC_FAN_SPEED.LOW, AC_FAN_SPEED.LOW_MID, AC_FAN_SPEED.MID_HIGH, AC_FAN_SPEED.HIGH],
+  5: [
+    AC_FAN_SPEED.LOW,
+    AC_FAN_SPEED.LOW_MID,
+    AC_FAN_SPEED.MID,
+    AC_FAN_SPEED.MID_HIGH,
+    AC_FAN_SPEED.HIGH,
+  ],
+};
+
+const getNumericFanLevels = (range) => {
+  if (!Array.isArray(range) || range.length === 0) {
+    return null;
+  }
+  const values = [...new Set(range.map(String))];
+  if (!values.every((value) => /^\d+$/.test(value))) {
+    return null;
+  }
+  const levels = values.sort((a, b) => Number(a) - Number(b));
+  const speeds = AC_FAN_SPEED_LEVELS[levels.length];
+  return speeds ? { levels, speeds } : null;
+};
+
+/**
+ * @description Gladys value of a Tuya AC enum value. Case-insensitive (some
+ * firmwares send "COOL"), and a fan speed declared as bare levels ("1","2")
+ * is resolved through the device's own range.
+ * @param {string} featureType - AIR_CONDITIONING.MODE / FAN_SPEED / SWING_*.
+ * @param {*} tuyaValue - The value the device reports.
+ * @param {Array} [range] - The enum range the device declares, when known.
+ * @returns {number|undefined} The Gladys value, undefined when unknown.
+ * @example
+ * tuyaToGladysAcValue(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE, 'COOL'); // AC_MODE.COOLING
+ */
+export const tuyaToGladysAcValue = (featureType, tuyaValue, range) => {
+  const source = AC_SUPPORTED_OPTION_SOURCES[featureType];
+  if (!source || tuyaValue === null || tuyaValue === undefined) {
+    return undefined;
+  }
+  const key = String(tuyaValue);
+  const { vocabulary } = source;
+  if (Object.prototype.hasOwnProperty.call(vocabulary, key)) {
+    return vocabulary[key];
+  }
+  const lower = key.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(vocabulary, lower)) {
+    return vocabulary[lower];
+  }
+  if (featureType === DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED) {
+    const numeric = getNumericFanLevels(range);
+    const index = numeric ? numeric.levels.indexOf(key) : -1;
+    if (index !== -1) {
+      return numeric.speeds[index];
+    }
+  }
+  return undefined;
+};
+
+/**
+ * @description Tuya value to write for a Gladys AC enum value: the device's
+ * own spelling when its range is known ("COOL", "2"), the common spelling
+ * otherwise (unchanged behaviour for a device without a stored range).
+ * @param {string} featureType - AIR_CONDITIONING.MODE / FAN_SPEED / SWING_*.
+ * @param {*} gladysValue - The Gladys value.
+ * @param {Array} [range] - The enum range the device declares, when known.
+ * @returns {string|undefined} The Tuya value, undefined when unreachable.
+ * @example
+ * gladysToTuyaAcValue(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE, 1, ['COOL']); // 'COOL'
+ */
+export const gladysToTuyaAcValue = (featureType, gladysValue, range) => {
+  const parsedValue = parseInt(gladysValue, 10);
+  if (Array.isArray(range) && range.length > 0) {
+    const match = range.find(
+      (tuyaValue) => tuyaToGladysAcValue(featureType, tuyaValue, range) === parsedValue,
+    );
+    if (match !== undefined) {
+      return String(match);
+    }
+  }
+  const defaults = AC_DEFAULT_TUYA_VALUES[featureType];
+  return defaults ? defaults[parsedValue] : undefined;
+};
+
 // Build the supported_options of an AC enum feature from the spec range (full
 // vocabulary without one, or for a type that is never narrowed); returns null
 // for non-enum AC feature types (binary, target temperature...).
@@ -310,8 +408,25 @@ export const buildAcSupportedOptions = (featureType, range) => {
     return null;
   }
   const useRange = source.narrowBySpecRange !== false && Array.isArray(range) && range.length > 0;
-  const tuyaValues = useRange ? range : Object.keys(source.vocabulary);
-  return buildSupportedOptionsFromVocabulary(source.vocabulary, tuyaValues, source.labels);
+  if (!useRange) {
+    return buildSupportedOptionsFromVocabulary(
+      source.vocabulary,
+      Object.keys(source.vocabulary),
+      source.labels,
+    );
+  }
+  const supportedValues = [
+    ...new Set(
+      range
+        .map((tuyaValue) => tuyaToGladysAcValue(featureType, tuyaValue, range))
+        .filter((value) => value !== undefined),
+    ),
+  ].sort((a, b) => a - b);
+  return supportedValues.map((value, index) => ({
+    value,
+    label: source.labels[value] || String(value),
+    sort_order: index,
+  }));
 };
 
 // Tuya fan airflow-direction vocabulary -> Gladys FAN_AIRFLOW_DIRECTION. The
@@ -413,22 +528,32 @@ export const writeValues = {
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromGladys) => {
       return valueFromGladys === 1;
     },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromGladys) => {
-      const parsedValue = parseInt(valueFromGladys, 10);
-      return GLADYS_AC_MODE_TO_TUYA[parsedValue];
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromGladys) => {
-      const parsedValue = parseInt(valueFromGladys, 10);
-      return GLADYS_AC_FAN_SPEED_TO_TUYA[parsedValue];
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromGladys) => {
-      const parsedValue = parseInt(valueFromGladys, 10);
-      return GLADYS_AC_SWING_HORIZONTAL_TO_TUYA[parsedValue];
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromGladys) => {
-      const parsedValue = parseInt(valueFromGladys, 10);
-      return GLADYS_AC_SWING_VERTICAL_TO_TUYA[parsedValue];
-    },
+    // The device's own spelling when its range is known (`specRange`,
+    // restored from the AC_ENUM_RANGES param by tuya.poll.js).
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromGladys, deviceFeature) =>
+      gladysToTuyaAcValue(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE,
+        valueFromGladys,
+        deviceFeature && deviceFeature.specRange,
+      ),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromGladys, deviceFeature) =>
+      gladysToTuyaAcValue(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED,
+        valueFromGladys,
+        deviceFeature && deviceFeature.specRange,
+      ),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromGladys, deviceFeature) =>
+      gladysToTuyaAcValue(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL,
+        valueFromGladys,
+        deviceFeature && deviceFeature.specRange,
+      ),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromGladys, deviceFeature) =>
+      gladysToTuyaAcValue(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL,
+        valueFromGladys,
+        deviceFeature && deviceFeature.specRange,
+      ),
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (
       valueFromGladys,
       deviceFeature,
@@ -477,6 +602,15 @@ export const writeValues = {
   // future product ever needs one, not here.
 };
 
+const readAcEnum = (featureType, valueFromDevice, deviceFeature) => {
+  const value = tuyaToGladysAcValue(
+    featureType,
+    valueFromDevice,
+    deviceFeature && deviceFeature.specRange,
+  );
+  return value === undefined ? null : value;
+};
+
 export const readValues = {
   [DEVICE_FEATURE_CATEGORIES.LIGHT]: {
     [DEVICE_FEATURE_TYPES.LIGHT.BINARY]: (valueFromDevice) => {
@@ -500,29 +634,22 @@ export const readValues = {
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.BINARY]: (valueFromDevice) => {
       return normalizeBoolean(valueFromDevice) ? 1 : 0;
     },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromDevice) => {
-      return Object.prototype.hasOwnProperty.call(TUYA_AC_MODE_TO_GLADYS, valueFromDevice)
-        ? TUYA_AC_MODE_TO_GLADYS[valueFromDevice]
-        : null;
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromDevice) => {
-      return Object.prototype.hasOwnProperty.call(TUYA_AC_FAN_SPEED_TO_GLADYS, valueFromDevice)
-        ? TUYA_AC_FAN_SPEED_TO_GLADYS[valueFromDevice]
-        : null;
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromDevice) => {
-      return Object.prototype.hasOwnProperty.call(
-        TUYA_AC_SWING_HORIZONTAL_TO_GLADYS,
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE]: (valueFromDevice, deviceFeature) =>
+      readAcEnum(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE, valueFromDevice, deviceFeature),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: (valueFromDevice, deviceFeature) =>
+      readAcEnum(DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED, valueFromDevice, deviceFeature),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: (valueFromDevice, deviceFeature) =>
+      readAcEnum(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL,
         valueFromDevice,
-      )
-        ? TUYA_AC_SWING_HORIZONTAL_TO_GLADYS[valueFromDevice]
-        : null;
-    },
-    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromDevice) => {
-      return Object.prototype.hasOwnProperty.call(TUYA_AC_SWING_VERTICAL_TO_GLADYS, valueFromDevice)
-        ? TUYA_AC_SWING_VERTICAL_TO_GLADYS[valueFromDevice]
-        : null;
-    },
+        deviceFeature,
+      ),
+    [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: (valueFromDevice, deviceFeature) =>
+      readAcEnum(
+        DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL,
+        valueFromDevice,
+        deviceFeature,
+      ),
     [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.TARGET_TEMPERATURE]: (
       valueFromDevice,
       deviceFeature,

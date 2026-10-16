@@ -101,18 +101,29 @@ export const resolveFeatureMappingEntry = (device, code) => {
   return getFeatureMapping(code, deviceType, getProductIdFromDevice(device));
 };
 
-const getStoredTemperatureScale = (device, code) => {
-  const raw = getParamValue(device && device.params, DEVICE_PARAM_NAME.TEMPERATURE_SCALES);
+// Per-code JSON map stored as a device param at discovery (TEMPERATURE_SCALES,
+// AC_ENUM_RANGES); undefined when absent or unreadable.
+const getStoredSpecValue = (device, paramName, code) => {
+  const raw = getParamValue(device && device.params, paramName);
   if (!raw || !code) {
     return undefined;
   }
   try {
-    const scales = JSON.parse(raw);
-    const scale = scales && scales[String(code).toLowerCase()];
-    return Number.isInteger(scale) ? scale : undefined;
+    const values = JSON.parse(raw);
+    return values ? values[String(code).toLowerCase()] : undefined;
   } catch {
     return undefined;
   }
+};
+
+const getStoredTemperatureScale = (device, code) => {
+  const scale = getStoredSpecValue(device, DEVICE_PARAM_NAME.TEMPERATURE_SCALES, code);
+  return Number.isInteger(scale) ? scale : undefined;
+};
+
+const getStoredAcEnumRange = (device, code) => {
+  const range = getStoredSpecValue(device, DEVICE_PARAM_NAME.AC_ENUM_RANGES, code);
+  return Array.isArray(range) && range.length > 0 ? range.map(String) : undefined;
 };
 
 /**
@@ -120,7 +131,8 @@ const getStoredTemperatureScale = (device, code) => {
  * the discovery payload), so a feature read back from the created devices
  * loses it and a scaled value (e.g. an AC temperature stored as 230 for 23.0)
  * would be published raw. Restore the scale from the device-type cloud
- * mapping, as the core service does.
+ * mapping, as the core service does. Also restores the declared AC enum
+ * range (`specRange`) stored at discovery.
  * @param {object} device - The Gladys device (for the device type).
  * @param {object} deviceFeature - The feature as loaded from Gladys.
  * @param {string} code - Tuya feature code.
@@ -129,7 +141,16 @@ const getStoredTemperatureScale = (device, code) => {
  * const feature = getFeatureWithFallbackScale(device, deviceFeature, 'temp_set');
  */
 export const getFeatureWithFallbackScale = (device, deviceFeature, code) => {
-  if (!deviceFeature || deviceFeature.scale !== undefined) {
+  if (!deviceFeature) {
+    return deviceFeature;
+  }
+  // The AC enum vocabulary the device declared (`specRange`): read by the AC
+  // mode / fan speed / swing transforms to read and write its own spelling.
+  const specRange = getStoredAcEnumRange(device, code);
+  if (specRange && deviceFeature.specRange === undefined) {
+    return getFeatureWithFallbackScale(device, { ...deviceFeature, specRange }, code);
+  }
+  if (deviceFeature.scale !== undefined) {
     return deviceFeature;
   }
   // The spec scale read at discovery for a temperature code (issue #52): an

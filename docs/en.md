@@ -6,7 +6,7 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 
 - **Smart plugs and sockets** (including the LSC Power Plug FR with energy metering): on/off, child lock, power, voltage, current, energy.
 - **Energy meters** (including 3-phase): power, voltage, current, imported/exported energy.
-- **Air conditioners**: on/off, mode (auto / cool / heat / dry / fan), target temperature, ambient temperature, fan speed and both swing axes.
+- **Air conditioners**: on/off, mode (auto / cool / heat / dry / fan), target temperature, ambient temperature, fan speed and both swing axes. Models with their own vocabulary are handled too (e.g. the MEDION P502 camping AC: uppercase modes, two-speed fan, swing on/off).
 - **Pilot-wire (fil pilote) thermostats** (RP5 family, Konyks eCosy): heating mode, target temperature, ambient temperature, child lock, energy.
 - **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes.
 - **Video doorbells**: ring (a dedicated doorbell feature), snapshot of the visitor, motion detection, recording, status LED.

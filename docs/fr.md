@@ -6,7 +6,7 @@ Pilotez vos appareils Tuya / Smart Life depuis Gladys, via le **cloud** et, quan
 
 - **Prises connectées** (dont la prise LSC FR avec mesure de conso) : marche/arrêt, verrou enfant, puissance, tension, courant, énergie.
 - **Compteurs d'énergie** (dont triphasé) : puissance, tension, courant, énergie importée/exportée.
-- **Climatiseurs** : marche/arrêt, mode (auto / froid / chaud / déshu / ventilation), consigne, température ambiante, vitesse de ventilation et les deux axes d'oscillation.
+- **Climatiseurs** : marche/arrêt, mode (auto / froid / chaud / déshu / ventilation), consigne, température ambiante, vitesse de ventilation et les deux axes d'oscillation. Les modèles qui ont leur propre vocabulaire sont aussi gérés (ex. la clim de camping MEDION P502 : modes en majuscules, ventilation à deux vitesses, oscillation marche/arrêt).
 - **Thermostats fil pilote** (gamme RP5, Konyks eCosy) : mode de chauffe, consigne, température ambiante, verrou enfant, énergie.
 - **Caméras** (dont LSC) : mode privé, détection de mouvement, sirène, suivi de mouvement, filtre humain, enregistrement, retournement d'image, et un capteur de mouvement utilisable dans vos scènes.
 - **Sonnettes vidéo** : sonnerie (fonctionnalité sonnette dédiée), photo du visiteur, détection de mouvement, enregistrement, voyant d'état.

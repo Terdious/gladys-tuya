@@ -6,7 +6,7 @@ Steuern Sie Ihre Tuya / Smart Life Geräte aus Gladys, über die **Cloud** und, 
 
 - **Smarte Stecker und Steckdosen** (einschließlich LSC Power Plug FR mit Energiemessung): Ein/Aus, Kindersicherung, Leistung, Spannung, Strom, Energie.
 - **Energiezähler** (auch dreiphasig): Leistung, Spannung, Strom, bezogene/eingespeiste Energie.
-- **Klimageräte**: Ein/Aus, Modus (Auto / Kühlen / Heizen / Entfeuchten / Lüften), Solltemperatur, Raumtemperatur, Lüfterstufe und beide Schwenkachsen.
+- **Klimageräte**: Ein/Aus, Modus (Auto / Kühlen / Heizen / Entfeuchten / Lüften), Solltemperatur, Raumtemperatur, Lüfterstufe und beide Schwenkachsen. Modelle mit eigenem Vokabular werden ebenfalls unterstützt (z. B. das Camping-Klimagerät MEDION P502: Modi in Großbuchstaben, zweistufiger Lüfter, Schwenken ein/aus).
 - **Fil-pilote-Thermostate** (französische Steuerleitung, RP5-Familie, Konyks eCosy): Heizmodus, Solltemperatur, Raumtemperatur, Kindersicherung, Energie.
 - **Kameras** (einschließlich LSC): Privatsphäre-Modus, Bewegungserkennung, Sirene, Bewegungsverfolgung, Personenfilter, Aufnahme, Bilddrehung und ein in Szenen nutzbarer Bewegungssensor.
 - **Video-Türklingeln**: Klingeln (eigene Türklingel-Funktion), Schnappschuss des Besuchers, Bewegungserkennung, Aufnahme, Status-LED.

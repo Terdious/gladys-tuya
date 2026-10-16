@@ -288,6 +288,8 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
   const report = { mapped: [], ignored: [], unmanaged: [] };
   // Spec scale of each temperature code, persisted below (issue #52).
   const temperatureScales = {};
+  // Declared vocabulary of the AC enum codes, persisted below.
+  const acEnumRanges = {};
   // Every code the device exposes: lets a mapping declared as a duplicate of
   // another DP step aside when the primary code is there (see convertFeature).
   const deviceCodes = new Set(Object.keys(groups).map((code) => normalizeCode(code)));
@@ -304,8 +306,15 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
       deviceCodes,
       report,
       temperatureScales,
+      acEnumRanges,
     }),
   );
+  if (Object.keys(acEnumRanges).length > 0) {
+    params.push({
+      name: DEVICE_PARAM_NAME.AC_ENUM_RANGES,
+      value: JSON.stringify(acEnumRanges),
+    });
+  }
   if (Object.keys(temperatureScales).length > 0) {
     params.push({
       name: DEVICE_PARAM_NAME.TEMPERATURE_SCALES,
