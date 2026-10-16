@@ -68,7 +68,12 @@ export function scheduleQuickReconnects() {
     }
 
     if (attempts < QUICK_RECONNECT_ATTEMPTS) {
-      const timeoutId = setTimeout(runAttempt, QUICK_RECONNECT_DELAY_MS);
+      const timeoutId = setTimeout(() => {
+        // A fired timer is no longer pending: drop its id, or the list grows
+        // by one id per ladder for the container's lifetime (issue #20).
+        this.quickReconnectTimeouts = this.quickReconnectTimeouts.filter((id) => id !== timeoutId);
+        runAttempt();
+      }, QUICK_RECONNECT_DELAY_MS);
       if (timeoutId && typeof timeoutId.unref === 'function') {
         timeoutId.unref();
       }

@@ -10,6 +10,16 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Changed
+
+- A short loss of the connection to Gladys (core restart, network blip) no longer reconnects the Tuya cloud nor re-runs a full discovery and LAN scan when nothing changed: the status and the known devices are simply re-sent (#21).
+- On container stop, the integration waits (up to 5 s) for the local sessions to close cleanly (#21).
+
+### Fixed
+
+- "Detect local protocol": a discovery started during the probe could replace the device list and lose the detected IP/protocol; both now run one after the other (#21).
+- The automatic cloud reconnection kept the ids of its finished timers forever (slow memory growth) (#20).
+
 ## [1.23.0] - 2026-10-16
 
 ### Changed

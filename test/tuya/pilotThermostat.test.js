@@ -308,6 +308,34 @@ test('poll reads the RP5 states from the cloud (fixture values)', async () => {
   assert.equal(states['ext:tuya:device:rp5:window_state'], OPENING_SENSOR_STATE.CLOSE);
 });
 
+test('poll reads the eCosy current mode from the cloud (bench diagnostic, issue #21)', async () => {
+  // Bench diagnostic of a real eCosy (1.23.0): the cloud status carries
+  // cur_mode, so the "Current mode" feature has a value without the LAN.
+  const { fake, handler, device } = createHandler(ECOSY_DEVICE);
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'cur_mode', value: 'eco' },
+        { code: 'lock_switch', value: false },
+        { code: 'mode', value: 'eco' },
+        { code: 'switch', value: false },
+        { code: 'temp_set', value: 20 },
+        { code: 'timer_switch', value: false },
+        { code: 'travel_switch', value: false },
+        { code: 'travel_time', value: 172800 },
+      ],
+    }),
+  };
+
+  await handler.poll(device);
+
+  const states = Object.fromEntries(fake.published.map((p) => [p.featureExternalId, p.state]));
+  assert.equal(states['ext:tuya:device:ecosy1:cur_mode'], PILOT_WIRE_MODE.ECO);
+  assert.equal(states['ext:tuya:device:ecosy1:mode'], PILOT_WIRE_MODE.ECO);
+  assert.equal(states['ext:tuya:device:ecosy1:switch'], 0);
+});
+
 test('a local DPS read publishes the RP5 states (core local-dps fixture)', async () => {
   const { fake, handler, device } = createHandler(RP5_DEVICE);
   handler.config = { localMode: true };
