@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { releaseChangelog } from '../scripts/release-changelog.mjs';
+import { extractReleaseNotes, releaseChangelog } from '../scripts/release-changelog.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -65,4 +65,16 @@ test('CHANGELOG.md has a section for the version in the manifest', () => {
   const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8');
   assert.ok(changelog.includes('## [Unreleased]'));
   assert.ok(changelog.includes(`## [${version}] - `), `CHANGELOG.md misses [${version}]`);
+});
+
+test('extractReleaseNotes returns the section of a released version', () => {
+  assert.equal(extractReleaseNotes(SAMPLE, '1.0.0'), '### Added\n\n- First release.');
+  assert.throws(() => extractReleaseNotes(SAMPLE, '9.9.9'), /no \[9\.9\.9\]/);
+});
+
+test('every released version in CHANGELOG.md has notes (Release "resume" mode)', () => {
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8');
+  const versions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]);
+  assert.ok(versions.length > 20);
+  versions.forEach((version) => assert.ok(extractReleaseNotes(changelog, version)));
 });

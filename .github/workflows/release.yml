@@ -10,13 +10,20 @@
 #      `docker_image` tag, so the indexer and the image stay in lockstep);
 #   3. moves the "Unreleased" section of CHANGELOG.md under the new version
 #      (the release is refused when that section is empty);
-#   4. commits the bump, pushes the `vX.Y.Z` tag and publishes the GitHub
-#      Release with that changelog section as its notes;
+#   4. commits the bump and pushes it together with the `vX.Y.Z` tag (one
+#      atomic push: both land or neither does), then publishes the GitHub
+#      Release with that changelog section as its notes (plus GitHub's list of
+#      merged pull requests);
 #   5. calls build.yml to publish the multi-arch image (`:X.Y.Z` + `:latest`).
 #
 # Why call build.yml instead of relying on the tag push: a tag pushed with the
 # default GITHUB_TOKEN does NOT trigger other workflows, so we invoke the build
 # ourselves. No personal access token to create.
+#
+# `resume` finishes a release interrupted after its version commit (tag,
+# GitHub Release or image missing): it bumps nothing, tags the
+# "chore(release): X.Y.Z" commit of the version already in package.json if
+# the tag is missing, creates the GitHub Release if missing, and builds.
 # -----------------------------------------------------------------------------
 name: Release
 
@@ -32,6 +39,7 @@ on:
           - patch
           - minor
           - major
+          - resume
 
 jobs:
   prepare:
@@ -57,6 +65,17 @@ jobs:
           RELEASE_TYPE: ${{ inputs.release-type }}
         run: |
           set -euo pipefail
+
+          if [ "$RELEASE_TYPE" = "resume" ]; then
+            version="$(jq -r .version package.json)"
+            manifest_version="$(jq -r .version gladys-assistant-integration.json)"
+            if [ "$version" != "$manifest_version" ]; then
+              echo "::error::package.json (${version}) and the manifest (${manifest_version}) disagree"
+              exit 1
+            fi
+            echo "version=${version}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           # npm computes the next semver and writes it to package.json (and
           # package-lock.json). --no-git-tag-version: we own the commit + tag
@@ -85,8 +104,14 @@ jobs:
       - name: Move the Unreleased changelog section under the new version
         env:
           VERSION: ${{ steps.bump.outputs.version }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
         run: |
           set -euo pipefail
+          if [ "$RELEASE_TYPE" = "resume" ]; then
+            # Already released: only read its notes back.
+            node scripts/release-changelog.mjs --notes "$VERSION" "$RUNNER_TEMP/release-notes.md"
+            exit 0
+          fi
           node scripts/release-changelog.mjs "$VERSION" "$RUNNER_TEMP/release-notes.md"
           npx --yes prettier@3 --write CHANGELOG.md
 
@@ -97,17 +122,47 @@ jobs:
       - name: Commit, tag and push
         env:
           VERSION: ${{ steps.bump.outputs.version }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          tag="v${VERSION}"
+
+          # Retry a push up to 3 times (a transient failure once left a version
+          # commit on master without its tag, 1.22.0).
+          push() {
+            for attempt in 1 2 3; do
+              if git push "$@"; then
+                return 0
+              fi
+              echo "::warning::push failed (attempt ${attempt}/3)"
+              sleep $((attempt * 10))
+            done
+            return 1
+          }
+
+          if [ "$RELEASE_TYPE" = "resume" ]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" > /dev/null; then
+              echo "Tag ${tag} already exists."
+              exit 0
+            fi
+            commit="$(git log --format=%H -1 --grep="^chore(release): ${VERSION}\$")"
+            if [ -z "$commit" ]; then
+              echo "::error::no \"chore(release): ${VERSION}\" commit to tag"
+              exit 1
+            fi
+            git tag -a "$tag" -m "Release ${VERSION}" "$commit"
+            push origin "refs/tags/${tag}"
+            exit 0
+          fi
 
           git add package.json package-lock.json gladys-assistant-integration.json CHANGELOG.md
           git commit -m "chore(release): ${VERSION}"
-          git tag -a "v${VERSION}" -m "Release ${VERSION}"
+          git tag -a "$tag" -m "Release ${VERSION}"
 
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-          git push origin "v${VERSION}"
+          # Atomic: the version commit and its tag land together or not at all.
+          push --atomic origin "HEAD:${GITHUB_REF_NAME}" "refs/tags/${tag}"
 
       - name: Publish the GitHub Release
         env:
@@ -115,9 +170,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if gh release view "v${VERSION}" > /dev/null 2>&1; then
+            echo "GitHub Release v${VERSION} already exists."
+            exit 0
+          fi
+          # The changelog section first, then GitHub's generated list of the
+          # merged pull requests and the full-diff link.
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --generate-notes \
             --verify-tag
 
   # Build and publish the image for the version we just tagged.
