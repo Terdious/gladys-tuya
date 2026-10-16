@@ -79,6 +79,20 @@ npm run lint           # ESLint
 npm test               # Unit tests (node --test)
 ```
 
+## Releasing
+
+1. Every pull request adds its user-facing changes to the **Unreleased**
+   section of [`CHANGELOG.md`](CHANGELOG.md) (Added / Changed / Fixed /
+   Removed).
+2. **Actions → Release → Run workflow** (patch / minor / major): it bumps the
+   version in `package.json` and the manifest, moves Unreleased under the new
+   version, tags, publishes the GitHub Release with that section as its notes
+   and builds the image. It refuses to run when Unreleased is empty.
+3. For a notable release, post the announcement on the
+   [community forum](https://community.gladysassistant.com/) (what is new, the
+   Gladys version it needs, what to do on devices already created, what to
+   test).
+
 ## License
 
 Apache-2.0
