@@ -13,11 +13,11 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@demirdeniz/tuyapi-newgen": "^8.1.5",
-    "@gladysassistant/integration-sdk": "^0.13.0",
+    "@gladysassistant/integration-sdk": "^0.15.0",
     "@tuya/tuya-connector-nodejs": "^2.1.2",
     "jpeg-js": "^0.4.4",
     "tuyapi": "^7.7.1",
