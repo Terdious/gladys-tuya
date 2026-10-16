@@ -101,6 +101,20 @@ export const resolveFeatureMappingEntry = (device, code) => {
   return getFeatureMapping(code, deviceType, getProductIdFromDevice(device));
 };
 
+const getStoredTemperatureScale = (device, code) => {
+  const raw = getParamValue(device && device.params, DEVICE_PARAM_NAME.TEMPERATURE_SCALES);
+  if (!raw || !code) {
+    return undefined;
+  }
+  try {
+    const scales = JSON.parse(raw);
+    const scale = scales && scales[String(code).toLowerCase()];
+    return Number.isInteger(scale) ? scale : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * @description Gladys does not persist the feature `scale` (it only exists on
  * the discovery payload), so a feature read back from the created devices
@@ -117,6 +131,15 @@ export const resolveFeatureMappingEntry = (device, code) => {
 export const getFeatureWithFallbackScale = (device, deviceFeature, code) => {
   if (!deviceFeature || deviceFeature.scale !== undefined) {
     return deviceFeature;
+  }
+  // The spec scale read at discovery for a temperature code (issue #52): an
+  // AC sending whole degrees must not be divided by the device-type default.
+  const specScale = getStoredTemperatureScale(device, code);
+  if (specScale !== undefined) {
+    return {
+      ...deviceFeature,
+      scale: specScale,
+    };
   }
   const mapping = resolveFeatureMappingEntry(device, code);
   if (!mapping || mapping.scale === undefined) {

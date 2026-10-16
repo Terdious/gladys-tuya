@@ -83,6 +83,10 @@ const cloudMapping = {
     'cleaning',
     'clean',
     'temp_unit_convert',
+    // Fahrenheit twins of temp_set / temp_current (issue #52): those two stay
+    // in Celsius and Gladys converts them to the user's unit.
+    'temp_set_f',
+    'temp_current_f',
     'unit',
     'heat',
     'heat8',
