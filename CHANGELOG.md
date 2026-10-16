@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-10-16
+
 ### Added
 
 - PTZ cameras (#26, LSC PTZ / Dualband): pan left/right and tilt up/down through the Gladys `camera.move` feature (Gladys 4.86.1 or later), over the cloud or the LAN. Every move is stopped by the camera's `ptz_stop` on release, or after 2 s if the stop never arrives (the spec's safety rule).
