@@ -31,3 +31,77 @@ test('every cloud mapping entry declares a category and a type', () => {
     }
   }
 });
+
+// Cross-definition invariants (issue #20): contradictions a reviewer would
+// only spot by reading every device file side by side.
+
+const definitionMappings = (definition) => [
+  {
+    label: definition.DEVICE_TYPE_NAME,
+    cloud: definition.CLOUD_MAPPINGS,
+    local: definition.LOCAL_MAPPINGS,
+  },
+  ...(Array.isArray(definition.VARIANTS) ? definition.VARIANTS : []).map((variant, index) => ({
+    label: `${definition.DEVICE_TYPE_NAME} variant ${index}`,
+    cloud: variant.CLOUD_MAPPINGS,
+    local: variant.LOCAL_MAPPINGS,
+  })),
+];
+
+test('no code is both mapped and ignored by the same cloud mapping', () => {
+  const conflicts = [];
+  DEVICE_TYPE_DEFINITIONS.forEach((definition) => {
+    definitionMappings(definition).forEach(({ label, cloud }) => {
+      const ignored = new Set(((cloud && cloud.ignoredCodes) || []).map((c) => c.toLowerCase()));
+      Object.keys(cloud || {})
+        .filter((code) => code !== 'ignoredCodes' && ignored.has(code.toLowerCase()))
+        .forEach((code) => conflicts.push(`${label}: ${code}`));
+    });
+  });
+  assert.deepEqual(conflicts, []);
+});
+
+test('no local DPS is both mapped and ignored by the same local mapping', () => {
+  const conflicts = [];
+  DEVICE_TYPE_DEFINITIONS.forEach((definition) => {
+    definitionMappings(definition).forEach(({ label, local }) => {
+      if (!local || !local.dps) {
+        return;
+      }
+      const mapped = new Set(Object.values(local.dps).map(String));
+      (local.ignoredDps || [])
+        .filter((dps) => mapped.has(String(dps)))
+        .forEach((dps) => conflicts.push(`${label}: DPS ${dps}`));
+    });
+  });
+  assert.deepEqual(conflicts, []);
+});
+
+// A category shared on purpose, with the registry order that resolves it: a
+// Tuya video doorbell IS a smart camera (`sp`), told apart by its doorbell
+// codes, so the doorbell type must be tried first.
+const SHARED_CATEGORIES = {
+  sp: ['video-doorbell', 'camera'],
+};
+
+test('a Tuya category is claimed by one device type, unless shared on purpose in registry order', () => {
+  const owners = new Map();
+  DEVICE_TYPE_DEFINITIONS.forEach((definition) => {
+    definition.CATEGORIES.forEach((category) => {
+      owners.set(category, [...(owners.get(category) || []), definition.DEVICE_TYPE_NAME]);
+    });
+  });
+  const shared = Object.fromEntries([...owners.entries()].filter(([, names]) => names.length > 1));
+  assert.deepEqual(shared, SHARED_CATEGORIES);
+});
+
+test('no product id is claimed by two device types', () => {
+  const owners = new Map();
+  DEVICE_TYPE_DEFINITIONS.forEach((definition) => {
+    definition.PRODUCT_IDS.forEach((productId) => {
+      owners.set(productId, [...(owners.get(productId) || []), definition.DEVICE_TYPE_NAME]);
+    });
+  });
+  const shared = [...owners.entries()].filter(([, names]) => names.length > 1);
+  assert.deepEqual(shared, []);
+});
