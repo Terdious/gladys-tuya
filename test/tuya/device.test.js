@@ -116,7 +116,7 @@ test('getIgnoredCloudCodes returns the per-type ignore list', () => {
   assert.deepEqual(getIgnoredCloudCodes(DEVICE_TYPES.UNKNOWN), []);
 });
 
-test('camera maps the control-plane toggles and ignores enum/PTZ/raw codes', () => {
+test('camera maps the control-plane toggles, the enum settings and PTZ; ignores raw codes', () => {
   const privacy = getFeatureMapping('basic_private', DEVICE_TYPES.CAMERA);
   assert.equal(privacy.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
   assert.equal(privacy.type, DEVICE_FEATURE_TYPES.SWITCH.BINARY);
@@ -125,9 +125,16 @@ test('camera maps the control-plane toggles and ignores enum/PTZ/raw codes', () 
   assert.equal(siren.category, DEVICE_FEATURE_CATEGORIES.SIREN);
   assert.equal(siren.type, DEVICE_FEATURE_TYPES.SIREN.BINARY);
 
+  // Issue #26: the enum settings are TEXT/SELECT lists, PTZ a camera.move
+  // command; ptz_stop is only sent by the move path, never a feature.
+  const nightVision = getFeatureMapping('basic_nightvision', DEVICE_TYPES.CAMERA);
+  assert.equal(nightVision.type, DEVICE_FEATURE_TYPES.TEXT.SELECT);
+  const ptz = getFeatureMapping('ptz_control', DEVICE_TYPES.CAMERA);
+  assert.equal(ptz.category, DEVICE_FEATURE_CATEGORIES.CAMERA);
+  assert.equal(ptz.type, DEVICE_FEATURE_TYPES.CAMERA.MOVE);
   const cameraIgnored = getIgnoredCloudCodes(DEVICE_TYPES.CAMERA);
-  assert.ok(cameraIgnored.includes('basic_nightvision'), 'enum settings are deferred');
-  assert.ok(cameraIgnored.includes('ptz_control'), 'PTZ commands are deferred');
+  assert.ok(cameraIgnored.includes('ptz_stop'));
+  assert.ok(cameraIgnored.includes('sd_storge'));
 
   // Motion is surfaced as a MOTION_SENSOR (binary) event on cameras too.
   const motion = getFeatureMapping('movement_detect_pic', DEVICE_TYPES.CAMERA);

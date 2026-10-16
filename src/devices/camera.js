@@ -19,12 +19,8 @@
 //     `gladys.publishCameraImage`. Tuya exposes no stable local RTSP/ONVIF
 //     (only an unmaintained SSH hack), so — unlike Netatmo — there is no
 //     CAMERA_URL live stream: snapshot only.
-//   - Enum settings (`basic_nightvision`, `motion_sensitivity`,
-//     `decibel_sensitivity`, `record_mode`): no generic selector feature type
-//     is published in the Gladys constants yet (same limitation that keeps the
-//     AC fan-speed/swing out, see airConditioner.js / issue #17).
-//   - PTZ commands (`ptz_control`, `ptz_stop`, `ptz_calibration`): write-only,
-//     a better fit for manifest actions than for features.
+//   - (Done in 1.26.0, issue #26: the enum settings as TEXT/SELECT lists and
+//     PTZ as a `camera.move` feature, from two LSC diagnostics.)
 //   - Motion-detected events (`alarm_message`): arrive as encrypted cloud
 //     events (Pulsar), decoded separately — the MOTION_SENSOR feature is fed
 //     from the `movement_detect_pic` snapshot event instead (see below).
@@ -41,29 +37,35 @@ const CAMERA_CODES = new Set([
   'basic_nightvision',
 ]);
 
+// A writable camera setting shown as a list (TEXT/SELECT).
+const cameraSetting = (name, selectLabels) => ({
+  name,
+  category: DEVICE_FEATURE_CATEGORIES.TEXT,
+  type: DEVICE_FEATURE_TYPES.TEXT.SELECT,
+  keep_history: false,
+  selectOptionsFromRange: true,
+  selectLabels,
+});
+
 const cloudMapping = {
   ignoredCodes: [
-    // Enum settings — no published selector feature type yet.
-    'basic_nightvision',
-    'motion_sensitivity',
-    'decibel_sensitivity',
-    'record_mode',
-    // PTZ commands — write-only, future manifest actions.
-    'ptz_control',
+    // PTZ: `ptz_control` is the `move` feature below; `ptz_stop` is sent by
+    // it (stop / watchdog), never a feature of its own. The calibration is a
+    // one-shot maintenance command, kept in the Tuya app.
     'ptz_stop',
     'ptz_calibration',
     // Raw cloud reference — the motion snapshot is encrypted (movement_detect_pic
     // is mapped below to the Motion event; the image itself is a later increment).
     'alarm_message',
     // Strings / integers / one-shot commands with no clean feature type.
-    'basic_osd',
     'sd_storge',
     'sd_status',
     'sd_format',
     'sd_format_state',
     'motion_area',
     'motion_area_switch',
-    'decibel_switch',
+    // Push-message toggle of the Tuya app itself.
+    'initiative_message',
   ],
   basic_private: {
     name: 'Privacy mode',
@@ -100,6 +102,38 @@ const cloudMapping = {
     category: DEVICE_FEATURE_CATEGORIES.SWITCH,
     type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
   },
+  basic_osd: {
+    name: 'Timestamp overlay',
+    category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+    type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+  },
+  decibel_switch: {
+    name: 'Sound detection',
+    category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+    type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+  },
+  // Enum settings (issue #26): writable TEXT/SELECT lists (Gladys >= 4.86.1)
+  // whose options are the values the camera declares, labelled with the
+  // standard `sp` meaning of each value.
+  basic_nightvision: cameraSetting('Night vision', { 0: 'Auto', 1: 'Off', 2: 'On' }),
+  motion_sensitivity: cameraSetting('Motion sensitivity', { 0: 'Low', 1: 'Medium', 2: 'High' }),
+  decibel_sensitivity: cameraSetting('Sound sensitivity', { 0: 'Low', 1: 'High' }),
+  record_mode: cameraSetting('Recording mode', { 1: 'Event', 2: 'Continuous' }),
+  basic_anti_flicker: cameraSetting('Anti-flicker', { 0: 'Off', 1: '50 Hz', 2: '60 Hz' }),
+  // PTZ (issue #26): one `camera.move` command feature (Gladys >= 4.86.0),
+  // its options the pan/tilt moves of the declared ptz_control range. The
+  // write path (tuya.setValue.js) sends ptz_control, then ptz_stop on STOP or
+  // after the watchdog.
+  ptz_control: {
+    name: 'Pan / tilt',
+    category: DEVICE_FEATURE_CATEGORIES.CAMERA,
+    type: DEVICE_FEATURE_TYPES.CAMERA.MOVE,
+    read_only: false,
+    has_feedback: false,
+    keep_history: false,
+    min: 0,
+    max: 6,
+  },
   // Motion detection event: a new movement_detect_pic IS the detection. Exposed
   // as a MOTION_SENSOR (binary): the media handler pulses it 1 -> 0 so every
   // detection is a fresh edge a scene can trigger on, and a motion widget reads
@@ -118,20 +152,12 @@ const cloudMapping = {
 const localMapping = {
   strict: true,
   ignoredDps: [
-    '104', // basic_osd
-    '106', // motion_sensitivity
-    '108', // basic_nightvision
     '109', // sd_storge
     '110', // sd_status
     '111', // sd_format
     '115', // movement_detect_pic
-    '116', // ptz_stop
     '117', // sd_format_state
-    '119', // ptz_control
     '132', // ptz_calibration
-    '139', // decibel_switch
-    '140', // decibel_sensitivity
-    '151', // record_mode
     '168', // motion_area_switch
     '169', // motion_area
     '185', // alarm_message
@@ -145,6 +171,14 @@ const localMapping = {
     motion_switch: 134,
     motion_tracking: 161,
     humanoid_filter: 170,
+    basic_osd: 104,
+    motion_sensitivity: 106,
+    basic_nightvision: 108,
+    ptz_stop: 116,
+    ptz_control: 119,
+    decibel_switch: 139,
+    decibel_sensitivity: 140,
+    record_mode: 151,
   },
 };
 

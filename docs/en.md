@@ -8,7 +8,7 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 - **Energy meters** (including 3-phase): power, voltage, current, imported/exported energy.
 - **Air conditioners**: on/off, mode (auto / cool / heat / dry / fan), target temperature, ambient temperature, fan speed and both swing axes. Models with their own vocabulary are handled too (e.g. the MEDION P502 camping AC: uppercase modes, two-speed fan, swing on/off).
 - **Pilot-wire (fil pilote) thermostats** (RP5 family, Konyks eCosy): heating mode, target temperature, ambient temperature, child lock, energy.
-- **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes.
+- **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes. **PTZ cameras**: pan/tilt from the dashboard (Gladys 4.86.1 or later). Settings as lists: night vision, motion and sound sensitivity, sound detection, recording mode, anti-flicker, timestamp overlay.
 - **Video doorbells**: ring (a dedicated doorbell feature), snapshot of the visitor, motion detection, recording, status LED.
 - **Pet feeders**: feed on demand, last amount fed, slow feed, light, battery (percentage or raw voltage plus the low-battery flag, depending on the model), scheduled meals.
 - **Fans and ventilation units** (category `fs`, e.g. the AV-TTW5-W heat-recovery unit): on/off, speed (the device's own levels, e.g. 1 to 3), light, child lock, airflow direction, horizontal/vertical swing, ambient temperature when the device measures one.
