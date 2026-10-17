@@ -515,14 +515,17 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   gladys.onGetImage(async (device) => {
     const resolved = resolveDevice(device);
     // A download in flight (the ring just fired) is awaited first, bounded:
-    // the visitor's picture wins over a frame of the stream.
-    if (tuya.pendingCameraImage && tuya.pendingCameraImage[resolved.external_id]) {
+    // the visitor's picture wins over a frame of the stream (and there is no
+    // time left for a capture within the core's 15 s after that wait).
+    const eventPending = Boolean(
+      tuya.pendingCameraImage && tuya.pendingCameraImage[resolved.external_id],
+    );
+    if (eventPending) {
       const eventImage = await awaitCameraImage(tuya, resolved.external_id);
       if (eventImage) {
         return eventImage;
       }
-    }
-    if (tuya.status === STATUS.CONNECTED) {
+    } else if (tuya.status === STATUS.CONNECTED) {
       const liveImage = await refreshCameraSnapshot(tuya, resolved);
       if (liveImage) {
         return liveImage;
