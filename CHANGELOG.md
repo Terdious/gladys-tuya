@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-10-17
+
 ### Added
 
 - Cameras: the camera image is now a frame of the **live stream** (Tuya RTSPS stream read by ffmpeg), served fresh to the dashboard live view, the "show me the camera" chat and the "send camera image" scenes, and refreshed in the background every 5 minutes so the dashboard widget always has a recent picture. It also gives a real picture to the PTZ cameras whose event snapshots are encrypted (#26). It needs the _IoT Video Live Stream_ API service on the Tuya cloud project; a camera whose stream cannot be read keeps the event snapshots and is retried later (5 min, up to 1 h).
