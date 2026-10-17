@@ -8,9 +8,10 @@
 //   - the doorbell ring / motion event is published through
 //     `gladys.publishState` on the DOORBELL / MOTION_SENSOR feature (a 1 -> 0
 //     pulse) instead of emitting a core NEW_STATE event;
-//   - oversized snapshots are re-encoded with jpeg-js (pure JS) — the core uses
-//     ffmpeg, unavailable on the read-only rootfs — exactly like gladys-netatmo
-//     (src/netatmo/camera.js), with the same ~96 KB camera-store budget.
+//   - oversized snapshots are re-encoded with jpeg-js (pure JS, in memory)
+//     exactly like gladys-netatmo (src/netatmo/camera.js), with the same
+//     ~96 KB camera-store budget (ffmpeg is only used to read a live stream
+//     frame, see tuya.liveSnapshot.js).
 //
 // A doorbell media DP carries the base64 of a `{ bucket, files, v }` JSON (or,
 // on Pulsar alerts, the base64 of a full presigned https URL). On the observed
@@ -123,8 +124,7 @@ export const decodeMediaPayload = (rawValue) => {
 
 /**
  * @description Fit a raw JPEG buffer into the camera-store budget, re-encoding
- * with jpeg-js at decreasing quality when needed (no ffmpeg on the read-only
- * rootfs).
+ * with jpeg-js at decreasing quality when needed (in memory).
  * @param {Buffer} buffer - Raw JPEG bytes.
  * @returns {string|null} An `image/jpg;base64,...` string, or null when it cannot fit.
  * @example
@@ -478,7 +478,7 @@ export const awaitCameraImage = async (self, externalId, timeoutMs = GET_IMAGE_W
 
 /**
  * @description Return the last snapshot published for a device, so the
- * onGetImage live-view handler can re-serve it (Tuya has no on-demand capture).
+ * onGetImage live-view handler can re-serve it when no live frame can be read.
  * @param {object} self - The TuyaHandler instance.
  * @param {string} externalId - The device external id.
  * @returns {string|null} The last `image/jpg;base64,...` string, or null.

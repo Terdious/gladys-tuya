@@ -11,7 +11,9 @@
 FROM node:24-alpine
 
 # dumb-init: handles signals (SIGTERM) correctly for a graceful shutdown.
-RUN apk add --no-cache dumb-init
+# ffmpeg: grabs one frame of a camera's RTSPS live stream (camera snapshots,
+# src/tuya/media/tuya.liveSnapshot.js) — written on its stdout, never on disk.
+RUN apk add --no-cache dumb-init ffmpeg
 
 WORKDIR /app
 
