@@ -8,7 +8,7 @@ Control your Tuya / Smart Life devices from Gladys, over the **cloud** and, when
 - **Energy meters** (including 3-phase): power, voltage, current, imported/exported energy.
 - **Air conditioners**: on/off, mode (auto / cool / heat / dry / fan), target temperature, ambient temperature, fan speed and both swing axes. Models with their own vocabulary are handled too (e.g. the MEDION P502 camping AC: uppercase modes, two-speed fan, swing on/off).
 - **Pilot-wire (fil pilote) thermostats** (RP5 family, Konyks eCosy): heating mode, target temperature, ambient temperature, child lock, energy.
-- **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes. **PTZ cameras**: pan/tilt from the dashboard (Gladys 4.86.1 or later). Settings as lists: night vision, motion and sound sensitivity, sound detection, recording mode, anti-flicker, timestamp overlay.
+- **Cameras** (including LSC): privacy mode, motion detection, siren, motion tracking, human filter, recording, image flip, and a motion sensor usable in your scenes. **PTZ cameras**: pan/tilt from the dashboard (Gladys 4.86.1 or later). Settings as lists: night vision, motion and sound sensitivity, sound detection, recording mode, anti-flicker, timestamp overlay. **Live snapshot**: the camera image is a frame of the live stream, refreshed every 5 minutes and on demand (dashboard, "show me the camera", scenes); it needs the _IoT Video Live Stream_ API service on your Tuya cloud project, otherwise the image only updates on a motion / ring event.
 - **Video doorbells**: ring (a dedicated doorbell feature), snapshot of the visitor, motion detection, recording, status LED.
 - **Pet feeders**: feed on demand, last amount fed, slow feed, light, battery (percentage or raw voltage plus the low-battery flag, depending on the model), scheduled meals.
 - **Fans and ventilation units** (category `fs`, e.g. the AV-TTW5-W heat-recovery unit): on/off, speed (the device's own levels, e.g. 1 to 3), light, child lock, airflow direction, horizontal/vertical swing, ambient temperature when the device measures one.
@@ -40,7 +40,7 @@ The integration needs a (free) Tuya IoT Cloud project to reach your devices.
    - **Industry / Development method**: keep the defaults (Smart Home).
    - **Data Center**: pick the region closest to you (e.g. _Central Europe_ for France). **Remember this choice** — you will select the same region in Gladys.
 3. Once created, open the project. On the **Overview** tab, note the **Access ID / Client ID** and the **Access Secret / Client Secret**.
-4. Open the **Service API** tab and make sure **IoT Core** is authorized (subscribe to it if not — it is free).
+4. Open the **Service API** tab and make sure **IoT Core** is authorized (subscribe to it if not — it is free). Cameras: also authorize **IoT Video Live Stream** (live snapshots).
 
 > ⚠️ **The IoT Core trial expires.** Tuya grants this service as a free trial (one month, then renewable for six more months at no cost). Once it lapses, Tuya rejects **every** API call of your project and all your devices go offline in Gladys, with the message _"IoT Core service subscription has expired"_.
 >

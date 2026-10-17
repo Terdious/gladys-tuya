@@ -16,13 +16,15 @@ import { buildConfigHash } from './tuya/utils/tuya.config.js';
 import { convertDevice } from './tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './tuya/local/tuya.localScan.js';
 import { enrichFromCreatedDevices } from './tuya/device/tuya.enrichDiscovery.js';
-import { awaitCameraImage } from './tuya/media/tuya.media.js';
+import { awaitCameraImage, getLastCameraImage } from './tuya/media/tuya.media.js';
+import { isSnapshotRefreshDue, refreshCameraSnapshot } from './tuya/media/tuya.liveSnapshot.js';
 import { buildDeviceDiagnostic } from './tuya/tuya.diagnostic.js';
 import {
   coreSupportsFirstClassFeatureTypes,
   coreSupportsTextSelect,
 } from './tuya/utils/tuya.coreVersion.js';
 import { resolveTuyaDeviceRef } from './tuya/utils/tuya.resolveDeviceRef.js';
+import { getDeviceType, DEVICE_TYPES } from './tuya/mappings/index.js';
 
 // Longest wait for the Tuya teardown on shutdown.
 const SHUTDOWN_TIMEOUT_MS = 5000;
@@ -492,15 +494,41 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
 
   // --- Polling: Gladys asks to refresh a device --------------------------------
   gladys.onPoll(async (device) => {
-    await tuya.poll(resolveDevice(device));
+    const resolved = resolveDevice(device);
+    await tuya.poll(resolved);
+    // Keep the stored image of a camera recent (the dashboard widget shows it,
+    // and the core expires it after 1 hour): a live frame every few minutes,
+    // in the background so the poll cycle is never held by ffmpeg.
+    if (
+      tuya.status === STATUS.CONNECTED &&
+      getDeviceType(resolved) === DEVICE_TYPES.CAMERA &&
+      isSnapshotRefreshDue(tuya, resolved.external_id)
+    ) {
+      refreshCameraSnapshot(tuya, resolved).catch(() => {});
+    }
   });
 
   // --- Live view: Gladys asks for a fresh camera image -------------------------
-  // Tuya exposes no on-demand snapshot: re-serve the last event snapshot
-  // (doorbell ring / motion) the media handler stored for this device.
+  // A frame grabbed from the camera's live stream (RTSPS + ffmpeg); when the
+  // stream cannot be read, the last event snapshot (doorbell ring / motion)
+  // the media handler stored for this device.
   gladys.onGetImage(async (device) => {
-    // A download in flight (the ring just fired) is awaited first, bounded.
-    const image = await awaitCameraImage(tuya, device.external_id);
+    const resolved = resolveDevice(device);
+    // A download in flight (the ring just fired) is awaited first, bounded:
+    // the visitor's picture wins over a frame of the stream.
+    if (tuya.pendingCameraImage && tuya.pendingCameraImage[resolved.external_id]) {
+      const eventImage = await awaitCameraImage(tuya, resolved.external_id);
+      if (eventImage) {
+        return eventImage;
+      }
+    }
+    if (tuya.status === STATUS.CONNECTED) {
+      const liveImage = await refreshCameraSnapshot(tuya, resolved);
+      if (liveImage) {
+        return liveImage;
+      }
+    }
+    const image = getLastCameraImage(tuya, resolved.external_id);
     if (!image) {
       throw new Error('No Tuya snapshot available yet (it updates on a ring or a motion event)');
     }
