@@ -20,6 +20,7 @@
     "@gladysassistant/integration-sdk": "^0.15.0",
     "@tuya/tuya-connector-nodejs": "^2.1.2",
     "jpeg-js": "^0.4.4",
+    "mqtt": "~5.15.2",
     "tuyapi": "^7.7.1",
     "ws": "^8.21.1"
   },
