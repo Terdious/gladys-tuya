@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-10-17
+
 ### Added
 
 - Three-phase meters / power clamps (category `zndb`, e.g. the "Power Clamp" with CamelCase codes): power, current, voltage and consumed energy of each phase, total power, current and energy, internal temperature of the clamp, over the cloud or the LAN. A clamp already created (as an unknown device, with no feature) gets them with the **Update** button of the Discover tab, or by deleting and re-creating it.
