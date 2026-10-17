@@ -725,6 +725,13 @@ export const readValues = {
       return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
+  // A device's own temperature (three-phase clamp `Temperature`).
+  [DEVICE_FEATURE_CATEGORIES.DEVICE_TEMPERATURE_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
   // Ambient humidity (dehumidifier `humidity_indoor`), scale-aware like the
   // temperatures.
   [DEVICE_FEATURE_CATEGORIES.HUMIDITY_SENSOR]: {

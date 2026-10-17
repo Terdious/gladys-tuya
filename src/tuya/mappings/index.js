@@ -23,6 +23,7 @@ export const DEVICE_TYPES = {
   SMART_METER: 'smart-meter',
   SMART_SOCKET: 'smart-socket',
   TEMPERATURE_HUMIDITY_SENSOR: 'temperature-humidity-sensor',
+  THREE_PHASE_METER: 'three-phase-meter',
   VACUUM: 'vacuum',
   WATER_PURIFIER: 'water-purifier',
   WATER_VALVE: 'water-valve',
