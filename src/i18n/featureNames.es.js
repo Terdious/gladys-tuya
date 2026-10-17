@@ -75,6 +75,17 @@ export const FEATURE_NAMES_ES = {
   'Reverse energy B': 'Energía exportada B',
   'Reverse energy total': 'Energía exportada total',
 
+  // --- Three-phase meter (threePhaseMeter.js) ------------------------------
+  'Power C': 'Potencia C',
+  'Total current': 'Corriente total',
+  'Current C': 'Corriente C',
+  'Voltage B': 'Tensión B',
+  'Voltage C': 'Tensión C',
+  'Energy A': 'Energía A',
+  'Energy B': 'Energía B',
+  'Energy C': 'Energía C',
+  'Internal temperature': 'Temperatura interna',
+
   // --- Vacuum (vacuum.js) ----------------------------------------------------
   Dock: 'Volver a la base',
   State: 'Estado',

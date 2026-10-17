@@ -75,6 +75,17 @@ export const FEATURE_NAMES_DE = {
   'Reverse energy B': 'Eingespeiste Energie B',
   'Reverse energy total': 'Eingespeiste Energie gesamt',
 
+  // --- Three-phase meter (threePhaseMeter.js) ------------------------------
+  'Power C': 'Leistung C',
+  'Total current': 'Gesamtstromstärke',
+  'Current C': 'Stromstärke C',
+  'Voltage B': 'Spannung B',
+  'Voltage C': 'Spannung C',
+  'Energy A': 'Energie A',
+  'Energy B': 'Energie B',
+  'Energy C': 'Energie C',
+  'Internal temperature': 'Interne Temperatur',
+
   // --- Vacuum (vacuum.js) ----------------------------------------------------
   Dock: 'Zur Ladestation',
   State: 'Zustand',

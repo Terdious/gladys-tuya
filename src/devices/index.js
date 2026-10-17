@@ -26,6 +26,7 @@ import { waterPurifier } from './waterPurifier.js';
 import { waterValve } from './waterValve.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
+import { threePhaseMeter } from './threePhaseMeter.js';
 import { vacuum } from './vacuum.js';
 
 export { globalCloudMapping, globalLocalMapping } from './global.js';
@@ -50,5 +51,6 @@ export const DEVICE_TYPE_DEFINITIONS = [
   waterValve,
   smartSocket,
   smartMeter,
+  threePhaseMeter,
   vacuum,
 ];
