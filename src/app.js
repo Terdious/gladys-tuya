@@ -25,6 +25,15 @@ import {
 } from './tuya/utils/tuya.coreVersion.js';
 import { resolveTuyaDeviceRef } from './tuya/utils/tuya.resolveDeviceRef.js';
 import { getDeviceType, DEVICE_TYPES } from './tuya/mappings/index.js';
+import {
+  startWebRtcSession,
+  stopWebRtcSession,
+  stopAllWebRtcSessions,
+} from './tuya/camera/tuya.webrtc.js';
+
+// Reserved device param declaring a WebRTC live view (GladysAssistant/Gladys#3215).
+const CAMERA_STREAM_PROTOCOL_PARAM = 'GLADYS_CAMERA_STREAM_PROTOCOL';
+const WEBRTC_DEVICE_TYPES = new Set([DEVICE_TYPES.CAMERA, DEVICE_TYPES.VIDEO_DOORBELL]);
 
 // Longest wait for the Tuya teardown on shutdown.
 const SHUTDOWN_TIMEOUT_MS = 5000;
@@ -65,6 +74,14 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   // Same safe-default/refresh rationale as coreSupportsFirstClassTypes above.
   let coreSupportsTextSelectFlag = false;
 
+  // WebRTC live view: offered once the SDK relays the offers (onCameraWebRtcOffer)
+  // AND the core accepts the GLADYS_CAMERA_STREAM_PROTOCOL param. A core without
+  // it rejects the WHOLE device list: the first refusal is remembered for that
+  // core version and the list is republished without the param.
+  const sdkSupportsWebRtc = typeof gladys.onCameraWebRtcOffer === 'function';
+  let coreVersion = null;
+  let webRtcRefusedByCoreVersion;
+
   /**
    * Refresh the core-capability flags from the running Gladys version. Best-effort:
    * on any failure we keep the safe defaults (downgraded features), never breaking
@@ -74,6 +91,7 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
     try {
       const status = await gladys.getStatus();
       const version = status && status.gladys_version;
+      coreVersion = version || null;
       coreSupportsFirstClassTypes = coreSupportsFirstClassFeatureTypes(version);
       coreSupportsTextSelectFlag = coreSupportsTextSelect(version);
       logger.debug(
@@ -91,22 +109,42 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   }
 
   /** Convert the discovered raw Tuya devices to Gladys discovery payloads. */
-  function buildDiscoveredDevices(tuyaDevices) {
-    return tuyaDevices.map((tuyaDevice) =>
-      convertDevice(gladys, tuyaDevice, {
+  function buildDiscoveredDevices(tuyaDevices, { webRtc = false } = {}) {
+    return tuyaDevices.map((tuyaDevice) => {
+      const device = convertDevice(gladys, tuyaDevice, {
         coreSupportsFirstClassTypes,
         coreSupportsTextSelect: coreSupportsTextSelectFlag,
         // Read live off `config` (not cached like the two core-capability flags
         // above): a plain user choice, not something to re-detect on connect.
         featureNamesLang: config.featureNames,
-      }),
-    );
+      });
+      if (webRtc && WEBRTC_DEVICE_TYPES.has(device.device_type)) {
+        device.params = [...device.params, { name: CAMERA_STREAM_PROTOCOL_PARAM, value: 'webrtc' }];
+      }
+      return device;
+    });
   }
 
   /** Refresh the core capabilities, then publish the discovered devices. */
   async function publishDiscoveredDevices(tuyaDevices) {
     await refreshCoreCapabilities();
-    await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+    const webRtc = sdkSupportsWebRtc && webRtcRefusedByCoreVersion !== coreVersion;
+    const devices = buildDiscoveredDevices(tuyaDevices, { webRtc });
+    const declaresWebRtc = devices.some((device) =>
+      device.params.some((param) => param.name === CAMERA_STREAM_PROTOCOL_PARAM),
+    );
+    try {
+      await gladys.publishDiscoveredDevices(devices);
+    } catch (e) {
+      if (!declaresWebRtc) {
+        throw e;
+      }
+      await gladys.publishDiscoveredDevices(buildDiscoveredDevices(tuyaDevices));
+      webRtcRefusedByCoreVersion = coreVersion;
+      logger.info(
+        `Gladys core ${coreVersion || 'unknown'} does not accept the WebRTC live view yet (${e.message}): cameras published without it`,
+      );
+    }
   }
 
   /**
@@ -538,6 +576,22 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
     return image;
   });
 
+  // --- WebRTC live view (GladysAssistant/Gladys#3215) -------------------------
+  // The browser negotiates the stream, Gladys relays the SDP offer: it is sent
+  // to the camera over the Tuya MQTT signalling, and the camera's answer comes
+  // back. The media flows from the Tuya cloud to the browser.
+  if (sdkSupportsWebRtc) {
+    gladys.onCameraWebRtcOffer(async (device, { sessionId, sdp }) => {
+      if (tuya.status !== STATUS.CONNECTED) {
+        throw new Error('Tuya cloud is not connected yet');
+      }
+      return startWebRtcSession(tuya, resolveDevice(device), { sessionId, sdp });
+    });
+    gladys.onCameraWebRtcStop(async (device, { sessionId, streamId }) => {
+      await stopWebRtcSession(tuya, resolveDevice(device), { sessionId, streamId });
+    });
+  }
+
   // --- Configuration updated by the user ---------------------------------------
   // Config updates are serialized: the SDK dispatches WebSocket messages
   // concurrently, and two overlapping saves would run two overlapping
@@ -654,7 +708,7 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
     lanRescanTimer = null;
     let timeoutId;
     await Promise.race([
-      tuya.disconnect(),
+      Promise.all([stopAllWebRtcSessions(tuya), tuya.disconnect()]),
       new Promise((resolve) => {
         timeoutId = setTimeout(resolve, shutdownTimeoutMs);
       }),
