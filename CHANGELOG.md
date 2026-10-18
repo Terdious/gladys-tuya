@@ -12,6 +12,7 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ### Added
 
+- Motion sensors (category `pir`, e.g. the Zigbee "Luminance Motion sensor" behind a Tuya gateway, #70): motion (a scene trigger), illuminance, battery, motion sensitivity and hold time as lists, over the cloud. A sensor already created (as an unknown device, with no feature) gets them with the **Update** button of the Discover tab, or by deleting and re-creating it.
 - Cameras: **live video in WebRTC** (#73), straight from the Tuya cloud to the browser (no transcoding, nothing goes through Gladys). The integration relays the offer over the Tuya MQTT signalling (audio first, short H264 + PCMA/PCMU offer, candidates trickled both ways, battery cameras woken first). Dormant until Gladys supports it (GladysAssistant/Gladys#3215) and the SDK relays the offers: a core that refuses the `GLADYS_CAMERA_STREAM_PROTOCOL` param gets the device list without it. HEVC-only cameras cannot be played in a browser.
 
 ## [1.28.0] - 2026-10-17

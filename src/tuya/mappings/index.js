@@ -17,6 +17,7 @@ export const DEVICE_TYPES = {
   CAMERA: 'camera',
   DEHUMIDIFIER: 'dehumidifier',
   FAN: 'fan',
+  MOTION_SENSOR: 'motion-sensor',
   VIDEO_DOORBELL: 'video-doorbell',
   PET_FEEDER: 'pet-feeder',
   PILOT_THERMOSTAT: 'pilot-thermostat',
