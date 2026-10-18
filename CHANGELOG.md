@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-10-18
+
 ### Added
 
 - Motion sensors (category `pir`, e.g. the Zigbee "Luminance Motion sensor" behind a Tuya gateway, #70): motion (a scene trigger), illuminance, battery, motion sensitivity and hold time as lists, over the cloud. A sensor already created (as an unknown device, with no feature) gets them with the **Update** button of the Discover tab, or by deleting and re-creating it.
