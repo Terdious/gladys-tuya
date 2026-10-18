@@ -725,6 +725,28 @@ export const readValues = {
       return scaleValue(valueFromDevice, deviceFeature, 0);
     },
   },
+  // A motion detection reported as an enum (`pir` sensors: "pir" / "none"),
+  // translated through the mapping's tuyaEnum. Without one (the camera motion
+  // event, fired by the media handler) the poll publishes nothing.
+  [DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.BINARY]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const tuyaEnum = mappingEntry && mappingEntry.tuyaEnum;
+      if (!tuyaEnum || typeof valueFromDevice !== 'string') {
+        return null;
+      }
+      const normalized = valueFromDevice.trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(tuyaEnum, normalized)
+        ? tuyaEnum[normalized]
+        : null;
+    },
+  },
+  // Illuminance in lux (`pir` sensors), scale-aware.
+  [DEVICE_FEATURE_CATEGORIES.LIGHT_SENSOR]: {
+    [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
   // A device's own temperature (three-phase clamp `Temperature`).
   [DEVICE_FEATURE_CATEGORIES.DEVICE_TEMPERATURE_SENSOR]: {
     [DEVICE_FEATURE_TYPES.SENSOR.DECIMAL]: (valueFromDevice, deviceFeature) => {

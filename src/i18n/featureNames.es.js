@@ -75,6 +75,14 @@ export const FEATURE_NAMES_ES = {
   'Reverse energy B': 'Energía exportada B',
   'Reverse energy total': 'Energía exportada total',
 
+  // --- Motion sensor (motionSensor.js) -------------------------------------
+  Illuminance: 'Luminosidad',
+  'Hold time': 'Tiempo de retención',
+  '10 s': '10 s',
+  '30 s': '30 s',
+  '60 s': '60 s',
+  '120 s': '120 s',
+
   // --- Three-phase meter (threePhaseMeter.js) ------------------------------
   'Power C': 'Potencia C',
   'Total current': 'Corriente total',
