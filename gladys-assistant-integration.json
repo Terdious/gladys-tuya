@@ -10,7 +10,7 @@
   },
   "version": "1.29.0",
   "docker_image": "ghcr.io/terdious/gladys-tuya:1.29.0",
-  "gladys_version": ">=4.86.1",
+  "gladys_version": ">=5.1.0",
   "categories": ["protocols", "energy", "climate"],
   "cover_image": "https://raw.githubusercontent.com/Terdious/gladys-tuya/master/cover.png",
   "network_discovery": [
@@ -404,6 +404,159 @@
             "fr": "Espagnol",
             "de": "Spanisch",
             "es": "Español"
+          }
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "key": "tuya_camera",
+      "label": {
+        "en": "Tuya camera",
+        "fr": "Caméra Tuya",
+        "de": "Tuya-Kamera",
+        "es": "Cámara Tuya"
+      },
+      "description": {
+        "en": "Live image of a camera, its privacy and motion settings, PTZ arrows.",
+        "fr": "Image en direct d'une caméra, mode privé, détection de mouvement, flèches PTZ.",
+        "de": "Live-Bild einer Kamera, Privatmodus, Bewegungserkennung, PTZ-Pfeile.",
+        "es": "Imagen en directo de una cámara, modo privado, detección de movimiento, flechas PTZ."
+      },
+      "icon": "camera",
+      "settings": [
+        {
+          "key": "camera",
+          "type": "select",
+          "source": "devices",
+          "required": true,
+          "label": {
+            "en": "Camera",
+            "fr": "Caméra",
+            "de": "Kamera",
+            "es": "Cámara"
+          }
+        }
+      ],
+      "action_timeout_seconds": 30
+    },
+    {
+      "key": "tuya_energy",
+      "label": {
+        "en": "Tuya energy meter",
+        "fr": "Compteur Tuya",
+        "de": "Tuya-Stromzähler",
+        "es": "Medidor Tuya"
+      },
+      "description": {
+        "en": "Power gauge, phases, current, energy and the last 24 h of a meter or socket.",
+        "fr": "Jauge de puissance, phases, courant, énergie et 24 h d'un compteur ou d'une prise.",
+        "de": "Leistungsanzeige, Phasen, Strom, Energie und 24 h eines Zählers oder einer Steckdose.",
+        "es": "Potencia, fases, corriente, energía y 24 h de un medidor o enchufe."
+      },
+      "icon": "zap",
+      "settings": [
+        {
+          "key": "meter",
+          "type": "select",
+          "source": "devices",
+          "required": true,
+          "label": {
+            "en": "Meter or socket",
+            "fr": "Compteur ou prise",
+            "de": "Zähler oder Steckdose",
+            "es": "Medidor o enchufe"
+          }
+        },
+        {
+          "key": "max_power",
+          "type": "number",
+          "default": 6000,
+          "min": 100,
+          "max": 100000,
+          "label": {
+            "en": "Gauge maximum (W)",
+            "fr": "Maximum de la jauge (W)",
+            "de": "Skalenmaximum (W)",
+            "es": "Máximo del indicador (W)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "tuya_overview",
+      "label": {
+        "en": "Tuya devices",
+        "fr": "Appareils Tuya",
+        "de": "Tuya-Geräte",
+        "es": "Dispositivos Tuya"
+      },
+      "description": {
+        "en": "Devices online, local or cloud, the ones needing attention, cloud status.",
+        "fr": "Appareils en ligne, local ou cloud, ceux à surveiller, état du cloud.",
+        "de": "Geräte online, lokal oder Cloud, auffällige Geräte, Cloud-Status.",
+        "es": "Dispositivos en línea, local o nube, los que requieren atención, estado de la nube."
+      },
+      "icon": "activity",
+      "action_timeout_seconds": 15
+    },
+    {
+      "key": "tuya_vacuum",
+      "label": {
+        "en": "Tuya robot vacuum",
+        "fr": "Aspirateur Tuya",
+        "de": "Tuya-Saugroboter",
+        "es": "Robot aspirador Tuya"
+      },
+      "description": {
+        "en": "State, battery, brush life and start / pause / dock buttons.",
+        "fr": "État, batterie, usure des brosses et boutons démarrer / pause / base.",
+        "de": "Zustand, Batterie, Bürstenverschleiß und Start-/Pause-/Station-Tasten.",
+        "es": "Estado, batería, desgaste de cepillos y botones iniciar / pausa / base."
+      },
+      "icon": "wind",
+      "settings": [
+        {
+          "key": "vacuum",
+          "type": "select",
+          "source": "devices",
+          "required": true,
+          "label": {
+            "en": "Robot vacuum",
+            "fr": "Aspirateur robot",
+            "de": "Saugroboter",
+            "es": "Robot aspirador"
+          }
+        }
+      ]
+    },
+    {
+      "key": "tuya_water_purifier",
+      "label": {
+        "en": "Tuya water purifier",
+        "fr": "Purificateur Tuya",
+        "de": "Tuya-Wasserfilter",
+        "es": "Purificador Tuya"
+      },
+      "description": {
+        "en": "Filter life and days left of each stage, inlet and outlet TDS.",
+        "fr": "Usure et jours restants de chaque filtre, TDS en entrée et en sortie.",
+        "de": "Verschleiß und Resttage jeder Filterstufe, TDS am Ein- und Ausgang.",
+        "es": "Desgaste y días restantes de cada filtro, TDS de entrada y salida."
+      },
+      "icon": "droplet",
+      "settings": [
+        {
+          "key": "purifier",
+          "type": "select",
+          "source": "devices",
+          "required": true,
+          "label": {
+            "en": "Water purifier",
+            "fr": "Purificateur d'eau",
+            "de": "Wasserfilter",
+            "es": "Purificador de agua"
           }
         }
       ]

@@ -125,6 +125,16 @@ Les noms de fonctionnalités générés automatiquement par cette intégration (
 
 ---
 
+## Widgets du tableau de bord
+
+Gladys 5.1 ou plus récent : dans un tableau de bord, **Modifier → Ajouter une boîte → Widgets d'intégrations**, l'intégration Tuya propose cinq widgets (choisissez l'appareil dans les réglages du widget) :
+
+- **Caméra Tuya** : l'image en direct d'une caméra (rafraîchie chaque minute tant que le tableau de bord est ouvert), son mode privé, sa détection de mouvement et son enregistrement, les quatre flèches PTZ sur une caméra motorisée (l'image se met à jour après le mouvement), ou un bouton mode privé et un bouton actualiser sur une caméra fixe.
+- **Compteur Tuya** : pour un compteur triphasé, un compteur ou une prise mesurant la puissance — une jauge de puissance (son maximum est un réglage du widget), la puissance de chaque phase en temps réel, le courant, l'énergie, la courbe de puissance des dernières 24 heures, la tension et le courant de chaque phase.
+- **Appareils Tuya** : combien d'appareils sont en ligne, en local ou sur le cloud, ceux à surveiller (hors ligne, local injoignable), la connexion au cloud, le mode local et les événements temps réel, et un bouton de recherche.
+- **Aspirateur Tuya** : état, batterie, usure des brosses, aspiration et niveau d'eau, boutons démarrer / pause / base.
+- **Purificateur Tuya** : la durée de vie restante de chaque filtre, le TDS en entrée et en sortie, les jours restants (en orange sous 15 jours).
+
 ## Actions utiles
 
 - **Détecter le protocole local (IP manuelle)** : active le mode local pour un appareil que le scan n'a pas trouvé (voir ci-dessus).

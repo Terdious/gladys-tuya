@@ -181,14 +181,20 @@ export const captureFrame = (url, { spawn = spawnProcess, timeoutMs = CAPTURE_TI
  * @param {object} self - The TuyaHandler instance.
  * @param {string} externalId - The Gladys device external id.
  * @param {string} deviceId - The Tuya device id.
+ * @param {object} [options] - `{ maxAgeMs }` (default SNAPSHOT_CACHE_MS).
  * @returns {Promise<string|null>} An `image/jpg;base64,...` string, or null.
  * @example
  * const image = await captureLiveSnapshot(handler, device.external_id, 'bf85...');
  */
-export const captureLiveSnapshot = async (self, externalId, deviceId) => {
+export const captureLiveSnapshot = async (
+  self,
+  externalId,
+  deviceId,
+  { maxAgeMs = SNAPSHOT_CACHE_MS } = {},
+) => {
   const state = getState(self, externalId);
   const now = Date.now();
-  if (state.image && now - state.capturedAt < SNAPSHOT_CACHE_MS) {
+  if (state.image && now - state.capturedAt < maxAgeMs) {
     return state.image;
   }
   if (state.inFlight) {
@@ -251,11 +257,13 @@ export const isSnapshotRefreshDue = (self, externalId) => {
  * camera image (dashboard widget, last image of onGetImage). Never throws.
  * @param {object} self - The TuyaHandler instance.
  * @param {object} device - The Gladys device (external_id, params).
+ * @param {object} [options] - `{ maxAgeMs }`: re-serve a frame younger than
+ * this (default SNAPSHOT_CACHE_MS; 0 forces a new capture).
  * @returns {Promise<string|null>} The image published, or null.
  * @example
  * await refreshCameraSnapshot(handler, device);
  */
-export const refreshCameraSnapshot = async (self, device) => {
+export const refreshCameraSnapshot = async (self, device, options = {}) => {
   const externalId = device && device.external_id;
   let deviceId;
   try {
@@ -267,7 +275,7 @@ export const refreshCameraSnapshot = async (self, device) => {
     return null;
   }
   const previous = getState(self, externalId).capturedAt;
-  const image = await captureLiveSnapshot(self, externalId, deviceId);
+  const image = await captureLiveSnapshot(self, externalId, deviceId, options);
   // A cached frame was already published when it was captured.
   if (!image || getState(self, externalId).capturedAt === previous) {
     return image;
@@ -285,3 +293,13 @@ export const refreshCameraSnapshot = async (self, device) => {
   }
   return image;
 };
+
+/**
+ * @description When the last live frame of a camera was captured.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} externalId - The Gladys device external id.
+ * @returns {number} Epoch ms, 0 when never captured.
+ * @example
+ * const at = getSnapshotCapturedAt(handler, device.external_id);
+ */
+export const getSnapshotCapturedAt = (self, externalId) => getState(self, externalId).capturedAt;

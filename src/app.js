@@ -30,6 +30,7 @@ import {
   stopWebRtcSession,
   stopAllWebRtcSessions,
 } from './tuya/camera/tuya.webrtc.js';
+import { registerTuyaWidgets } from './tuya/widgets/tuya.widgets.js';
 
 // Reserved device param declaring a WebRTC live view (GladysAssistant/Gladys#3215).
 const CAMERA_STREAM_PROTOCOL_PARAM = 'GLADYS_CAMERA_STREAM_PROTOCOL';
@@ -589,6 +590,15 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
     });
     gladys.onCameraWebRtcStop(async (device, { sessionId, streamId }) => {
       await stopWebRtcSession(tuya, resolveDevice(device), { sessionId, streamId });
+    });
+  }
+
+  // --- Dashboard widgets (Gladys >= 5.1.0) -------------------------------------
+  if (typeof gladys.onWidgetGet === 'function') {
+    registerTuyaWidgets(gladys, tuya, {
+      resolveDevice,
+      discoverAndPublish,
+      getConfig: () => config,
     });
   }
 

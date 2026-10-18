@@ -10,6 +10,19 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Dashboard widgets (Gladys 5.1 or later), in **Integration widgets** when adding a box:
+  - **Tuya camera**: live image (refreshed every minute while shown), privacy mode / motion detection / recording, PTZ arrows on a motorized camera (the image follows the move), or privacy and refresh buttons;
+  - **Tuya energy meter**: power gauge, the power of each phase live, current, energy, 24 h power curve, voltage and current per phase (three-phase meters, smart meters, sockets);
+  - **Tuya devices**: devices online / local / cloud, the ones needing attention, cloud connection, local mode, real-time events, a scan button;
+  - **Tuya robot vacuum**: state, battery, brush wear, suction, water level, start / pause / dock;
+  - **Tuya water purifier**: filter life gauges, inlet / outlet TDS, days left.
+
+### Changed
+
+- Requires Gladys 5.1.0 or later (the version that accepts integration widgets). An older Gladys keeps 1.29.0.
+
 ## [1.29.0] - 2026-10-18
 
 ### Added

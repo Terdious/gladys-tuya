@@ -125,6 +125,16 @@ Los nombres de funciones generados automáticamente por esta integración (p. ej
 
 ---
 
+## Widgets del panel
+
+Con Gladys 5.1 o posterior: en un panel, **Editar → Añadir una caja → Widgets de integraciones**, la integración Tuya ofrece cinco widgets (elija el dispositivo en los ajustes del widget):
+
+- **Cámara Tuya**: la imagen en directo de una cámara (actualizada cada minuto mientras el panel está abierto), su modo privado, la detección de movimiento y la grabación, las cuatro flechas PTZ en una cámara motorizada (la imagen se actualiza tras el movimiento), o un botón de modo privado y otro de actualizar en una cámara fija.
+- **Medidor Tuya**: para un medidor trifásico, un medidor o un enchufe que mida la potencia — un indicador de potencia (su máximo es un ajuste del widget), la potencia de cada fase en tiempo real, la corriente, la energía, la curva de potencia de las últimas 24 horas, la tensión y la corriente de cada fase.
+- **Dispositivos Tuya**: cuántos dispositivos están en línea, en local o en la nube, los que requieren atención (sin conexión, local inaccesible), la conexión a la nube, el modo local y los eventos en tiempo real, y un botón de búsqueda.
+- **Robot aspirador Tuya**: estado, batería, desgaste de los cepillos, potencia de succión y nivel de agua, botones iniciar / pausa / base.
+- **Purificador Tuya**: la vida restante de cada etapa de filtro, el TDS de entrada y salida, los días restantes (en naranja por debajo de 15 días).
+
 ## Acciones útiles
 
 - **Detectar el protocolo local (IP manual)**: activa el modo local para un dispositivo que el escaneo no encontró (ver arriba).
