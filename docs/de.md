@@ -125,6 +125,16 @@ Die automatisch erzeugten Funktionsnamen dieser Integration (z. B. „Dock“, �
 
 ---
 
+## Dashboard-Widgets
+
+Ab Gladys 5.1: In einem Dashboard bietet die Tuya-Integration unter **Bearbeiten → Box hinzufügen → Integrations-Widgets** fünf Widgets an (das Gerät wird in den Widget-Einstellungen gewählt):
+
+- **Tuya-Kamera**: das Live-Bild einer Kamera (jede Minute aktualisiert, solange das Dashboard offen ist), Privatmodus, Bewegungserkennung und Aufnahme, die vier PTZ-Pfeile bei einer schwenkbaren Kamera (das Bild wird nach der Bewegung aktualisiert) oder eine Privatmodus- und eine Aktualisieren-Taste bei einer festen Kamera.
+- **Tuya-Stromzähler**: für einen Drehstromzähler, einen Zähler oder eine Steckdose mit Leistungsmessung — eine Leistungsanzeige (ihr Maximum ist eine Widget-Einstellung), die Leistung jeder Phase in Echtzeit, Strom, Energie, die Leistungskurve der letzten 24 Stunden, Spannung und Strom jeder Phase.
+- **Tuya-Geräte**: wie viele Geräte online, lokal oder über die Cloud laufen, die auffälligen (offline, lokal nicht erreichbar), die Cloud-Verbindung, der lokale Modus und die Echtzeit-Ereignisse sowie eine Suchtaste.
+- **Tuya-Saugroboter**: Zustand, Batterie, Bürstenverschleiß, Saugleistung und Wassermenge, Start-/Pause-/Station-Tasten.
+- **Tuya-Wasserfilter**: die Restlebensdauer jeder Filterstufe, TDS am Ein- und Ausgang, die Resttage (orange unter 15 Tagen).
+
 ## Nützliche Aktionen
 
 - **Lokales Protokoll erkennen (manuelle IP)**: aktiviert den lokalen Modus für ein Gerät, das der Scan nicht gefunden hat (siehe oben).

@@ -125,6 +125,16 @@ This integration's auto-generated feature names (e.g. "Dock", "Suction power") a
 
 ---
 
+## Dashboard widgets
+
+Gladys 5.1 or later: in a dashboard, **Edit → Add a box → Integration widgets**, the Tuya integration offers five widgets (choose the device in the widget settings):
+
+- **Tuya camera**: the live image of a camera (refreshed every minute while the dashboard is open), its privacy mode, motion detection and recording, the four PTZ arrows on a motorized camera (the image updates after the move), or a privacy toggle and a refresh button on a fixed one.
+- **Tuya energy meter**: for a three-phase meter, a smart meter or a socket measuring power — a power gauge (its maximum is a widget setting), the power of each phase in real time, current, energy, the power curve of the last 24 hours, the voltage and current of each phase.
+- **Tuya devices**: how many devices are online, local or on the cloud, the ones needing attention (offline, local unreachable), the cloud connection, local mode and real-time events, and a scan button.
+- **Tuya robot vacuum**: state, battery, brush wear, suction and water level, start / pause / dock buttons.
+- **Tuya water purifier**: the remaining life of each filter stage, inlet and outlet TDS, the days left (in orange under 15 days).
+
 ## Useful actions
 
 - **Detect local protocol (manual IP)**: enable local mode for a device the scan did not find (see above).
