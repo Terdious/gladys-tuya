@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-10-18
+
 ### Added
 
 - Dashboard widgets (Gladys 5.1 or later), in **Integration widgets** when adding a box:
