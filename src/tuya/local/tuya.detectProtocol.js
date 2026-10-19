@@ -27,11 +27,13 @@ const ATTEMPT_TIMEOUT_MS = 5000;
  * @param {string} payload.deviceId - Tuya device id.
  * @param {string} payload.ip - Device LAN IP (typed by the user).
  * @param {string} payload.localKey - Device local key (from the cloud discovery).
+ * @param {string} [payload.cid] - For a gateway: the node id of one of its
+ * sub-devices, read in place of the gateway, which has no data point (#78).
  * @returns {Promise<{version: string, dps: object}>} First protocol that answered.
  * @example
  * const { version } = await handler.detectProtocol({ deviceId, ip, localKey });
  */
-export async function detectProtocol({ deviceId, ip, localKey }) {
+export async function detectProtocol({ deviceId, ip, localKey, cid }) {
   if (!deviceId || !ip || !localKey) {
     throw new Error('detectProtocol requires deviceId, ip and localKey');
   }
@@ -55,6 +57,7 @@ export async function detectProtocol({ deviceId, ip, localKey }) {
         timeoutMs: ATTEMPT_TIMEOUT_MS,
         fastScan: true,
         logDps: false,
+        ...(cid ? { cid } : {}),
       });
       if (result && result.dps && typeof result.dps === 'object') {
         logger.info(`[Tuya][detectProtocol] device=${deviceId} answered with protocol ${version}`);

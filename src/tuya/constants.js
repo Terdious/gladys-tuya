@@ -56,6 +56,15 @@ export const DEVICE_PARAM_NAME = {
   // ({"mode":["COOL","FAN",...],"windspeed":["1","2"]}) to read AND write
   // its own spelling.
   AC_ENUM_RANGES: 'AC_ENUM_RANGES',
+  // Zigbee (and other) sub-devices of a Tuya gateway (issue #78): they have no
+  // LAN session of their own. The local session is the GATEWAY's (its id, its
+  // local key, stored as LOCAL_KEY of the sub-device, its IP and protocol),
+  // and the sub-device is addressed in it by its node id (tuyapi `cid`).
+  GATEWAY_ID: 'GATEWAY_ID',
+  NODE_ID: 'NODE_ID',
+  // The DP id of each code, as the cloud model declares it ({"switch_1":1}):
+  // the LAN mapping of a sub-device whose type has none.
+  DPS_MAP: 'DPS_MAP',
 };
 
 // Type segment used to build every device external id:

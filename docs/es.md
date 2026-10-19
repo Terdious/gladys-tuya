@@ -84,6 +84,8 @@ El control local es más rápido y sigue funcionando sin internet. Se activa con
 - Un dispositivo que _podría_ funcionar en local (su IP es conocida y la preferencia está activada) pero que funciona ahora por la nube mantiene una insignia **Nube** con un **punto naranja**: pase el ratón por encima para ver por qué (dispositivo aparcado tras fallos, datos LAN incompletos…). Un dispositivo solo-nube sigue con una insignia Nube azul normal.
 - Un dispositivo local se lee cada 10 s por la LAN; lo que solo informa por la nube (funciones sin correspondencia local, o todo mientras la LAN falla) se actualiza como máximo cada 30 s, para ahorrar la cuota de la nube Tuya.
 
+**Los dispositivos Zigbee detrás de una pasarela Tuya** funcionan en local a través de su pasarela: la integración abre una única sesión de red con la pasarela (su IP, su protocolo y su clave local) y se dirige a cada dispositivo Zigbee en ella, de modo que sus avisos (movimiento, temperatura…) llegan al instante. La pasarela la encuentra el escaneo de red; si no, ejecute **Detectar el protocolo local** en la pasarela (o en uno de sus dispositivos) con la IP de la pasarela: todos sus dispositivos se actualizan a la vez. Después lance una búsqueda y pulse **Actualizar** en los dispositivos Zigbee ya creados.
+
 ### Un dispositivo sigue en la Nube aunque esté en su LAN
 
 Algunos dispositivos no los encuentra el escaneo automático (otra subred, dormidos durante el escaneo…). Mientras un dispositivo creado que puede funcionar en local no tenga IP, la integración **repite sola un escaneo de la LAN cada 15 minutos** y lo pasa a local en cuanto responde: un dispositivo que solo estaba dormido no necesita nada más. Para un dispositivo en otra subred (nunca alcanzable por el escaneo), añádalo a mano:

@@ -182,6 +182,23 @@ export async function describeGatewayLink(self, rawDevice, category) {
     lines.push(
       `  gateway: ${parent ? `"${parent.name}" (category ${parent.category || 'unknown'}, ${parent.local_key ? 'local key known' : 'no local key'})` : 'not in the device list'}`,
     );
+    // #78: the sub-device is local once its gateway has a LAN identity.
+    lines.push(
+      `  local through the gateway: ${
+        rawDevice.gateway_local_key && rawDevice.protocol_version
+          ? `ready (protocol ${rawDevice.protocol_version})`
+          : 'not yet (the gateway has no IP/protocol: LAN scan, or "Detect local protocol" on the gateway)'
+      }`,
+    );
+  }
+  if (isGateway) {
+    lines.push(
+      `  LAN identity: ${
+        rawDevice.ip && rawDevice.protocol_version
+          ? `protocol ${rawDevice.protocol_version}${rawDevice.local_key ? '' : ' (no local key)'}`
+          : 'unknown (not seen by the LAN scan; "Detect local protocol" on the gateway)'
+      }`,
+    );
   }
   if (isGateway && self.connector && typeof self.connector.request === 'function') {
     try {
@@ -310,13 +327,23 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
 
   // LAN view, when the device is locally reachable: the DPS indexes are
   // model-specific and are the only way to add local support for it.
-  if (rawDevice.ip && rawDevice.local_key && rawDevice.protocol_version) {
+  // A sub-device is read through its gateway session, by its node id (#78);
+  // a gateway has no data point of its own.
+  const viaGateway = Boolean(rawDevice.gateway_id && rawDevice.node_id);
+  const lanKey = viaGateway ? rawDevice.gateway_local_key : rawDevice.local_key;
+  if (gatewayLines.length > 0 && !viaGateway) {
+    lines.push(
+      '',
+      'LAN DPS snapshot: a gateway has no data point of its own (see its sub-devices).',
+    );
+  } else if (rawDevice.ip && lanKey && rawDevice.protocol_version) {
     try {
       const localResult = await self.localRead({
-        deviceId: rawDevice.id,
+        deviceId: viaGateway ? rawDevice.gateway_id : rawDevice.id,
         ip: rawDevice.ip,
-        localKey: rawDevice.local_key,
+        localKey: lanKey,
         protocolVersion: String(rawDevice.protocol_version),
+        ...(viaGateway ? { cid: String(rawDevice.node_id) } : {}),
       });
       const dps = localResult && localResult.dps ? localResult.dps : null;
       if (dps && Object.keys(dps).length > 0) {

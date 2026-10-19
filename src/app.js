@@ -15,6 +15,12 @@ import { getLocalDpsFromCode } from './tuya/device/tuya.localMapping.js';
 import { buildConfigHash } from './tuya/utils/tuya.config.js';
 import { convertDevice } from './tuya/device/tuya.convertDevice.js';
 import { applyLocalScanResults } from './tuya/local/tuya.localScan.js';
+import {
+  applyGatewayLinks,
+  findProbeChild,
+  getGatewayLink,
+  isGateway,
+} from './tuya/local/tuya.gatewayLinks.js';
 import { enrichFromCreatedDevices } from './tuya/device/tuya.enrichDiscovery.js';
 import { awaitCameraImage, getLastCameraImage } from './tuya/media/tuya.media.js';
 import { isSnapshotRefreshDue, refreshCameraSnapshot } from './tuya/media/tuya.liveSnapshot.js';
@@ -290,6 +296,8 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
       // this time keeps the LAN info stored on its created device, so an
       // "Update" from the Discovery screen cannot wipe a manually-detected IP.
       tuyaDevices = enrichFromCreatedDevices(tuyaDevices, gladys.devices, config.localMode);
+      // Zigbee sub-devices take their gateway's LAN identity (#78).
+      tuyaDevices = applyGatewayLinks(tuyaDevices, config.localMode);
       tuya.discoveredDevices = tuyaDevices;
       await publishDiscoveredDevices(tuyaDevices);
     }).finally(() => {
@@ -336,6 +344,12 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
     }
     const missingIds = new Set();
     createdDevicesMissingLan().forEach((device) => {
+      // A Zigbee sub-device is found on the LAN through its gateway (#78).
+      const gatewayId = getParamValue(device.params, DEVICE_PARAM_NAME.GATEWAY_ID);
+      if (gatewayId) {
+        missingIds.add(String(gatewayId));
+        return;
+      }
       try {
         missingIds.add(getTuyaDeviceId(device));
       } catch {
@@ -354,9 +368,12 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
         );
         return;
       }
-      tuya.discoveredDevices = enrichFromCreatedDevices(
-        applyLocalScanResults(tuya.discoveredDevices, scan.devices, config.localMode),
-        gladys.devices,
+      tuya.discoveredDevices = applyGatewayLinks(
+        enrichFromCreatedDevices(
+          applyLocalScanResults(tuya.discoveredDevices, scan.devices, config.localMode),
+          gladys.devices,
+          config.localMode,
+        ),
         config.localMode,
       );
       await publishDiscoveredDevices(tuya.discoveredDevices);
@@ -421,27 +438,61 @@ export function createTuyaIntegration(gladys, tuya, options = {}) {
   });
 
   async function detectProtocolAndPersist(deviceRef, ip) {
-    const rawDevice = await resolveTuyaDeviceRef(tuya, deviceRef);
+    const picked = await resolveTuyaDeviceRef(tuya, deviceRef);
+    // A Zigbee sub-device has no LAN session of its own: its gateway is the
+    // one probed and stored (#78). A gateway has no data point of its own
+    // either: it is probed by reading one of its sub-devices (`cid`).
+    const link = getGatewayLink(picked);
+    const rawDevice = link
+      ? (tuya.discoveredDevices || []).find((raw) => raw.id === link.gatewayId)
+      : picked;
+    if (!rawDevice) {
+      throw new Error(`The gateway of ${picked.name} is not in the Tuya device list`);
+    }
     const deviceId = rawDevice.id;
     if (!rawDevice.local_key) {
       throw new Error(`Device ${deviceId} has no local key (cloud project permissions?)`);
     }
+    let cid;
+    if (link) {
+      cid = link.nodeId;
+    } else if (isGateway(rawDevice)) {
+      const child = findProbeChild(tuya.discoveredDevices, deviceId);
+      cid = child ? getGatewayLink(child).nodeId : undefined;
+    }
 
-    const { version } = await tuya.detectProtocol({ deviceId, ip, localKey: rawDevice.local_key });
+    const { version } = await tuya.detectProtocol({
+      deviceId,
+      ip,
+      localKey: rawDevice.local_key,
+      ...(cid ? { cid } : {}),
+    });
 
     // Persist: enrich the cached raw device and re-publish the discovered list —
     // the core upserts the params (ip/protocol) of the already-created device
-    // without touching its name or features.
+    // without touching its name or features. A gateway passes them on to its
+    // sub-devices.
     rawDevice.ip = ip;
     rawDevice.protocol_version = version;
     rawDevice.local_override = config.localMode === true;
-    tuya.discoveredDevices = enrichFromCreatedDevices(
-      tuya.discoveredDevices,
-      gladys.devices,
+    tuya.discoveredDevices = applyGatewayLinks(
+      enrichFromCreatedDevices(tuya.discoveredDevices, gladys.devices, config.localMode),
       config.localMode,
     );
     await publishDiscoveredDevices(tuya.discoveredDevices);
 
+    if (cid) {
+      const count = tuya.discoveredDevices.filter((raw) => {
+        const childLink = getGatewayLink(raw);
+        return childLink && childLink.gatewayId === deviceId;
+      }).length;
+      return {
+        en: `Gateway "${rawDevice.name}": protocol ${version} detected at ${ip} — its ${count} sub-device(s) updated, local mode ready.`,
+        fr: `Passerelle « ${rawDevice.name} » : protocole ${version} détecté sur ${ip} — ses ${count} appareil(s) mis à jour, mode local prêt.`,
+        de: `Gateway „${rawDevice.name}“: Protokoll ${version} unter ${ip} erkannt — ${count} Untergerät(e) aktualisiert, lokaler Modus bereit.`,
+        es: `Pasarela «${rawDevice.name}»: protocolo ${version} detectado en ${ip}; sus ${count} dispositivo(s) actualizados, modo local listo.`,
+      };
+    }
     return {
       en: `Protocol ${version} detected at ${ip} — device updated, local mode ready.`,
       fr: `Protocole ${version} détecté sur ${ip} — appareil mis à jour, mode local prêt.`,
