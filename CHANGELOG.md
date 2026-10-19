@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Device diagnostic: a "Gateway" / "Sub-device" section for Zigbee (and other) devices behind a Tuya gateway — the fields that link a sub-device to its gateway (names only, never their values) and, for a gateway, the sub-devices the cloud attaches to it. It prepares local control of Zigbee devices through their gateway (#78).
+
 ## [1.30.0] - 2026-10-18
 
 ### Added
