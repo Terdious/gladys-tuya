@@ -172,3 +172,60 @@ test('the diagnostic lists the declared value specs (range, scale, step, unit)',
     'manual_irri_time: 1..60, scale 0, step 1, unit min (functions+status)',
   ]);
 });
+
+// Issue #70: Zigbee sub-devices behind a Tuya gateway. Local control of a
+// sub-device goes through its gateway session (the `cid` of tuyapi): the
+// report shows how the cloud ties them, without any identifying value.
+const GATEWAY = {
+  id: 'gw1',
+  name: 'ZigBee Maison',
+  category: 'wg2',
+  local_key: 'gwkey',
+  sub: false,
+  specifications: { category: 'wg2', functions: [], status: [] },
+};
+const ZIGBEE_PLUG = {
+  id: 'plug1',
+  name: 'Prise Zigbee',
+  sub: true,
+  gateway_id: 'gw1',
+  node_id: 'a4c1380000000000',
+  local_key: 'plugkey',
+  specifications: { category: 'cz', functions: [], status: [] },
+};
+
+const zigbeeHandler = () => ({
+  gladys: createFakeGladys(),
+  discoveredDevices: [GATEWAY, ZIGBEE_PLUG],
+  connector: {
+    request: async ({ path }) => {
+      if (path === '/v1.0/devices/gw1/sub-devices') {
+        return {
+          success: true,
+          result: [
+            { id: 'plug1', name: 'Prise Zigbee', category: 'cz', online: true, node_id: 'a4c1' },
+          ],
+        };
+      }
+      return { success: true, result: [] };
+    },
+  },
+});
+
+test('#70: a sub-device names its gateway and its link fields, never their values', async () => {
+  const report = await buildDeviceDiagnostic(zigbeeHandler(), ZIGBEE_PLUG);
+  assert.match(report, /Sub-device \(reached through a gateway\):/);
+  assert.match(report, /link fields: sub=true, gateway_id, node_id/);
+  assert.match(report, /gateway: "ZigBee Maison" \(category wg2, local key known\)/);
+  assert.doesNotMatch(report, /a4c138|gw1|gwkey/);
+});
+
+test('#70: a gateway lists the sub-devices the cloud attaches to it', async () => {
+  const report = await buildDeviceDiagnostic(zigbeeHandler(), GATEWAY);
+  assert.match(report, /Gateway:\n {2}link fields: sub=false/);
+  assert.match(
+    report,
+    /sub-devices \(1\):\n {4}"Prise Zigbee" category=cz online=true fields: node_id/,
+  );
+  assert.doesNotMatch(report, /a4c1/);
+});

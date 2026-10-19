@@ -21,6 +21,7 @@ import { getCloudMapping, getIgnoredCloudCodes, normalizeCode } from './mappings
 import { CLOUD_STRATEGY } from './cloud/tuya.cloudStrategy.js';
 import { readCloudValues, describeDpsSnapshot } from './tuya.poll.js';
 import { MEDIA_CODES } from './media/tuya.media.js';
+import { API } from './constants.js';
 
 const logger = createLogger({ name: 'tuya' });
 
@@ -146,6 +147,65 @@ const describeDeclared = (rawDevice, format) => {
   });
 };
 
+// Fields that tie a Zigbee / BLE sub-device to its gateway (LAN control of a
+// sub-device goes through the gateway session, addressed by its node id).
+const GATEWAY_LINK_FIELDS = ['sub', 'gateway_id', 'parent_id', 'node_id', 'uuid', 'mac'];
+
+/**
+ * @description Describe how a device relates to a gateway: its link fields
+ * (presence only, never a value that identifies the device) and, for a
+ * gateway, the sub-devices the cloud attaches to it.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {object} rawDevice - The raw discovered Tuya device.
+ * @param {string} category - Its Tuya category.
+ * @returns {Promise<Array<string>>} Report lines (empty when unrelated).
+ * @example
+ * const lines = await describeGatewayLink(tuya, rawDevice, 'wg2');
+ */
+export async function describeGatewayLink(self, rawDevice, category) {
+  const isGateway = String(category).startsWith('wg');
+  const present = GATEWAY_LINK_FIELDS.filter(
+    (field) =>
+      rawDevice[field] !== undefined && rawDevice[field] !== null && rawDevice[field] !== '',
+  );
+  const isSub = rawDevice.sub === true || rawDevice.gateway_id || rawDevice.parent_id;
+  if (!isGateway && !isSub) {
+    return [];
+  }
+  const lines = [isGateway ? 'Gateway:' : 'Sub-device (reached through a gateway):'];
+  lines.push(
+    `  link fields: ${present.map((field) => (field === 'sub' ? `sub=${rawDevice.sub}` : field)).join(', ') || 'none'}`,
+  );
+  const parentId = rawDevice.gateway_id || rawDevice.parent_id;
+  if (parentId) {
+    const parent = (self.discoveredDevices || []).find((d) => d.id === parentId);
+    lines.push(
+      `  gateway: ${parent ? `"${parent.name}" (category ${parent.category || 'unknown'}, ${parent.local_key ? 'local key known' : 'no local key'})` : 'not in the device list'}`,
+    );
+  }
+  if (isGateway && self.connector && typeof self.connector.request === 'function') {
+    try {
+      const response = await self.connector.request({
+        method: 'GET',
+        path: `${API.PUBLIC_VERSION_1_0}/devices/${rawDevice.id}/sub-devices`,
+      });
+      const children = Array.isArray(response && response.result) ? response.result : [];
+      lines.push(`  sub-devices (${children.length}):`);
+      children.forEach((child) => {
+        const fields = Object.keys(child || {})
+          .filter((key) => GATEWAY_LINK_FIELDS.includes(key))
+          .join(', ');
+        lines.push(
+          `    "${child.name}" category=${child.category || 'unknown'} online=${child.online} fields: ${fields || 'none'}`,
+        );
+      });
+    } catch (e) {
+      lines.push(`  sub-devices: unreadable (${e.message})`);
+    }
+  }
+  return lines;
+}
+
 /**
  * @description Build the human-readable diagnostic report of one device: what
  * the integration makes of it, and every code it reports with its value and
@@ -241,6 +301,11 @@ export async function buildDeviceDiagnostic(self, rawDevice) {
   if (valueSpecs.length > 0) {
     lines.push('', 'Declared value specs:');
     valueSpecs.forEach((line) => lines.push(`  ${line}`));
+  }
+
+  const gatewayLines = await describeGatewayLink(self, rawDevice, category);
+  if (gatewayLines.length > 0) {
+    lines.push('', ...gatewayLines);
   }
 
   // LAN view, when the device is locally reachable: the DPS indexes are
