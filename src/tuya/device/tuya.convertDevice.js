@@ -134,6 +134,10 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
     specifications = {},
     status: deviceStatus,
     category,
+    gateway_id: gatewayId,
+    node_id: nodeId,
+    gateway_local_key: gatewayLocalKey,
+    dp_ids: dpIds,
   } = tuyaDevice;
   const ids = gladys.externalIds(DEVICE_EXTERNAL_ID_TYPE, id);
   const externalId = ids.device;
@@ -159,8 +163,17 @@ export function convertDevice(gladys, tuyaDevice, options = {}) {
   if (id) {
     params.push({ name: DEVICE_PARAM_NAME.DEVICE_ID, value: id });
   }
-  if (localKey) {
-    params.push({ name: DEVICE_PARAM_NAME.LOCAL_KEY, value: localKey });
+  // A gateway sub-device (#78) is reached through its gateway's session: the
+  // key stored for the LAN is the gateway's (its own is refused there).
+  if (gatewayLocalKey || localKey) {
+    params.push({ name: DEVICE_PARAM_NAME.LOCAL_KEY, value: gatewayLocalKey || localKey });
+  }
+  if (gatewayId && nodeId) {
+    params.push({ name: DEVICE_PARAM_NAME.GATEWAY_ID, value: gatewayId });
+    params.push({ name: DEVICE_PARAM_NAME.NODE_ID, value: nodeId });
+    if (dpIds && Object.keys(dpIds).length > 0) {
+      params.push({ name: DEVICE_PARAM_NAME.DPS_MAP, value: JSON.stringify(dpIds) });
+    }
   }
   if (ip) {
     params.push({ name: DEVICE_PARAM_NAME.IP_ADDRESS, value: ip });

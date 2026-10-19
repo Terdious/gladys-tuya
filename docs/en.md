@@ -84,6 +84,8 @@ Local control is faster and keeps working without internet. It is enabled by the
 - A device that _could_ run locally (its IP is known and the preference is on) but is currently running over the cloud keeps a **Cloud** badge with an **orange dot** — hover it to see why (device parked after failures, LAN info incomplete…). A genuine cloud-only device stays a plain blue Cloud badge.
 - A local device is read every 10 s over the LAN; what it can only report through the cloud (features without a local mapping, or everything while the LAN fails) is refreshed every 30 s at most, to spare the Tuya cloud quota.
 
+**Zigbee devices behind a Tuya gateway** run locally through their gateway: the integration opens one LAN session on the gateway (its IP, protocol and local key) and addresses each Zigbee device in it, so their reports (motion, temperature…) arrive instantly. The gateway is found by the LAN scan; if it is not, run **Detect local protocol** on the gateway (or on any of its devices) with the gateway's IP: all its devices are updated at once. Then run a scan and click **Update** on the Zigbee devices already created.
+
 ### A device stays on Cloud even though it is on your LAN
 
 Some devices are not found by the automatic scan (different subnet, asleep during the scan…). While a created device that can run locally still has no IP, the integration **retries a LAN scan on its own every 15 minutes** and switches it to local as soon as it answers — a device that was only asleep needs nothing more. For a device on another subnet (never reachable by the scan), add it by hand:

@@ -7,6 +7,25 @@ import {
   getProductIdFromDevice,
   normalizeCode,
 } from '../mappings/index.js';
+import { DEVICE_PARAM_NAME } from '../constants.js';
+import { getParamValue } from '../utils/tuya.deviceParams.js';
+
+const getSubDeviceDpsMap = (device) => {
+  const params = (device && device.params) || [];
+  if (!getParamValue(params, DEVICE_PARAM_NAME.NODE_ID)) {
+    return null;
+  }
+  const raw = getParamValue(params, DEVICE_PARAM_NAME.DPS_MAP);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 export const getLocalDpsFromCode = (code, device) => {
   if (!code) {
@@ -14,6 +33,17 @@ export const getLocalDpsFromCode = (code, device) => {
   }
 
   const normalized = normalizeCode(code);
+
+  // A gateway sub-device (#78) answers on the DP ids its own cloud model
+  // declares: they win over the type mapping, which was read on Wi-Fi models.
+  const dpsMap = getSubDeviceDpsMap(device);
+  if (dpsMap) {
+    const match = Object.keys(dpsMap).find((key) => normalizeCode(key) === normalized);
+    if (match) {
+      return dpsMap[match];
+    }
+  }
+
   const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
   const localMapping = getLocalMapping(deviceType, getProductIdFromDevice(device));
 

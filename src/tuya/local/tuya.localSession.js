@@ -68,6 +68,50 @@ const mergeDps = (session, dps) => {
   session.lastDpsAt = Date.now();
 };
 
+// A gateway session (#78) carries the DPS of several sub-devices: one cache
+// per node id (`cid`), never mixed.
+const getCidCache = (session, cid) => {
+  if (!session.cidDps) {
+    session.cidDps = new Map();
+  }
+  if (!session.cidDps.has(cid)) {
+    session.cidDps.set(cid, { dps: null, at: 0 });
+  }
+  return session.cidDps.get(cid);
+};
+
+const mergeCidDps = (session, cid, dps) => {
+  const cache = getCidCache(session, cid);
+  cache.dps = { ...(cache.dps || {}), ...dps };
+  cache.at = Date.now();
+  // The gateway itself is alive whatever sub-device spoke.
+  session.lastDpsAt = cache.at;
+};
+
+// Operations over a gateway session run one at a time: several sub-devices
+// polled in the same cycle would otherwise interleave their requests on the
+// single socket.
+const enqueue = (session, operation) => {
+  const run = (session.queue || Promise.resolve()).then(operation, operation);
+  session.queue = run.catch(() => {});
+  return run;
+};
+
+/**
+ * @description When the gateway session last received the DPS of a node.
+ * @param {object} self - The TuyaHandler instance.
+ * @param {string} sessionId - The gateway's Tuya id.
+ * @param {string} cid - The sub-device's node id.
+ * @returns {number} Epoch ms, 0 when never.
+ * @example
+ * const at = getCidDpsAt(handler, 'gw1', 'a4c1...');
+ */
+export const getCidDpsAt = (self, sessionId, cid) => {
+  const session = self.localSessions && self.localSessions.get(sessionId);
+  const cache = session && session.cidDps && session.cidDps.get(cid);
+  return cache ? cache.at : 0;
+};
+
 /**
  * @description Close a tuyapi instance for real. `disconnect()` early-returns
  * while a connect is still pending (`_connected` false), which would leak the
@@ -128,7 +172,9 @@ export async function ensureLocalSession(payload) {
   return run;
 }
 
-async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion }) {
+async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion, cid }) {
+  // A session opened for a sub-device is its gateway's (#78).
+  const gateway = Boolean(cid);
   if (!this.localSessions) {
     this.localSessions = new Map();
   }
@@ -163,9 +209,11 @@ async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion
       // otherwise only report on CHANGE (a freshly created device would show
       // nothing until someone toggled it). DP refresh on ping keeps push
       // data flowing on 3.4/3.5 devices.
-      issueGetOnConnect: true,
+      // A gateway has no DP of its own: a bare read or refresh of it never
+      // answers, the sub-devices are read with their `cid`.
+      issueGetOnConnect: !gateway,
       issueRefreshOnConnect: false,
-      issueRefreshOnPing: true,
+      issueRefreshOnPing: !gateway,
     });
     session = {
       deviceId,
@@ -177,6 +225,7 @@ async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion
       connecting: null,
       lastDps: null,
       lastDpsAt: 0,
+      gateway,
     };
     if (typeof api.on === 'function') {
       const onPush = (payload) => {
@@ -184,10 +233,15 @@ async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion
         if (!dps || typeof dps !== 'object') {
           return;
         }
-        mergeDps(session, dps);
+        const pushCid = payload.cid ? String(payload.cid) : null;
+        if (pushCid) {
+          mergeCidDps(session, pushCid, dps);
+        } else {
+          mergeDps(session, dps);
+        }
         // The device just talked to us: the LAN link is healthy.
         recordLocalSuccess(this.localCircuit, deviceId);
-        this.handleLocalPush(deviceId, dps);
+        this.handleLocalPush(deviceId, dps, pushCid);
       };
       api.on('data', onPush);
       api.on('dp-refresh', onPush);
@@ -243,6 +297,9 @@ async function ensureLocalSessionInner({ deviceId, ip, localKey, protocolVersion
  */
 export async function localRead(payload) {
   const session = await this.ensureLocalSession(payload);
+  if (payload.cid) {
+    return readSubDevice(session, String(payload.cid));
+  }
   if (session.lastDps && Date.now() - session.lastDpsAt < FRESH_DPS_MS) {
     return { dps: session.lastDps };
   }
@@ -280,6 +337,41 @@ export async function localRead(payload) {
   }
 }
 
+// Read one sub-device through its gateway session (#78): the fresh pushed
+// cache of its node, else an active read addressed with its `cid`.
+async function readSubDevice(session, cid) {
+  const cache = getCidCache(session, cid);
+  if (cache.dps && Date.now() - cache.at < FRESH_DPS_MS) {
+    return { dps: cache.dps };
+  }
+  const readTimeoutMs =
+    session.protocolVersion === '3.4' || session.protocolVersion === '3.5'
+      ? READ_TIMEOUT_NEWGEN_MS
+      : READ_TIMEOUT_MS;
+  try {
+    const data = await enqueue(session, () =>
+      withTimeout(session.api.get({ schema: true, cid }), readTimeoutMs, 'Local poll timeout'),
+    );
+    if (!data || typeof data !== 'object' || !data.dps) {
+      throw new Error(
+        typeof data === 'string'
+          ? `Invalid local read response: ${data}`
+          : 'Invalid local read response',
+      );
+    }
+    mergeCidDps(session, cid, data.dps);
+    return { dps: data.dps };
+  } catch (e) {
+    // A sleeping battery sensor never answers a read, but the gateway pushes
+    // its reports: serve them while recent. The gateway session itself stays
+    // open — its other sub-devices use it.
+    if (cache.dps && Date.now() - cache.at < STALE_DPS_OK_MS) {
+      return { dps: cache.dps };
+    }
+    throw e;
+  }
+}
+
 /**
  * @description Set a DPS value through the persistent session when one is
  * live. Returns false when no live session exists (caller falls back to the
@@ -291,21 +383,26 @@ export async function localRead(payload) {
  * @example
  * const done = await handler.localSessionSet('dev1', 1, true);
  */
-export async function localSessionSet(deviceId, dpsKey, value) {
+export async function localSessionSet(deviceId, dpsKey, value, cid = null) {
   const session = this.localSessions && this.localSessions.get(deviceId);
   if (!session || !session.connected) {
     return false;
   }
   try {
-    await withTimeout(
-      session.api.set({ dps: dpsKey, set: value }),
-      SET_TIMEOUT_MS,
-      'Local set timeout',
+    const options = cid ? { dps: dpsKey, set: value, cid } : { dps: dpsKey, set: value };
+    const send = () => withTimeout(session.api.set(options), SET_TIMEOUT_MS, 'Local set timeout');
+    await (session.gateway ? enqueue(session, send) : send());
+    logger.debug(
+      `[Tuya][localSession] device=${deviceId}${cid ? ` cid=${cid}` : ''} set dps=${dpsKey} value=${value}`,
     );
-    logger.debug(`[Tuya][localSession] device=${deviceId} set dps=${dpsKey} value=${value}`);
     return true;
   } catch (e) {
     logger.warn(`[Tuya][localSession] set failed for device=${deviceId}: ${e.message}`);
+    // A gateway session serves its other sub-devices: only a plain device
+    // session is torn down on a failed command.
+    if (session.gateway) {
+      throw e;
+    }
     session.connected = false;
     await forceCloseApi(session.api);
     // The session was supposed to own the local slot and failed: let the
@@ -343,7 +440,7 @@ const CONTINUOUS_SENSOR_TYPES = new Set([
 ]);
 const PUSH_CONTINUOUS_EMIT_INTERVAL_MS = 10 * 1000;
 
-const filterThrottledContinuousDps = (session, device, dps) => {
+const filterThrottledContinuousDps = (session, device, dps, cid = null) => {
   if (!session) {
     return dps;
   }
@@ -360,34 +457,46 @@ const filterThrottledContinuousDps = (session, device, dps) => {
     if (dpsKey === null || !hasDpsKey(filtered, dpsKey)) {
       return;
     }
-    const lastEmitAt = session.continuousEmitAt[code];
+    // Per node on a gateway session: sub-devices share their codes.
+    const throttleKey = cid ? `${cid}:${code}` : code;
+    const lastEmitAt = session.continuousEmitAt[throttleKey];
     if (lastEmitAt !== undefined && now - lastEmitAt < PUSH_CONTINUOUS_EMIT_INTERVAL_MS) {
       delete filtered[String(dpsKey)];
       delete filtered[dpsKey];
       return;
     }
-    session.continuousEmitAt[code] = now;
+    session.continuousEmitAt[throttleKey] = now;
   });
   return filtered;
 };
 
-export async function handleLocalPush(deviceId, dps) {
+export async function handleLocalPush(deviceId, dps, cid = null) {
   try {
     const devices = (this.gladys && this.gladys.devices) || [];
-    const device = devices.find(
-      (d) => getParamValue(d && d.params, DEVICE_PARAM_NAME.DEVICE_ID) === deviceId,
-    );
+    // A push of a gateway session (#78) names the sub-device by its node id.
+    const device = devices.find((d) => {
+      const params = d && d.params;
+      if (cid) {
+        return (
+          getParamValue(params, DEVICE_PARAM_NAME.GATEWAY_ID) === deviceId &&
+          String(getParamValue(params, DEVICE_PARAM_NAME.NODE_ID)) === cid
+        );
+      }
+      return getParamValue(params, DEVICE_PARAM_NAME.DEVICE_ID) === deviceId;
+    });
     if (!device) {
       return;
     }
     const session = this.localSessions && this.localSessions.get(deviceId);
-    const throttledDps = filterThrottledContinuousDps(session, device, dps);
+    const throttledDps = filterThrottledContinuousDps(session, device, dps, cid);
     const pending = [];
     const { localChanged } = emitLocalDpsStates(this, device, throttledDps, pending);
     publishTransport(this, device, TRANSPORT.LOCAL);
     await Promise.all(pending);
     if (localChanged > 0) {
-      logger.info(`[Tuya][push] device=${deviceId} local push published ${localChanged} change(s)`);
+      logger.info(
+        `[Tuya][push] device=${deviceId}${cid ? ` cid=${cid}` : ''} local push published ${localChanged} change(s)`,
+      );
     }
   } catch (e) {
     logger.warn(`[Tuya][push] failed to publish push for device=${deviceId}`, e);

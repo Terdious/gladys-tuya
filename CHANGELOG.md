@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- **Local mode for Zigbee devices behind a Tuya gateway** (#78): the integration opens one LAN session on the gateway and addresses each Zigbee device in it by its node id — polls, commands and the instant reports of the sub-devices (motion, temperature…) go over the LAN. A sub-device takes its gateway's IP, protocol and local key at discovery; its LAN data points come from its own cloud model. "Detect local protocol" on a gateway (or one of its devices) probes it through one of its devices, since a gateway has no data point of its own, and updates them all. The diagnostic of a sub-device reads its LAN snapshot through the gateway.
+
 ## [1.30.1] - 2026-10-19
 
 ### Added

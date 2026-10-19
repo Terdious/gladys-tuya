@@ -19,6 +19,8 @@ import {
 import { API, DEVICE_PARAM_NAME } from './constants.js';
 import { CLOUD_STRATEGY, getConfiguredCloudReadStrategy } from './cloud/tuya.cloudStrategy.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
+import { getLocalTransport } from './utils/tuya.localTransport.js';
+import { getCidDpsAt } from './local/tuya.localSession.js';
 import { getParamValue } from './utils/tuya.deviceParams.js';
 import { getLocalDpsFromCode, hasDpsKey } from './device/tuya.localMapping.js';
 import { getDeviceType, getFeatureMapping, getProductIdFromDevice } from './mappings/index.js';
@@ -906,14 +908,9 @@ async function pollDevice(device, topic) {
     return;
   }
 
-  const params = device.params || [];
-  const ipAddress = getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS);
-  const localKey = getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY);
-  const protocolVersionRaw = getParamValue(params, DEVICE_PARAM_NAME.PROTOCOL_VERSION);
-  const protocolVersion =
-    protocolVersionRaw !== null && protocolVersionRaw !== undefined
-      ? String(protocolVersionRaw).trim()
-      : undefined;
+  // The LAN session of the device: its own, or its gateway's for a Zigbee
+  // sub-device addressed by its node id (#78).
+  const { sessionId, cid, ip: ipAddress, localKey, protocolVersion } = getLocalTransport(device);
   // Live decision (point 3): the "Mode local (LAN)" toggle is a GLOBAL, live
   // preference read at poll time from the current config — NOT a per-device
   // flag frozen at discovery. A device is polled locally when the toggle is on
@@ -996,7 +993,8 @@ async function pollDevice(device, topic) {
 
   // Leaving the local path (toggle off or parked by the breaker): release the
   // device's single local slot so nothing holds a stale socket.
-  if ((!useLocal || localParked) && this.localSessions && this.localSessions.has(topic)) {
+  // A gateway session is shared by its sub-devices: never closed for one.
+  if ((!useLocal || localParked) && !cid && this.localSessions && this.localSessions.has(topic)) {
     this.closeLocalSession(topic).catch(() => {});
   }
 
@@ -1005,10 +1003,11 @@ async function pollDevice(device, topic) {
       // Persistent-session read (issue #9): fresh push cache when available,
       // otherwise an active read over the live socket — no per-poll handshake.
       const localResult = await this.localRead({
-        deviceId: topic,
+        deviceId: sessionId,
         ip: ipAddress,
         localKey,
         protocolVersion,
+        ...(cid ? { cid } : {}),
       });
 
       const dps = localResult && localResult.dps ? localResult.dps : null;
@@ -1070,7 +1069,7 @@ async function pollDevice(device, topic) {
       {
         const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
         if (tripped) {
-          if (this.closeLocalSession) {
+          if (this.closeLocalSession && !cid) {
             this.closeLocalSession(topic).catch(() => {});
           }
           logger.info(
@@ -1088,8 +1087,9 @@ async function pollDevice(device, topic) {
       fallbackReason = 'local_poll_failed';
       const { tripped, cooldownMs } = recordLocalFailure(this.localCircuit, topic, Date.now());
       if (tripped) {
-        // Parked: also release the local slot so nothing keeps a dead socket.
-        if (this.closeLocalSession) {
+        // Parked: also release the local slot so nothing keeps a dead socket
+        // (not a gateway session: its other sub-devices still use it).
+        if (this.closeLocalSession && !cid) {
           this.closeLocalSession(topic).catch(() => {});
         }
         logger.info(
@@ -1147,10 +1147,9 @@ async function pollDevice(device, topic) {
   // when the device's persistent session pushed recently, the states ARE
   // flowing over the LAN — keep the Local badge instead of flapping to Cloud
   // because one active read failed.
-  const session = this.localSessions && this.localSessions.get(topic);
-  const hasFreshLocalPush = Boolean(
-    session && session.lastDpsAt && Date.now() - session.lastDpsAt < 60 * 1000,
-  );
+  const session = this.localSessions && this.localSessions.get(cid ? sessionId : topic);
+  const lastPushAt = cid ? getCidDpsAt(this, sessionId, cid) : session && session.lastDpsAt;
+  const hasFreshLocalPush = Boolean(lastPushAt && Date.now() - lastPushAt < 60 * 1000);
   let transport = TRANSPORT.CLOUD;
   if (hasFreshLocalPush) {
     transport = TRANSPORT.LOCAL;

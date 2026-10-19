@@ -36,6 +36,7 @@ export async function localPoll(payload) {
     fastScan = false,
     logDps = true,
     apiClasses = localApiClasses,
+    cid,
   } = payload || {};
   const isProtocol34 = protocolVersion === '3.4';
   const isProtocol35 = protocolVersion === '3.5';
@@ -128,10 +129,12 @@ export async function localPoll(payload) {
     // Protocol 3.5 sometimes rejects a bare `schema:true` get on first contact.
     // Fall back to probing DPS 1 (the standard switch DPS for Tuya devices) and
     // finally an empty get as last resort. Other protocols only need the schema.
-    const attempts =
+    // A gateway sub-device (#78) is read through the gateway, by its `cid`.
+    const baseAttempts =
       protocolVersion === '3.5'
         ? [{ schema: true }, { schema: true, dps: [1] }, {}]
         : [{ schema: true }];
+    const attempts = cid ? baseAttempts.map((options) => ({ ...options, cid })) : baseAttempts;
     const tryAttempt = async (index) => {
       try {
         return await runGet(attempts[index]);

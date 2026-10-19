@@ -10,14 +10,14 @@ import {
   DEVICE_FEATURE_TYPES,
 } from '@gladysassistant/integration-sdk';
 
-import { API, DEVICE_PARAM_NAME } from './constants.js';
+import { API } from './constants.js';
 import {
   CAMERA_MOVE,
   TUYA_PTZ_DIRECTION_BY_MOVE,
   writeValues,
 } from './device/tuya.deviceMapping.js';
 import { getTuyaDeviceId, getFeatureCode } from './utils/tuya.externalId.js';
-import { getParamValue } from './utils/tuya.deviceParams.js';
+import { getLocalTransport } from './utils/tuya.localTransport.js';
 import { getLocalDpsFromCode } from './device/tuya.localMapping.js';
 import { localApiClasses } from './local/tuya.localPoll.js';
 import { isLocalInCooldown } from './local/tuya.localCircuit.js';
@@ -120,14 +120,9 @@ export async function setValue(device, deviceFeature, value) {
  * await sendCommand(handler, device, 'dev1', 'switch_1', true);
  */
 async function sendCommand(self, device, topic, command, value, { feedback = true } = {}) {
-  const params = device.params || [];
-  const ipAddress = getParamValue(params, DEVICE_PARAM_NAME.IP_ADDRESS);
-  const localKey = getParamValue(params, DEVICE_PARAM_NAME.LOCAL_KEY);
-  const protocolVersionRaw = getParamValue(params, DEVICE_PARAM_NAME.PROTOCOL_VERSION);
-  const protocolVersion =
-    protocolVersionRaw !== null && protocolVersionRaw !== undefined
-      ? String(protocolVersionRaw).trim()
-      : undefined;
+  // Its own LAN session, or its gateway's for a Zigbee sub-device (#78),
+  // addressed by its node id.
+  const { sessionId, cid, ip: ipAddress, localKey, protocolVersion } = getLocalTransport(device);
   // Follow the same live "Mode local (LAN)" toggle as poll(): command a device
   // over the LAN only when the toggle is on AND the device is locally reachable.
   // Also honour the poll circuit breaker: if local polling parked this device
@@ -147,7 +142,7 @@ async function sendCommand(self, device, topic, command, value, { feedback = tru
   // session failure the command falls through to the shared cloud block.
   const hasSession = Boolean(
     self.localSessions &&
-    self.localSessions.has(topic) &&
+    self.localSessions.has(sessionId) &&
     typeof self.localSessionSet === 'function',
   );
   if (hasLocalConfig && localDps !== null && hasSession) {
@@ -156,13 +151,14 @@ async function sendCommand(self, device, topic, command, value, { feedback = tru
         // (Re)join the session first: a session that is reconnecting must not
         // be raced with a competing connect (single local slot).
         await self.ensureLocalSession({
-          deviceId: topic,
+          deviceId: sessionId,
           ip: ipAddress,
           localKey,
           protocolVersion,
+          ...(cid ? { cid } : {}),
         });
       }
-      const done = await self.localSessionSet(topic, localDps, value);
+      const done = await self.localSessionSet(sessionId, localDps, value, cid);
       if (done) {
         // No feedback poll here: the persistent session pushes the DPS
         // change (~1s) on its own.
@@ -180,7 +176,7 @@ async function sendCommand(self, device, topic, command, value, { feedback = tru
     const apiClasses = self.localApiClasses || localApiClasses;
     const TuyaLocalApi = isNewGenProtocol ? apiClasses.TuyAPINewGen : apiClasses.TuyAPI;
     const tuyaOptions = {
-      id: topic,
+      id: sessionId,
       key: localKey,
       ip: ipAddress,
       version: protocolVersion,
@@ -207,7 +203,8 @@ async function sendCommand(self, device, topic, command, value, { feedback = tru
         // Bound both steps: a stalled handshake (device slot held by another
         // controller) must fall back to the cloud, not hang the command.
         await withTimeout(tuyaLocal.connect(), 5000, 'Local set connect timeout');
-        await withTimeout(tuyaLocal.set({ dps: localDps, set: value }), 3000, 'Local set timeout');
+        const setOptions = cid ? { dps: localDps, set: value, cid } : { dps: localDps, set: value };
+        await withTimeout(tuyaLocal.set(setOptions), 3000, 'Local set timeout');
         logger.debug(`[Tuya][setValue][local] device=${topic} dps=${localDps} value=${value}`);
         return true;
       } catch (e) {
