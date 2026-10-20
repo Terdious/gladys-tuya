@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.31.2] - 2026-10-20
+
 ### Fixed
 
 - Zigbee local mode (#78): the motion of a Zigbee motion sensor, and the temperature / humidity of a Zigbee temperature sensor, were still read over the cloud (10–30 s late): their cloud model names these data points `pir_state`, `temp_current`, `humidity_value` while the features read `pir`, `va_temperature`, `va_humidity`. Both spellings now lead to the same local data point, so the gateway's instant reports reach these features.
