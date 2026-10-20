@@ -2,6 +2,7 @@
 
 import { convertFeature } from './tuya.convertFeature.js';
 import {
+  getCloudMapping,
   getDeviceType,
   getLocalMapping,
   getProductIdFromDevice,
@@ -34,17 +35,37 @@ export const getLocalDpsFromCode = (code, device) => {
 
   const normalized = normalizeCode(code);
 
+  const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
+
   // A gateway sub-device (#78) answers on the DP ids its own cloud model
   // declares: they win over the type mapping, which was read on Wi-Fi models.
   const dpsMap = getSubDeviceDpsMap(device);
   if (dpsMap) {
-    const match = Object.keys(dpsMap).find((key) => normalizeCode(key) === normalized);
-    if (match) {
-      return dpsMap[match];
+    const dpsOf = (wanted) => {
+      const match = Object.keys(dpsMap).find((key) => normalizeCode(key) === wanted);
+      return match ? dpsMap[match] : undefined;
+    };
+    // The model can name a DP after its other spelling: the field motion
+    // sensor's model declares DP 1 as `pir_state` while the feature reads
+    // `pir`, the temperature sensor `temp_current` for `va_temperature`. The
+    // mapping's `duplicateOf` pairs are those spellings, both ways.
+    const cloudMapping = getCloudMapping(deviceType, getProductIdFromDevice(device));
+    const ownEntry = cloudMapping[normalized];
+    const twins = [
+      ...(ownEntry && ownEntry.duplicateOf ? [normalizeCode(ownEntry.duplicateOf)] : []),
+      ...Object.keys(cloudMapping).filter((key) => {
+        const entry = cloudMapping[key];
+        return entry && entry.duplicateOf && normalizeCode(entry.duplicateOf) === normalized;
+      }),
+    ];
+    for (const candidate of [normalized, ...twins]) {
+      const dps = dpsOf(candidate);
+      if (dps !== undefined) {
+        return dps;
+      }
     }
   }
 
-  const deviceType = device && device.device_type ? device.device_type : getDeviceType(device);
   const localMapping = getLocalMapping(deviceType, getProductIdFromDevice(device));
 
   if (localMapping.dps && localMapping.dps[normalized] !== undefined) {

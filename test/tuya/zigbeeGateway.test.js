@@ -311,3 +311,52 @@ test('#78: "Detect local protocol" on a gateway probes a sub-device and updates 
     { deviceId: 'gw1', ip: '192.168.1.25', localKey: 'gwkey', cid: 'node-pir' },
   ]);
 });
+
+// Field report (1.31.1): the motion sensor's model names DP 1 `pir_state`
+// while the feature reads `pir`; the temperature sensor's names DP 1/2
+// `temp_current` / `humidity_value` for `va_temperature` / `va_humidity`.
+const subDevice = (deviceType, dpsMap) => ({
+  device_type: deviceType,
+  params: [
+    { name: DEVICE_PARAM_NAME.GATEWAY_ID, value: 'gw1' },
+    { name: DEVICE_PARAM_NAME.NODE_ID, value: 'node' },
+    { name: DEVICE_PARAM_NAME.DPS_MAP, value: JSON.stringify(dpsMap) },
+  ],
+});
+
+test('#78: a feature finds its DP under the other spelling of the same code', () => {
+  const pir = subDevice('motion-sensor', {
+    pir_state: 1,
+    battery_percentage: 4,
+    pir_sensitivity: 9,
+    pir_time: 10,
+    illuminance_value: 12,
+    interval_time: 102,
+  });
+  assert.equal(getLocalDpsFromCode('pir', pir), 1);
+  assert.equal(getLocalDpsFromCode('illuminance_value', pir), 12);
+  assert.equal(getLocalDpsFromCode('pir_time', pir), 10);
+
+  const sensor = subDevice('temperature-humidity-sensor', {
+    temp_current: 1,
+    humidity_value: 2,
+    battery_percentage: 4,
+  });
+  assert.equal(getLocalDpsFromCode('va_temperature', sensor), 1);
+  assert.equal(getLocalDpsFromCode('va_humidity', sensor), 2);
+  assert.equal(getLocalDpsFromCode('battery_percentage', sensor), 4);
+});
+
+test('#78: a pushed motion on DP 1 reaches the motion feature at once', async () => {
+  const { gladys, handler, log, plug, pir } = createGatewayHandler();
+  pir.params = pir.params.map((p) =>
+    p.name === DEVICE_PARAM_NAME.DPS_MAP
+      ? { ...p, value: JSON.stringify({ pir_state: 1, battery_percentage: 4 }) }
+      : p,
+  );
+  await handler.poll(plug);
+  const [api] = log.instances;
+  api.emit('data', { dps: { 1: 'pir' }, cid: 'node-pir' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(publishedState(gladys, pir, 'pir'), 1);
+});
