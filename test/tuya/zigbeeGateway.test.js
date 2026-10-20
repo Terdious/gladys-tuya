@@ -97,6 +97,29 @@ test('#78: a sub-device takes the LAN identity of its gateway, and its node id',
   assert.equal(unlinked.ip, undefined);
 });
 
+test('#78: a later discovery keeps the gateway identity the created sub-devices carry', () => {
+  // The gateway is neither created in Gladys nor seen by the scan: only the
+  // created sub-devices still know its IP / protocol (enrichFromCreatedDevices
+  // put them back on the raw sub-devices). Their key must stay the gateway's.
+  const restored = [GATEWAY, { ...PLUG, ip: '192.168.1.25', protocol_version: '3.3' }, PIR];
+  const [gateway, plug, pir] = applyGatewayLinks(restored, true);
+  assert.equal(gateway.ip, '192.168.1.25');
+  assert.equal(gateway.protocol_version, '3.3');
+  for (const child of [plug, pir]) {
+    assert.equal(child.ip, '192.168.1.25');
+    assert.equal(child.protocol_version, '3.3');
+    assert.equal(child.gateway_local_key, 'gwkey');
+    assert.equal(child.local_override, true);
+  }
+  // Even with no LAN identity anywhere, a sub-device never stores its own key.
+  const [, alone] = applyGatewayLinks([GATEWAY, PLUG], true);
+  assert.equal(alone.gateway_local_key, 'gwkey');
+  assert.equal(
+    convertDevice(createFakeGladys(), alone).params.find((p) => p.name === 'LOCAL_KEY').value,
+    'gwkey',
+  );
+});
+
 test('#78: the cloud DP ids come from the specification, the shadow and the thing model', () => {
   assert.deepEqual(
     extractDpIds({
