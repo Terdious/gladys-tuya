@@ -10,6 +10,8 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+## [1.31.1] - 2026-10-20
+
 ### Fixed
 
 - Zigbee local mode (#78): a scan run after "Detect local protocol" could strip the Zigbee devices of their gateway's IP / protocol and store their own local key instead of the gateway's, when the gateway is neither created in Gladys nor seen by the LAN scan. The gateway's LAN identity is now recovered from its created devices, and a Zigbee device always keeps its gateway's key. Each Zigbee device logs its first local read through the gateway (success or failure).
