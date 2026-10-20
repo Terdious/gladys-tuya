@@ -80,35 +80,65 @@ export const extractDpIds = (raw) => {
  * protocol from the scan or a detection, the gateway's local key) and its
  * node id. A sub-device whose gateway has no LAN identity yet keeps its link
  * (shown by the diagnostic) and stays on the cloud.
- * @param {Array} tuyaDevices - Raw Tuya devices (after the scan merge).
+ *
+ * The gateway is often never created in Gladys (it has no feature) and the
+ * UDP scan may not see it (#78: no broadcast reaches the container): its LAN
+ * identity then only survives on its created sub-devices, whose stored IP /
+ * protocol `enrichFromCreatedDevices` put back on them. It is recovered from
+ * them, so a later discovery never strips the sub-devices of their local mode
+ * — and their key is ALWAYS the gateway's: their own is refused on the LAN.
+ * @param {Array} tuyaDevices - Raw Tuya devices (after the scan merge and
+ * the created-devices enrichment).
  * @param {boolean} [localMode] - Whether the user enabled local mode.
- * @returns {Array} The raw devices, sub-devices linked.
+ * @returns {Array} The raw devices, gateways and sub-devices linked.
  * @example
  * tuyaDevices = applyGatewayLinks(tuyaDevices, config.localMode);
  */
 export function applyGatewayLinks(tuyaDevices, localMode = false) {
   const devices = Array.isArray(tuyaDevices) ? tuyaDevices : [];
   const byId = new Map(devices.map((raw) => [raw && raw.id, raw]));
+
+  // The LAN identity of each gateway: its own, else one a sub-device kept.
+  const lanByGateway = new Map();
+  devices.forEach((raw) => {
+    const link = getGatewayLink(raw);
+    if (!link || lanByGateway.has(link.gatewayId)) {
+      return;
+    }
+    const gateway = byId.get(link.gatewayId);
+    if (gateway && gateway.ip && gateway.protocol_version) {
+      lanByGateway.set(link.gatewayId, { ip: gateway.ip, version: gateway.protocol_version });
+    } else if (raw.ip && raw.protocol_version) {
+      lanByGateway.set(link.gatewayId, { ip: raw.ip, version: raw.protocol_version });
+    }
+  });
+
   return devices.map((raw) => {
     const link = getGatewayLink(raw);
     if (!link) {
-      return raw;
+      const lan = raw && lanByGateway.get(raw.id);
+      // A gateway that got its LAN identity back from its sub-devices.
+      return lan && !(raw.ip && raw.protocol_version)
+        ? { ...raw, ip: lan.ip, protocol_version: lan.version }
+        : raw;
     }
     const gateway = byId.get(link.gatewayId);
+    const lan = lanByGateway.get(link.gatewayId);
     const linked = {
       ...raw,
       gateway_id: link.gatewayId,
       node_id: link.nodeId,
       dp_ids: extractDpIds(raw),
+      // Never the sub-device's own key on the LAN, even without an IP yet.
+      ...(gateway && gateway.local_key ? { gateway_local_key: gateway.local_key } : {}),
     };
-    if (!gateway || !gateway.ip || !gateway.protocol_version || !gateway.local_key) {
+    if (!lan || !linked.gateway_local_key) {
       return linked;
     }
     return {
       ...linked,
-      ip: gateway.ip,
-      protocol_version: gateway.protocol_version,
-      gateway_local_key: gateway.local_key,
+      ip: lan.ip,
+      protocol_version: lan.version,
       local_override: localMode === true,
     };
   });

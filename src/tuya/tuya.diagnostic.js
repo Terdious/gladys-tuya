@@ -185,7 +185,7 @@ export async function describeGatewayLink(self, rawDevice, category) {
     // #78: the sub-device is local once its gateway has a LAN identity.
     lines.push(
       `  local through the gateway: ${
-        rawDevice.gateway_local_key && rawDevice.protocol_version
+        rawDevice.gateway_local_key && rawDevice.ip && rawDevice.protocol_version
           ? `ready (protocol ${rawDevice.protocol_version})`
           : 'not yet (the gateway has no IP/protocol: LAN scan, or "Detect local protocol" on the gateway)'
       }`,

@@ -337,6 +337,21 @@ export async function localRead(payload) {
   }
 }
 
+// The first outcome of each kind per node, at info level: what a user
+// reports when a Zigbee device does not go local, without flooding the logs.
+const logSubDeviceRead = (session, cid, outcome) => {
+  const kind = outcome.startsWith('read OK') ? 'ok' : 'failed';
+  session.loggedCidOutcomes = session.loggedCidOutcomes || new Set();
+  const key = `${cid}:${kind}`;
+  if (session.loggedCidOutcomes.has(key)) {
+    return;
+  }
+  session.loggedCidOutcomes.add(key);
+  logger.info(
+    `[Tuya][localSession] gateway=${session.deviceId} (${session.protocolVersion}) sub-device cid=${cid}: ${outcome}`,
+  );
+};
+
 // Read one sub-device through its gateway session (#78): the fresh pushed
 // cache of its node, else an active read addressed with its `cid`.
 async function readSubDevice(session, cid) {
@@ -360,8 +375,10 @@ async function readSubDevice(session, cid) {
       );
     }
     mergeCidDps(session, cid, data.dps);
+    logSubDeviceRead(session, cid, `read OK (${Object.keys(data.dps).length} DPS)`);
     return { dps: data.dps };
   } catch (e) {
+    logSubDeviceRead(session, cid, `read failed: ${e.message}`);
     // A sleeping battery sensor never answers a read, but the gateway pushes
     // its reports: serve them while recent. The gateway session itself stays
     // open — its other sub-devices use it.
