@@ -83,6 +83,13 @@ export const FEATURE_NAMES_FR = {
   'Reverse energy B': 'Énergie exportée B',
   'Reverse energy total': 'Énergie exportée totale',
 
+  // --- Coop door (coopDoor.js) ---------------------------------------------
+  Door: 'Porte',
+  'Scheduled opening': 'Ouverture programmée',
+  'Scheduled closing': 'Fermeture programmée',
+  'Light sensor mode': 'Mode capteur de lumière',
+  'Signal strength': 'Force du signal',
+
   // --- Motion sensor (motionSensor.js) -------------------------------------
   Illuminance: 'Luminosité',
   'Hold time': 'Durée de maintien',
