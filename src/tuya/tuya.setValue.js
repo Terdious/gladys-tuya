@@ -13,6 +13,7 @@ import {
 import { API } from './constants.js';
 import {
   CAMERA_MOVE,
+  COVER_STATE,
   TUYA_PTZ_DIRECTION_BY_MOVE,
   writeValues,
 } from './device/tuya.deviceMapping.js';
@@ -78,6 +79,26 @@ export async function setValue(device, deviceFeature, value) {
     deviceFeature.type === DEVICE_FEATURE_TYPES.CAMERA.MOVE
   ) {
     await movePtz(this, device, topic, value);
+    return;
+  }
+
+  // A door whose state is read on one code but driven by two command codes
+  // (`coverCommands`, e.g. the chicken coop door's gate_state / open / close):
+  // the Gladys open / close sends `true` to the matching command code.
+  const coverEntry = resolveFeatureMappingEntry(device, command);
+  if (coverEntry && coverEntry.coverCommands) {
+    const target =
+      Number(value) === COVER_STATE.OPEN
+        ? coverEntry.coverCommands.open
+        : Number(value) === COVER_STATE.CLOSE
+          ? coverEntry.coverCommands.close
+          : coverEntry.coverCommands.stop;
+    if (!target) {
+      throw new Error(
+        `Tuya: value "${value}" is not supported for command "${command}" on device "${topic}"`,
+      );
+    }
+    await sendCommand(this, device, topic, target, true);
     return;
   }
 

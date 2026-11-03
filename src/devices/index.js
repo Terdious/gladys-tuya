@@ -25,6 +25,7 @@ import { temperatureHumiditySensor } from './temperatureHumiditySensor.js';
 import { waterPurifier } from './waterPurifier.js';
 import { waterValve } from './waterValve.js';
 import { motionSensor } from './motionSensor.js';
+import { coopDoor } from './coopDoor.js';
 import { smartSocket } from './smartSocket.js';
 import { smartMeter } from './smartMeter.js';
 import { threePhaseMeter } from './threePhaseMeter.js';
@@ -51,6 +52,7 @@ export const DEVICE_TYPE_DEFINITIONS = [
   waterPurifier,
   waterValve,
   motionSensor,
+  coopDoor,
   smartSocket,
   smartMeter,
   threePhaseMeter,

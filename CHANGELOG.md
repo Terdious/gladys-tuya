@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Chicken coop doors (e.g. "Chicken Coop Door 2", forum request): the door as one feature — open / close from Gladys and its position (`gate_state`, driven by the `open` / `close` commands) — scheduled opening and closing on/off, light sensor mode, battery, signal strength, over the cloud. A door already created (as an unknown device, with no feature) gets them with the **Update** button of the Discover tab, or by deleting and re-creating it.
+
 ## [1.31.2] - 2026-10-20
 
 ### Fixed

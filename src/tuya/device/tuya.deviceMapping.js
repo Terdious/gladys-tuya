@@ -786,6 +786,13 @@ export const readValues = {
         : null;
     },
   },
+  // Signal strength of a battery device, in percent.
+  [DEVICE_FEATURE_CATEGORIES.SIGNAL]: {
+    [DEVICE_FEATURE_TYPES.SIGNAL.QUALITY]: (valueFromDevice, deviceFeature) => {
+      const parsedValue = scaleValue(valueFromDevice, deviceFeature, 0);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    },
+  },
   [DEVICE_FEATURE_CATEGORIES.OPENING_SENSOR]: {
     [DEVICE_FEATURE_TYPES.SENSOR.BINARY]: (valueFromDevice) => {
       return normalizeBoolean(valueFromDevice)
@@ -946,7 +953,12 @@ export const readValues = {
     },
   },
   [DEVICE_FEATURE_CATEGORIES.CURTAIN]: {
-    [DEVICE_FEATURE_TYPES.CURTAIN.STATE]: (valueFromDevice) => {
+    [DEVICE_FEATURE_TYPES.CURTAIN.STATE]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      // A door reporting its position as a boolean (`booleanState`: true =
+      // open, the Tuya convention), e.g. the chicken coop door's gate_state.
+      if (mappingEntry && mappingEntry.booleanState) {
+        return normalizeBoolean(valueFromDevice) ? COVER_STATE.OPEN : COVER_STATE.CLOSE;
+      }
       if (valueFromDevice === OPEN) {
         return COVER_STATE.OPEN;
       }
