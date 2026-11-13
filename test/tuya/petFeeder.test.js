@@ -6,6 +6,7 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 import { TuyaHandler } from '../../src/tuya/handler.js';
 import { convertDevice } from '../../src/tuya/device/tuya.convertDevice.js';
 import { getLocalDpsFromCode } from '../../src/tuya/device/tuya.localMapping.js';
+import { readValues } from '../../src/tuya/device/tuya.deviceMapping.js';
 import { getDeviceType, DEVICE_TYPES } from '../../src/tuya/mappings/index.js';
 import { DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
@@ -69,10 +70,11 @@ test('convertDevice maps the supported feeder features', () => {
   assert.equal(byCode.light.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
   assert.equal(byCode.battery_percentage.category, DEVICE_FEATURE_CATEGORIES.BATTERY);
 
-  // The raw schedule and the enum state stay out until they have a real mapping.
+  // The raw schedule stays out until it has a real mapping.
   assert.deepEqual(Object.keys(byCode).sort(), [
     'battery_percentage',
     'feed_report',
+    'feed_state',
     'light',
     'manual_feed',
     'slow_feed',
@@ -196,6 +198,7 @@ test('the F14-W variant codes map alongside the standard ones', () => {
     'battery_alarm',
     'battery_val',
     'feed_record',
+    'feed_state',
     'manual_feed',
     'meal_plan_num',
   ]);
@@ -299,4 +302,17 @@ test('the WIFI Pet Feeder Feed button sends one portion over the LAN, without th
 
   await handler.setValue(WIFI_FEEDER_DEVICE, WIFI_FEEDER_DEVICE.features[0], 1);
   assert.deepEqual(log, [{ dps: 3, set: 1 }]);
+});
+
+test('feed_state is published as 1 while feeding and 0 on standby, so a scene can see every meal', () => {
+  const device = convertDevice(gladys, FEEDER_DEVICE);
+  const feature = device.features.find((f) => f.external_id.endsWith(':feed_state'));
+  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR);
+  assert.equal(feature.type, DEVICE_FEATURE_TYPES.SENSOR.INTEGER);
+  const read = readValues[feature.category][feature.type];
+  const entry = { tuyaEnum: { standby: 0, feeding: 1 } };
+  assert.equal(read('feeding', feature, entry), 1);
+  assert.equal(read('standby', feature, entry), 0);
+  // Outside the vocabulary: nothing rather than a wrong state.
+  assert.equal(read('jammed', feature, entry), null);
 });

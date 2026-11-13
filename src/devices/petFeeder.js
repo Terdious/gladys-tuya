@@ -30,9 +30,6 @@ const cloudMapping = {
   ignoredCodes: [
     // Feeding schedule: a raw (base64) payload, no Gladys feature type fits.
     'meal_plan',
-    // Enum status (standby/feeding): needs a dedicated enum transform, and the
-    // feed report already tells when a meal was served.
-    'feed_state',
     // Voice recording settings, one-shot commands and charge state: no clean
     // feature type, or no value for the user.
     'voice_times',
@@ -62,6 +59,18 @@ const cloudMapping = {
     name: 'Last amount fed',
     category: DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR,
     type: DEVICE_FEATURE_TYPES.SENSOR.INTEGER,
+  },
+  // 1 while a meal is being served, 0 otherwise. Unlike the feed report (the
+  // same value for two identical meals in a row, and re-published unchanged
+  // every few minutes), it changes at every meal: what a scene checking that
+  // a scheduled meal really happened can trigger on.
+  feed_state: {
+    name: 'Feeding',
+    category: DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR,
+    type: DEVICE_FEATURE_TYPES.SENSOR.INTEGER,
+    min: 0,
+    max: 1,
+    tuyaEnum: { standby: 0, feeding: 1 },
   },
   slow_feed: {
     name: 'Slow feed',
@@ -137,9 +146,8 @@ const cloudMapping = {
 // is a command DP that never appears in a read: it keeps going through the
 // cloud. Any code absent here simply falls back to the cloud.
 //
-// `feed_state` and `meal_plan2` are declared even though both codes are
-// currently ignored: they document the layout of this model for the day one of
-// them gets a feature.
+// `meal_plan2` is declared even though the code is currently ignored: it
+// documents the layout of this model for the day it gets a feature.
 //
 // These indexes come from one product id (the only pet feeder known to this
 // integration). A second model with a different layout gets its own VARIANT
