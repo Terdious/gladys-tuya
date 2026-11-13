@@ -10,6 +10,11 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Local mode for the "WIFI Pet Feeder" (product `ydh1rntzefr5jath`, protocol 3.3): the **Feed** button, the feeding state and the last amount fed now go over the LAN (data points 3, 4 and 15, from the cloud model of a real device). Factory reset (data point 9) stays out of reach. Run **Detect local protocol** with the feeder IP if it still shows a Cloud badge.
+- Pet feeders: new **Feeding** feature (`feed_state`), 1 while a meal is served and 0 otherwise. It changes at every meal, unlike **Last amount fed** (same value for two identical meals in a row), so a scene can check that a scheduled meal really happened. It is published on change only (no periodic re-publication of the same value), so its last change date in Gladys is the end of the last meal. A feeder already created gets it with the **Update** button of the Discover tab.
+
 ## [1.32.0] - 2026-11-03
 
 ### Added

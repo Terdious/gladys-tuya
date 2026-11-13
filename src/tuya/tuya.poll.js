@@ -206,6 +206,9 @@ const toTimestamp = (value) => {
  * @param {number} transformedValue - The value read from the device.
  * @param {number} previousValue - The last known value.
  * @param {string|Date} previousValueChangedAt - When the last value was emitted.
+ * @param {object} [mappingEntry] - The mapping entry: `changesOnly` turns the
+ * same-value re-publication off, so the feature's last change date in Gladys
+ * stays the date of the last real change (pet feeder `feed_state`).
  * @returns {object} Emitted/changed flags.
  * @example
  * emitFeatureState(this, deviceFeature, 1, 0, undefined);
@@ -217,6 +220,7 @@ const emitFeatureState = (
   transformedValue,
   previousValue,
   previousValueChangedAt,
+  mappingEntry,
 ) => {
   if (transformedValue === null || transformedValue === undefined) {
     return { emitted: false, changed: false };
@@ -234,7 +238,7 @@ const emitFeatureState = (
   const changed = previousValue !== transformedValue;
   let emitted = changed;
 
-  if (!emitted) {
+  if (!emitted && !(mappingEntry && mappingEntry.changesOnly)) {
     const lastValueChangedTs = toTimestamp(previousValueChangedAt);
     const now = Date.now();
     if (lastValueChangedTs === null || now - lastValueChangedTs >= SAME_VALUE_EMIT_INTERVAL_MS) {
@@ -559,6 +563,7 @@ export async function pollCloudFeatures(self, device, deviceFeatures, topic, pen
       transformedValue,
       lastValue,
       lastValueChanged,
+      mappingEntry,
     );
     if (changed) {
       summary.changed += 1;
@@ -776,6 +781,7 @@ export function emitLocalDpsStates(self, device, dps, pending) {
       transformedValue,
       lastValue,
       lastValueChanged,
+      mappingEntry,
     );
     if (changed) {
       localChanged += 1;
@@ -837,6 +843,7 @@ export function emitCloudCodeStates(self, device, values, pending = []) {
       transformedValue,
       lastValue,
       lastValueChanged,
+      mappingEntry,
     );
     handled += 1;
     if (emitResult.changed) {

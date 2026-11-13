@@ -47,6 +47,7 @@ export const FEATURE_NAMES_DE = {
   // --- Pet feeder (petFeeder.js) --------------------------------------------
   Feed: 'Füttern',
   'Last amount fed': 'Zuletzt ausgegebene Menge',
+  Feeding: 'Fütterung läuft',
   'Slow feed': 'Langsames Füttern',
   Light: 'Licht',
   Battery: 'Batterie',

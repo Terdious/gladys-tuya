@@ -887,8 +887,15 @@ export const readValues = {
   [DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR]: {
     // Plain counters (e.g. the pet feeder's last amount fed): the raw value,
     // scale-aware like every other numeric sensor. A mapping declaring
-    // `jsonValueKey` first extracts that key from a compound record.
+    // `jsonValueKey` first extracts that key from a compound record; one
+    // declaring `tuyaEnum` translates an enum status (pet feeder `feed_state`),
+    // a value outside the vocabulary publishing nothing.
     [DEVICE_FEATURE_TYPES.SENSOR.INTEGER]: (valueFromDevice, deviceFeature, mappingEntry) => {
+      const tuyaEnum = mappingEntry && mappingEntry.tuyaEnum;
+      if (tuyaEnum && typeof tuyaEnum === 'object') {
+        const key = typeof valueFromDevice === 'string' ? valueFromDevice.trim().toLowerCase() : '';
+        return Object.prototype.hasOwnProperty.call(tuyaEnum, key) ? tuyaEnum[key] : null;
+      }
       const rawValue = unwrapRecordValue(valueFromDevice, mappingEntry);
       return rawValue === null ? null : scaleValue(rawValue, deviceFeature, 0);
     },

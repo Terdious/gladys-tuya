@@ -6,6 +6,7 @@ import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '@gladysassistan
 import { TuyaHandler } from '../../src/tuya/handler.js';
 import { convertDevice } from '../../src/tuya/device/tuya.convertDevice.js';
 import { getLocalDpsFromCode } from '../../src/tuya/device/tuya.localMapping.js';
+import { readValues } from '../../src/tuya/device/tuya.deviceMapping.js';
 import { getDeviceType, DEVICE_TYPES } from '../../src/tuya/mappings/index.js';
 import { DEVICE_PARAM_NAME } from '../../src/tuya/constants.js';
 import { createFakeGladys } from '../helpers/fakeGladys.js';
@@ -69,10 +70,11 @@ test('convertDevice maps the supported feeder features', () => {
   assert.equal(byCode.light.category, DEVICE_FEATURE_CATEGORIES.SWITCH);
   assert.equal(byCode.battery_percentage.category, DEVICE_FEATURE_CATEGORIES.BATTERY);
 
-  // The raw schedule and the enum state stay out until they have a real mapping.
+  // The raw schedule stays out until it has a real mapping.
   assert.deepEqual(Object.keys(byCode).sort(), [
     'battery_percentage',
     'feed_report',
+    'feed_state',
     'light',
     'manual_feed',
     'slow_feed',
@@ -196,6 +198,7 @@ test('the F14-W variant codes map alongside the standard ones', () => {
     'battery_alarm',
     'battery_val',
     'feed_record',
+    'feed_state',
     'manual_feed',
     'meal_plan_num',
   ]);
@@ -245,4 +248,109 @@ test('the F14-W LAN mapping resolves the read-only DPS, leaving the ambiguous on
   assert.equal(getLocalDpsFromCode('vip_alarm', device), null);
   // Command DP: never reported in a read, stays on the cloud.
   assert.equal(getLocalDpsFromCode('manual_feed', device), null);
+});
+
+// "WIFI Pet Feeder" (product ydh1rntzefr5jath): DP ids from the cloud
+// model of a real device, local status {"3":2,"4":"standby","9":false,"14":0,"15":2}.
+const WIFI_FEEDER_DEVICE = {
+  external_id: 'ext:tuya:device:wififeeder1',
+  device_type: DEVICE_TYPES.PET_FEEDER,
+  params: [
+    { name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'wififeeder1' },
+    { name: DEVICE_PARAM_NAME.PRODUCT_ID, value: 'ydh1rntzefr5jath' },
+    { name: DEVICE_PARAM_NAME.IP_ADDRESS, value: '192.168.1.199' },
+    { name: DEVICE_PARAM_NAME.LOCAL_KEY, value: 'lk' },
+    { name: DEVICE_PARAM_NAME.PROTOCOL_VERSION, value: '3.3' },
+    { name: DEVICE_PARAM_NAME.LOCAL_OVERRIDE, value: true },
+  ],
+  features: [
+    {
+      external_id: 'ext:tuya:device:wififeeder1:manual_feed',
+      category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+      type: DEVICE_FEATURE_TYPES.BUTTON.PUSH,
+    },
+  ],
+};
+
+test('the WIFI Pet Feeder LAN mapping resolves Feed, state and report, never factory_reset', () => {
+  assert.equal(getLocalDpsFromCode('manual_feed', WIFI_FEEDER_DEVICE), 3);
+  assert.equal(getLocalDpsFromCode('feed_state', WIFI_FEEDER_DEVICE), 4);
+  assert.equal(getLocalDpsFromCode('feed_report', WIFI_FEEDER_DEVICE), 15);
+  // DP 9 resets the device: never reachable from Gladys.
+  assert.equal(getLocalDpsFromCode('factory_reset', WIFI_FEEDER_DEVICE), null);
+  assert.equal(getLocalDpsFromCode('meal_plan', WIFI_FEEDER_DEVICE), null);
+});
+
+test('the WIFI Pet Feeder Feed button sends one portion over the LAN, without the cloud', async () => {
+  const handler = new TuyaHandler(createFakeGladys());
+  handler.config = { localMode: true };
+  const log = [];
+  class FakeLocalApi {
+    on() {}
+    async connect() {}
+    async set(payload) {
+      log.push(payload);
+    }
+    async disconnect() {}
+  }
+  handler.localApiClasses = { TuyAPI: FakeLocalApi, TuyAPINewGen: FakeLocalApi };
+  handler.connector = {
+    request: async () => {
+      throw new Error('cloud must not be called');
+    },
+  };
+
+  await handler.setValue(WIFI_FEEDER_DEVICE, WIFI_FEEDER_DEVICE.features[0], 1);
+  assert.deepEqual(log, [{ dps: 3, set: 1 }]);
+});
+
+test('feed_state is published as 1 while feeding and 0 on standby, so a scene can see every meal', () => {
+  const device = convertDevice(gladys, FEEDER_DEVICE);
+  const feature = device.features.find((f) => f.external_id.endsWith(':feed_state'));
+  assert.equal(feature.category, DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR);
+  assert.equal(feature.type, DEVICE_FEATURE_TYPES.SENSOR.INTEGER);
+  const read = readValues[feature.category][feature.type];
+  const entry = { tuyaEnum: { standby: 0, feeding: 1 } };
+  assert.equal(read('feeding', feature, entry), 1);
+  assert.equal(read('standby', feature, entry), 0);
+  // Outside the vocabulary: nothing rather than a wrong state.
+  assert.equal(read('jammed', feature, entry), null);
+});
+
+test('feed_state is published on change only: its last change date is the last meal, unlike the feed report heartbeat', async () => {
+  const fake = createFakeGladys();
+  const handler = new TuyaHandler(fake);
+  const converted = convertDevice(fake, FEEDER_DEVICE);
+  const device = {
+    external_id: converted.external_id,
+    device_type: converted.device_type,
+    features: converted.features,
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'feeder1' }],
+  };
+  let state = 'feeding';
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'feed_report', value: 2 },
+        { code: 'feed_state', value: state },
+      ],
+    }),
+  };
+  const published = (code) =>
+    fake.published.filter((p) => p.featureExternalId.endsWith(`:${code}`)).map((p) => p.state);
+
+  await handler.poll(device);
+  state = 'standby';
+  await handler.poll(device);
+  assert.deepEqual(published('feed_state'), [1, 0]);
+
+  // Long after, the same values again: the feed report is re-published
+  // (heartbeat), the feeding state is not.
+  for (const s of handler.featureStates.values()) {
+    s.lastValueChanged = new Date(Date.now() - 60 * 60 * 1000);
+  }
+  await handler.poll(device);
+  assert.deepEqual(published('feed_state'), [1, 0]);
+  assert.equal(published('feed_report').length, 2);
 });
