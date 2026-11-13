@@ -10,6 +10,10 @@ it as the GitHub Release notes — it refuses to release when Unreleased is empt
 
 ## [Unreleased]
 
+### Added
+
+- Local mode for the "WIFI Pet Feeder" (product `ydh1rntzefr5jath`, protocol 3.3): the **Feed** button, the feeding state and the last amount fed now go over the LAN (data points 3, 4 and 15, from the cloud model of a real device). Factory reset (data point 9) stays out of reach. Run **Detect local protocol** with the feeder IP if it still shows a Cloud badge.
+
 ## [1.32.0] - 2026-11-03
 
 ### Added

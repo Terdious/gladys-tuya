@@ -246,3 +246,57 @@ test('the F14-W LAN mapping resolves the read-only DPS, leaving the ambiguous on
   // Command DP: never reported in a read, stays on the cloud.
   assert.equal(getLocalDpsFromCode('manual_feed', device), null);
 });
+
+// "WIFI Pet Feeder" (product ydh1rntzefr5jath): DP ids from the cloud
+// model of a real device, local status {"3":2,"4":"standby","9":false,"14":0,"15":2}.
+const WIFI_FEEDER_DEVICE = {
+  external_id: 'ext:tuya:device:wififeeder1',
+  device_type: DEVICE_TYPES.PET_FEEDER,
+  params: [
+    { name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'wififeeder1' },
+    { name: DEVICE_PARAM_NAME.PRODUCT_ID, value: 'ydh1rntzefr5jath' },
+    { name: DEVICE_PARAM_NAME.IP_ADDRESS, value: '192.168.1.199' },
+    { name: DEVICE_PARAM_NAME.LOCAL_KEY, value: 'lk' },
+    { name: DEVICE_PARAM_NAME.PROTOCOL_VERSION, value: '3.3' },
+    { name: DEVICE_PARAM_NAME.LOCAL_OVERRIDE, value: true },
+  ],
+  features: [
+    {
+      external_id: 'ext:tuya:device:wififeeder1:manual_feed',
+      category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+      type: DEVICE_FEATURE_TYPES.BUTTON.PUSH,
+    },
+  ],
+};
+
+test('the WIFI Pet Feeder LAN mapping resolves Feed, state and report, never factory_reset', () => {
+  assert.equal(getLocalDpsFromCode('manual_feed', WIFI_FEEDER_DEVICE), 3);
+  assert.equal(getLocalDpsFromCode('feed_state', WIFI_FEEDER_DEVICE), 4);
+  assert.equal(getLocalDpsFromCode('feed_report', WIFI_FEEDER_DEVICE), 15);
+  // DP 9 resets the device: never reachable from Gladys.
+  assert.equal(getLocalDpsFromCode('factory_reset', WIFI_FEEDER_DEVICE), null);
+  assert.equal(getLocalDpsFromCode('meal_plan', WIFI_FEEDER_DEVICE), null);
+});
+
+test('the WIFI Pet Feeder Feed button sends one portion over the LAN, without the cloud', async () => {
+  const handler = new TuyaHandler(createFakeGladys());
+  handler.config = { localMode: true };
+  const log = [];
+  class FakeLocalApi {
+    on() {}
+    async connect() {}
+    async set(payload) {
+      log.push(payload);
+    }
+    async disconnect() {}
+  }
+  handler.localApiClasses = { TuyAPI: FakeLocalApi, TuyAPINewGen: FakeLocalApi };
+  handler.connector = {
+    request: async () => {
+      throw new Error('cloud must not be called');
+    },
+  };
+
+  await handler.setValue(WIFI_FEEDER_DEVICE, WIFI_FEEDER_DEVICE.features[0], 1);
+  assert.deepEqual(log, [{ dps: 3, set: 1 }]);
+});

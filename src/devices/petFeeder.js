@@ -156,6 +156,24 @@ const localMapping = {
   },
 };
 
+// LAN mapping of the "WIFI Pet Feeder" (product id
+// ydh1rntzefr5jath, protocol 3.3). DP ids from the cloud model of a real
+// device (functions/status `dp_id`), cross-checked with a local status read:
+// {"3":2,"4":"standby","9":false,"14":0,"15":2}. `manual_feed` (DP 3) is
+// writable locally, so the Feed button no longer needs the cloud. DP 9 is
+// `factory_reset` and DP 14 is undeclared: neither is mapped. `meal_plan`
+// (DP 1, raw) stays out, as on the family mapping.
+const wifiPetFeederLocalMapping = {
+  strict: true,
+  ignoredDps: [],
+  codeAliases: {},
+  dps: {
+    manual_feed: 3,
+    feed_state: 4,
+    feed_report: 15,
+  },
+};
+
 export const petFeeder = {
   DEVICE_TYPE_NAME: 'pet-feeder',
   CATEGORIES: new Set(['cwwsq']),
@@ -164,4 +182,12 @@ export const petFeeder = {
   REQUIRED_CODES: PET_FEEDER_CODES,
   CLOUD_MAPPINGS: cloudMapping,
   LOCAL_MAPPINGS: localMapping,
+  // Same cloud codes as the family; only the LAN layout differs.
+  VARIANTS: [
+    {
+      VARIANT_NAME: 'wifi-pet-feeder',
+      PRODUCT_IDS: new Set(['ydh1rntzefr5jath']),
+      LOCAL_MAPPINGS: wifiPetFeederLocalMapping,
+    },
+  ],
 };
