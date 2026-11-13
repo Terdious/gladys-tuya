@@ -316,3 +316,41 @@ test('feed_state is published as 1 while feeding and 0 on standby, so a scene ca
   // Outside the vocabulary: nothing rather than a wrong state.
   assert.equal(read('jammed', feature, entry), null);
 });
+
+test('feed_state is published on change only: its last change date is the last meal, unlike the feed report heartbeat', async () => {
+  const fake = createFakeGladys();
+  const handler = new TuyaHandler(fake);
+  const converted = convertDevice(fake, FEEDER_DEVICE);
+  const device = {
+    external_id: converted.external_id,
+    device_type: converted.device_type,
+    features: converted.features,
+    params: [{ name: DEVICE_PARAM_NAME.DEVICE_ID, value: 'feeder1' }],
+  };
+  let state = 'feeding';
+  handler.connector = {
+    request: async () => ({
+      success: true,
+      result: [
+        { code: 'feed_report', value: 2 },
+        { code: 'feed_state', value: state },
+      ],
+    }),
+  };
+  const published = (code) =>
+    fake.published.filter((p) => p.featureExternalId.endsWith(`:${code}`)).map((p) => p.state);
+
+  await handler.poll(device);
+  state = 'standby';
+  await handler.poll(device);
+  assert.deepEqual(published('feed_state'), [1, 0]);
+
+  // Long after, the same values again: the feed report is re-published
+  // (heartbeat), the feeding state is not.
+  for (const s of handler.featureStates.values()) {
+    s.lastValueChanged = new Date(Date.now() - 60 * 60 * 1000);
+  }
+  await handler.poll(device);
+  assert.deepEqual(published('feed_state'), [1, 0]);
+  assert.equal(published('feed_report').length, 2);
+});

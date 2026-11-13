@@ -63,7 +63,8 @@ const cloudMapping = {
   // 1 while a meal is being served, 0 otherwise. Unlike the feed report (the
   // same value for two identical meals in a row, and re-published unchanged
   // every few minutes), it changes at every meal: what a scene checking that
-  // a scheduled meal really happened can trigger on.
+  // a scheduled meal really happened can trigger on. Published on change only:
+  // its last change date in Gladys is then the end of the last meal.
   feed_state: {
     name: 'Feeding',
     category: DEVICE_FEATURE_CATEGORIES.COUNTER_SENSOR,
@@ -71,6 +72,7 @@ const cloudMapping = {
     min: 0,
     max: 1,
     tuyaEnum: { standby: 0, feeding: 1 },
+    changesOnly: true,
   },
   slow_feed: {
     name: 'Slow feed',
